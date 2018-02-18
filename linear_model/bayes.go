@@ -4,35 +4,28 @@ import (
 	"fmt"
 	"github.com/gonum/floats"
 	"github.com/gonum/stat"
+	"github.com/pa-m/sklearn/base"
 	"gonum.org/v1/gonum/mat"
 	"math"
 )
 
-type LinearModel struct {
-	X_offset_, X_scale_ []float
-	Coef_               []float
-	Intercept_          float
-	FitIntercept        bool
-}
-type RegressorMixin struct{}
-
-type float = float64
-
 type BayesianRidge struct {
 	LinearModel
-	RegressorMixin
+	base.RegressorMixin
 	N_iter                                    int
 	Tol, Alpha_1, Alpha_2, Lambda_1, Lambda_2 float
-	ComputeScore, Normalize, Copy_X, Verbose  bool
+	ComputeScore, Copy_X, Verbose             bool
 	Alpha_, Lambda_                           float
 	Sigma_                                    []float
 	Scores_                                   []float
 }
 
 func NewBayesianRidge() *BayesianRidge {
-	return &BayesianRidge{LinearModel: LinearModel{FitIntercept: true}, RegressorMixin: RegressorMixin{}, N_iter: 300, Tol: 1e-3, Alpha_1: 1e-6, Alpha_2: 1e-6,
-		Lambda_1: 1e-6, Lambda_2: 1e-6, ComputeScore: false, Normalize: false, Copy_X: true, Verbose: false,
+	self := &BayesianRidge{LinearModel: LinearModel{FitIntercept: true, Copy_X: true}, RegressorMixin: base.RegressorMixin{}, N_iter: 300, Tol: 1e-3, Alpha_1: 1e-6, Alpha_2: 1e-6,
+		Lambda_1: 1e-6, Lambda_2: 1e-6, ComputeScore: false, Verbose: false,
 	}
+	self.RegressorMixin.Predicter = self
+	return self
 }
 
 // Fit the model
@@ -238,99 +231,6 @@ func (self *BayesianRidge) Predict2(X0 [][]float) (y_mean, y_std []float) {
 	return
 }
 
-func fill(n int, x float) []float {
-	var y = make([]float, n, n)
-	for i := range y {
-		y[i] = x
-	}
-	return y
-}
-
-func ones(n int) []float { return fill(n, 1.) }
-
-func log(x float) float { return math.Log(x) }
-
-func (self *LinearModel) _set_intercept(X_offset []float, y_offset float, X_scale []float) {
-	// """Set the intercept_
-	// """
-	if self.FitIntercept {
-		//self.Coef_ = self.Coef_ / X_scale
-		floats.Div(self.Coef_, X_scale)
-
-		//self.intercept_ = y_offset - np.dot(X_offset, self.coef_.T)
-		sumxoffsetcoef := 0.
-		for j, Xoffj := range X_offset {
-			sumxoffsetcoef += Xoffj * self.Coef_[j]
-		}
-		self.Intercept_ = y_offset - sumxoffsetcoef
-	} else {
-		self.Intercept_ = 0.
-	}
-}
-
-func (self *LinearModel) DecisionFunction(X [][]float) (y []float) {
-	y = make([]float, len(X))
-	for i, Xi := range X {
-		y[i] = self.Intercept_
-		for j, c := range self.Coef_ {
-			y[i] += c * Xi[j]
-		}
-	}
-
-	return
-}
-
-func preprocess_data(X [][]float, y []float, fit_intercept bool, normalize bool, copy bool) (
-	Xout [][]float, yout []float, X_offset_ []float, y_offset_ float, X_scale_ []float) {
-	var n_samples, n_features = len(X), len(X[0])
-	X_offset_ = make([]float, n_features)
-	X_scale_ = make([]float, n_features)
-	y_offset_ = 0.
-	if fit_intercept {
-		for _, Xi := range X {
-			floats.Add(X_offset_, Xi)
-		}
-		floats.Scale(1./float(n_samples), X_offset_)
-
-		y_offset_ = floats.Sum(y) / float(n_samples)
-
-		if normalize {
-
-			var X_var = make([]float, n_features)
-			for _, Xi := range X {
-				var t []float = make([]float, n_features)
-				floats.Add(t, Xi)
-				floats.Sub(t, X_offset_)
-				floats.Mul(t, t)
-				floats.Add(X_var, t)
-			}
-			floats.Scale(1./float(n_samples), X_var)
-			for i, Xi := range X_var {
-				X_scale_[i] = math.Sqrt(Xi)
-			}
-		} else {
-			// no normalize
-			for i := range X_scale_ {
-				X_scale_[i] = 1.
-			}
-		}
-		Xout = make([][]float, n_samples, n_samples)
-		for i, Xi := range X {
-			Xout[i] = make([]float, n_features, n_features)
-			floats.Add(Xout[i], Xi)
-			floats.Sub(Xout[i], X_offset_)
-			floats.Div(Xout[i], X_scale_)
-		}
-		yout = make([]float, n_samples)
-		floats.Add(yout, y)
-		floats.AddConst(-y_offset_, yout)
-
-	} else {
-		// no fit intercept
-		for i := range X_scale_ {
-			X_scale_[i] = 1.
-		}
-	}
-	return
-
+func (self *BayesianRidge) GetPredicter() base.Predicter {
+	return self
 }
