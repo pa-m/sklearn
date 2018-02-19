@@ -15,3 +15,12 @@ func TestR2Score(t *testing.T) {
 		t.Fail()
 	}
 }
+
+func TestMeanSquaredError(t *testing.T) {
+	y_true := []float{3, -0.5, 2, 7}
+	y_pred := []float{2.5, 0.0, 2, 8}
+	eps := 1e-3
+	if math.Abs(0.375-mean_squared_error(y_true, y_pred, nil)) > eps {
+		t.Fail()
+	}
+}

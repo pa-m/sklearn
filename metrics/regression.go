@@ -96,3 +96,20 @@ func R2Score(y_true, y_pred, sample_weight []float, multioutput string) float {
 	}
 	return 1. - numerator/denominator
 }
+
+func mean_squared_error(y_true, y_pred, sample_weight []float) float {
+	e := 0.
+	w := 0.
+	for i := range y_true {
+		e1 := y_true[i] - y_pred[i]
+		e1 *= e1
+		if sample_weight == nil {
+			e = e + e1
+			w = w + 1
+		} else {
+			e = e + sample_weight[i]*e1
+			w = w + sample_weight[i]
+		}
+	}
+	return e / float(len(y_true))
+}

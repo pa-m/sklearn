@@ -47,10 +47,12 @@ type LinearModel struct {
 type LinearRegression struct {
 	LinearModel
 	base.RegressorMixin
+	Tol   float
+	NJobs int
 }
 
 func NewLinearRegression() *LinearRegression {
-	self := &LinearRegression{}
+	self := &LinearRegression{Tol: 1e-6, NJobs: 1}
 	self.LinearModel.FitIntercept = true
 	self.RegressorMixin.Predicter = self
 	return self
@@ -90,12 +92,16 @@ func (self *LinearRegression) Fit(X0 [][]float, y0 []float) *LinearRegression {
 		initialcoefs_[j] = rand.Float64()
 	}
 	settings := DefaultSettings()
-	settings.FunctionThreshold = 1.e-9
+	settings.FunctionThreshold = self.Tol
 	settings.GradientThreshold = 1.e-12
 	/*  settings.FunctionConverge.Iterations = 1000
 	 */
 	settings.FunctionConverge = nil
-	settings.Concurrent = runtime.NumCPU()
+	if self.NJobs <= 0 {
+		settings.Concurrent = runtime.NumCPU()
+	} else {
+		settings.Concurrent = self.NJobs
+	}
 
 	// printer := NewPrinter()
 	// printer.HeadingInterval = 1
@@ -118,6 +124,222 @@ func (self *LinearRegression) Predict(X [][]float) (y_mean []float) {
 	return
 }
 
+// ----
+type Ridge struct {
+	LinearModel
+	base.RegressorMixin
+	Alpha, Tol float
+	NJobs      int
+}
+
+func NewRidge() *Ridge {
+	self := &Ridge{Alpha: 1., Tol: 1e-3, NJobs: 1}
+	self.LinearModel.FitIntercept = true
+	self.RegressorMixin.Predicter = self
+	return self
+}
+
+func (self *Ridge) Fit(X0 [][]float, y0 []float) *Ridge {
+	var n_features = len(X0[0])
+	var X, y, X_offset_, y_offset_, X_scale_ = preprocess_data(
+		X0, y0, self.FitIntercept, self.Normalize)
+	self.X_offset_ = X_offset_
+	self.X_scale_ = X_scale_
+	squares := func(coef_ []float) float {
+		// e = sumi { (yi -sumj cj Xij)² }
+		// de/dcj =
+		coefMulXi := make([]float, n_features, n_features)
+		e := 0.
+		for i, Xi := range X {
+			e1 := y[i] - floats.Sum(floats.MulTo(coefMulXi, coef_, Xi))
+			e += e1 * e1
+			//fmt.Printf("coef_ %v yi %g yp %g e1 %g e %g\n", coef_, y[i], yp, e1, e)
+		}
+		coef2 := make([]float, n_features, n_features)
+		floats.MulTo(coef2, coef_, coef_)
+		e = e/float(len(X)) + self.Alpha*floats.Sum(coef2)/float(len(coef_))
+		return e
+	}
+	p := Problem{}
+	p.Func = squares
+	p.Grad = func(grad, coef_ []float) {
+		h := 1e-6
+
+		settings := &fd.Settings{}
+		settings.Concurrent = true
+		settings.Step = h
+		fd.Gradient(grad, squares, coef_, settings)
+
+	}
+	initialcoefs_ := make([]float, n_features, n_features)
+	for j := 0; j < n_features; j++ {
+		initialcoefs_[j] = rand.Float64()
+	}
+	settings := DefaultSettings()
+	settings.FunctionThreshold = self.Tol
+	settings.GradientThreshold = 1.e-12
+	/*  settings.FunctionConverge.Iterations = 1000
+	 */
+	settings.FunctionConverge = nil
+	if self.NJobs <= 0 {
+		settings.Concurrent = runtime.NumCPU()
+	} else {
+		settings.Concurrent = self.NJobs
+	}
+
+	// printer := NewPrinter()
+	// printer.HeadingInterval = 1
+	// settings.Recorder = printer
+
+	method := &CG{}
+	res, err := Local(p, initialcoefs_, settings, method)
+	//fmt.Printf("res=%s %#v\n", res.Status.String(), res)
+	if err != nil && err.Error() != "linesearch: no change in location after Linesearcher step" {
+
+		fmt.Println(err)
+	}
+	self.Coef_ = res.X
+	self._set_intercept(X_offset_, y_offset_, X_scale_)
+
+	return self
+}
+
+func (self *Ridge) Predict(X [][]float) (y_mean []float) {
+	y_mean = self.DecisionFunction(X)
+	return
+}
+
+// ---
+type Lasso struct {
+	LinearModel
+	base.RegressorMixin
+	Alpha, Tol float
+	NJobs      int
+}
+
+func NewLasso() *Lasso {
+	self := &Lasso{Alpha: 1., Tol: 1e-4, NJobs: 1}
+	self.LinearModel.FitIntercept = true
+	self.RegressorMixin.Predicter = self
+	return self
+}
+
+func (self *Lasso) Fit(X0 [][]float, y0 []float) *Lasso {
+	var n_features = len(X0[0])
+	var X, y, X_offset_, y_offset_, X_scale_ = preprocess_data(
+		X0, y0, self.FitIntercept, self.Normalize)
+	self.X_offset_ = X_offset_
+	self.X_scale_ = X_scale_
+	squares := func(coef_ []float) float {
+		// e = sumi { (yi -sumj cj Xij)² }
+		// de/dcj =
+		coefMulXi := make([]float, n_features, n_features)
+		e := 0.
+		for i, Xi := range X {
+			e1 := y[i] - floats.Sum(floats.MulTo(coefMulXi, coef_, Xi))
+			e += e1 * e1
+			//fmt.Printf("coef_ %v yi %g yp %g e1 %g e %g\n", coef_, y[i], yp, e1, e)
+		}
+		sumabscoef := 0.
+		for _, c := range coef_ {
+			sumabscoef += math.Abs(c)
+		}
+		e = e/float(len(X))/2. + self.Alpha*sumabscoef
+		return e
+	}
+	p := Problem{}
+	p.Func = squares
+	p.Grad = func(grad, coef_ []float) {
+		h := 1e-6
+
+		settings := &fd.Settings{}
+		settings.Concurrent = true
+		settings.Step = h
+		fd.Gradient(grad, squares, coef_, settings)
+
+	}
+	initialcoefs_ := make([]float, n_features, n_features)
+	for j := 0; j < n_features; j++ {
+		initialcoefs_[j] = rand.Float64()
+	}
+	settings := DefaultSettings()
+	settings.FunctionThreshold = self.Tol
+	settings.GradientThreshold = 1.e-12
+	/*  settings.FunctionConverge.Iterations = 1000
+	 */
+	settings.FunctionConverge = nil
+	if self.NJobs <= 0 {
+		settings.Concurrent = runtime.NumCPU()
+	} else {
+		settings.Concurrent = self.NJobs
+	}
+
+	// printer := NewPrinter()
+	// printer.HeadingInterval = 1
+	// settings.Recorder = printer
+
+	method := &CG{}
+	res, err := Local(p, initialcoefs_, settings, method)
+	//fmt.Printf("res=%s %#v\n", res.Status.String(), res)
+	if err != nil && err.Error() != "linesearch: no change in location after Linesearcher step" {
+
+		fmt.Println(err)
+	}
+	self.Coef_ = res.X
+	self._set_intercept(X_offset_, y_offset_, X_scale_)
+
+	return self
+}
+
+func (self *Lasso) Predict(X [][]float) (y_mean []float) {
+	y_mean = self.DecisionFunction(X)
+	return
+}
+
+// ---
+// ---
+type SGDRegressor struct {
+	LinearModel
+	base.RegressorMixin
+	LearningRate, Tol float
+	NJobs             int
+}
+
+func NewSGDRegressor() *SGDRegressor {
+	self := &SGDRegressor{LearningRate: .1, Tol: 1e-4, NJobs: 1}
+	self.LinearModel.FitIntercept = true
+	self.RegressorMixin.Predicter = self
+	return self
+}
+
+func (self *SGDRegressor) Fit(X0 [][]float, y0 []float) *SGDRegressor {
+	var X, y, X_offset_, y_offset_, X_scale_ = preprocess_data(
+		X0, y0, self.FitIntercept, self.Normalize)
+	self.X_offset_ = X_offset_
+	self.X_scale_ = X_scale_
+
+	gd := base.NewGD()
+	gd.LearningRate = self.LearningRate
+	gd.Decay = .99
+	gd.Tol = self.Tol
+	gd.Fit(X, y)
+	//fmt.Printf("SGD X_offset_ %g, y_offset_ %g, X_scale_ %g", X_offset_, y_offset_, X_scale_)
+	xtest := []float{7, 8, 9}
+	floats.Sub(xtest, X_offset_)
+	floats.Div(xtest, X_scale_)
+	//fmt.Printf("SGD predict %g\n", gd.Predict([][]float{xtest})[0]+y_offset_)
+	self.Coef_ = gd.Coefs_[1:]
+	self._set_intercept(X_offset_, y_offset_, X_scale_)
+
+	return self
+}
+
+func (self *SGDRegressor) Predict(X [][]float) (y_mean []float) {
+	y_mean = self.DecisionFunction(X)
+	return
+}
+
+// ---
 func fill(n int, x float) []float {
 	var y = make([]float, n, n)
 	for i := range y {
