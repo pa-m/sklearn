@@ -1,21 +1,23 @@
 package linear_model
 
 import (
-	_ "fmt"
+	"fmt"
 	"github.com/gonum/floats"
-	_ "github.com/gonum/stat"
 	"github.com/pa-m/sklearn/base"
-	_ "gonum.org/v1/gonum/mat"
+	"gonum.org/v1/gonum/diff/fd"
+	. "gonum.org/v1/gonum/optimize"
 	"math"
+	"math/rand"
+	"runtime"
 )
 
 type float = float64
 
 type LinearModel struct {
-	X_offset_, X_scale_             []float
-	Coef_                           []float
-	Intercept_                      float
-	FitIntercept, Normalize, Copy_X bool
+	X_offset_, X_scale_     []float
+	Coef_                   []float
+	Intercept_              float
+	FitIntercept, Normalize bool
 }
 
 // """
@@ -33,13 +35,6 @@ type LinearModel struct {
 //     If you wish to standardize, please use
 //     :class:`sklearn.preprocessing.StandardScaler` before calling ``fit`` on
 //     an estimator with ``normalize=False``.
-// copy_X : boolean, optional, default True
-//     If True, X will be copied; else, it may be overwritten.
-// n_jobs : int, optional, default 1
-//     The number of jobs to use for the computation.
-//     If -1 all CPUs are used. This will only provide speedup for
-//     n_targets > 1 and sufficient large problems.
-// Attributes
 // ----------
 // coef_ : array, shape (n_features, ) or (n_targets, n_features)
 //     Estimated coefficients for the linear regression problem.
@@ -48,21 +43,78 @@ type LinearModel struct {
 //     one target is passed, this is a 1D array of length n_features.
 // intercept_ : array
 //     Independent term in the linear model.
-// Notes
-// -----
-// From the implementation point of view, this is just plain Ordinary
-// Least Squares (scipy.linalg.lstsq) wrapped as a predictor object.
-// """
 
 type LinearRegression struct {
+	LinearModel
 	base.RegressorMixin
 }
 
+func NewLinearRegression() *LinearRegression {
+	self := &LinearRegression{}
+	self.LinearModel.FitIntercept = true
+	self.RegressorMixin.Predicter = self
+	return self
+}
+
 func (self *LinearRegression) Fit(X0 [][]float, y0 []float) *LinearRegression {
+	var n_features = len(X0[0])
+	var X, y, X_offset_, y_offset_, X_scale_ = preprocess_data(
+		X0, y0, self.FitIntercept, self.Normalize)
+	self.X_offset_ = X_offset_
+	self.X_scale_ = X_scale_
+	squares := func(coef_ []float) float {
+		// e = sumi { (yi -sumj cj Xij)² }
+		// de/dcj =
+		coefMulXi := make([]float, n_features, n_features)
+		e := 0.
+		for i, Xi := range X {
+			e1 := y[i] - floats.Sum(floats.MulTo(coefMulXi, coef_, Xi))
+			e += e1 * e1
+			//fmt.Printf("coef_ %v yi %g yp %g e1 %g e %g\n", coef_, y[i], yp, e1, e)
+		}
+		return e
+	}
+	p := Problem{}
+	p.Func = squares
+	p.Grad = func(grad, coef_ []float) {
+		h := 1e-6
+
+		settings := &fd.Settings{}
+		settings.Concurrent = true
+		settings.Step = h
+		fd.Gradient(grad, squares, coef_, settings)
+
+	}
+	initialcoefs_ := make([]float, n_features, n_features)
+	for j := 0; j < n_features; j++ {
+		initialcoefs_[j] = rand.Float64()
+	}
+	settings := DefaultSettings()
+	settings.FunctionThreshold = 1.e-9
+	settings.GradientThreshold = 1.e-12
+	/*  settings.FunctionConverge.Iterations = 1000
+	 */
+	settings.FunctionConverge = nil
+	settings.Concurrent = runtime.NumCPU()
+
+	// printer := NewPrinter()
+	// printer.HeadingInterval = 1
+	// settings.Recorder = printer
+
+	method := &CG{}
+	res, err := Local(p, initialcoefs_, settings, method)
+	//fmt.Printf("res=%s %#v\n", res.Status.String(), res)
+	if err != nil && err.Error() != "linesearch: no change in location after Linesearcher step" {
+
+		fmt.Println(err)
+	}
+	self.Coef_ = res.X
+	self._set_intercept(X_offset_, y_offset_, X_scale_)
+
 	return self
 }
 func (self *LinearRegression) Predict(X [][]float) (y_mean []float) {
-	y_mean = make([]float, len(X), len(X))
+	y_mean = self.DecisionFunction(X)
 	return
 }
 
@@ -108,9 +160,11 @@ func (self *LinearModel) DecisionFunction(X [][]float) (y []float) {
 	return
 }
 
-func preprocess_data(X [][]float, y []float, fit_intercept bool, normalize bool, copy bool) (
+func preprocess_data(X [][]float, y []float, fit_intercept bool, normalize bool) (
 	Xout [][]float, yout []float, X_offset_ []float, y_offset_ float, X_scale_ []float) {
 	var n_samples, n_features = len(X), len(X[0])
+	Xout = make([][]float, n_samples, n_samples)
+	yout = make([]float, n_samples)
 	X_offset_ = make([]float, n_features)
 	X_scale_ = make([]float, n_features)
 	y_offset_ = 0.
@@ -142,19 +196,19 @@ func preprocess_data(X [][]float, y []float, fit_intercept bool, normalize bool,
 				X_scale_[i] = 1.
 			}
 		}
-		Xout = make([][]float, n_samples, n_samples)
 		for i, Xi := range X {
 			Xout[i] = make([]float, n_features, n_features)
 			floats.Add(Xout[i], Xi)
 			floats.Sub(Xout[i], X_offset_)
 			floats.Div(Xout[i], X_scale_)
 		}
-		yout = make([]float, n_samples)
 		floats.Add(yout, y)
 		floats.AddConst(-y_offset_, yout)
 
 	} else {
 		// no fit intercept
+		copy(Xout, X)
+		copy(yout, y)
 		for i := range X_scale_ {
 			X_scale_[i] = 1.
 		}
