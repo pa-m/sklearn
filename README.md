@@ -1,6 +1,6 @@
 # sklearn
 
-Very partial porte of scikit-learn to [go](http://golang.org)
+Very partial port of scikit-learn to [go](http://golang.org)
 
 [![Build Status](https://travis-ci.org/pa-m/sklearn.svg?branch=master)](https://travis-ci.org/pa-m/sklearn)
 [![Code Coverage](https://codecov.io/gh/pa-m/sklearn/branch/master/graph/badge.svg)](https://codecov.io/gh/pa-m/sklearn)
