@@ -1,7 +1,8 @@
-package linear_model
+package linearModel
 
 import (
 	"fmt"
+	"gonum.org/v1/gonum/optimize"
 	"math"
 	"math/rand"
 	"testing"
@@ -9,7 +10,7 @@ import (
 )
 
 func TestLinearRegression(t *testing.T) {
-	var X [][]float = make([][]float, 10000)
+	var X = make([][]float, 10000)
 	Y := make([]float, len(X))
 	f := func(X []float) float { return 1. + 2.*X[0] + 3.*X[1] + 4.*X[2] }
 	for i := range X {
@@ -19,24 +20,34 @@ func TestLinearRegression(t *testing.T) {
 		}
 		Y[i] = f(X[i]) + (rand.Float64()-.5)/2
 	}
-	for _, normalize := range []bool{false, true} {
-		//fmt.Printf("-- TestLinearRegression normalize=%v --\n", normalize)
-		m := NewLinearRegression()
-		m.Normalize = normalize
-		//m.Verbose = true
-		//m.ComputeScore = true
-		start := time.Now()
-		m.Fit(X, Y)
-		elapsed := time.Since(start)
-		fmt.Printf("TestLinearRegression normalize=%v score:%.4g elapsed:%s\n", normalize, m.Score(X, Y, nil), elapsed)
-		eps := .1
-		Xp := [][]float{{7., 8., 9.}}
-		y_true := []float{f(Xp[0])}
-		Yp := m.Predict(Xp)
-		//fmt.Println(Yp[0], " expected: ", y_true)
-		if math.Abs(Yp[0]-y_true[0]) > eps {
-			fmt.Printf("TestLinearRegression Yp[0]-y_true[0]=%g\n", Yp[0]-y_true[0])
-			t.Fail()
+	for _, method := range []optimize.Method{
+		&optimize.BFGS{},
+		&optimize.CG{},
+		&optimize.LBFGS{},
+		&optimize.GradientDescent{},
+		//&optimize.NelderMead{},
+		//&optimize.Newton{},
+	} {
+		for _, normalize := range []bool{false, true} {
+			//fmt.Printf("-- TestLinearRegression normalize=%v --\n", normalize)
+			m := NewLinearRegression()
+			m.Method = method
+			m.Normalize = normalize
+			//m.Verbose = true
+			//m.ComputeScore = true
+			start := time.Now()
+			m.Fit(X, Y)
+			elapsed := time.Since(start)
+			fmt.Printf("TestLinearRegression %T normalize=%v score:%.4g elapsed:%s\n", method, normalize, m.Score(X, Y, nil), elapsed)
+			eps := .1
+			Xp := [][]float{{7., 8., 9.}}
+			yTrue := []float{f(Xp[0])}
+			Yp := m.Predict(Xp)
+			//fmt.Println(Yp[0], " expected: ", yTrue)
+			if math.Abs(Yp[0]-yTrue[0]) > eps {
+				fmt.Printf("TestLinearRegression Yp[0]-yTrue[0]=%g\n", Yp[0]-yTrue[0])
+				t.Fail()
+			}
 		}
 		//fmt.Println("-----------------------------------------------------------")
 		// Output:
@@ -46,7 +57,7 @@ func TestLinearRegression(t *testing.T) {
 }
 
 func TestRidge(t *testing.T) {
-	var X [][]float = make([][]float, 10000)
+	var X = make([][]float, 10000)
 	Y := make([]float, len(X))
 	f := func(X []float) float { return 1. + 2.*X[0] + 3.*X[1] + 4.*X[2] }
 	for i := range X {
@@ -70,11 +81,11 @@ func TestRidge(t *testing.T) {
 		fmt.Printf("TestRidge normalize=%v score:%.4g elapsed:%s\n", normalize, score, elapsed)
 		eps := .1
 		Xp := [][]float{{7., 8., 9.}}
-		y_true := []float{f(Xp[0])}
+		yTrue := []float{f(Xp[0])}
 		Yp := m.Predict(Xp)
-		//fmt.Println(Yp[0], " expected: ", y_true)
-		if math.Abs(Yp[0]-y_true[0]) > eps {
-			fmt.Printf("TestRidge normalize=%v Yp[0]-y_true[0]=%g\n", normalize, Yp[0]-y_true[0])
+		//fmt.Println(Yp[0], " expected: ", yTrue)
+		if math.Abs(Yp[0]-yTrue[0]) > eps {
+			fmt.Printf("TestRidge normalize=%v Yp[0]-yTrue[0]=%g\n", normalize, Yp[0]-yTrue[0])
 			t.Fail()
 		}
 		//fmt.Println("-----------------------------------------------------------")
@@ -85,7 +96,7 @@ func TestRidge(t *testing.T) {
 }
 
 func TestLasso(t *testing.T) {
-	var X [][]float = make([][]float, 10000)
+	var X = make([][]float, 10000)
 	Y := make([]float, len(X))
 	f := func(X []float) float { return 1. + 2.*X[0] + 3.*X[1] + 4.*X[2] }
 	for i := range X {
@@ -109,11 +120,11 @@ func TestLasso(t *testing.T) {
 		fmt.Printf("TestLasso normalize=%v score:%.4g elapsed:%s\n", normalize, score, elapsed)
 		eps := .1
 		Xp := [][]float{{7., 8., 9.}}
-		y_true := []float{f(Xp[0])}
+		yTrue := []float{f(Xp[0])}
 		Yp := m.Predict(Xp)
-		//fmt.Println(Yp[0], " expected: ", y_true)
-		if math.Abs(Yp[0]-y_true[0]) > eps {
-			fmt.Printf("TestLasso normalise=%v Yp[0]-y_true[0]=%g\n", normalize, Yp[0]-y_true[0])
+		//fmt.Println(Yp[0], " expected: ", yTrue)
+		if math.Abs(Yp[0]-yTrue[0]) > eps {
+			fmt.Printf("TestLasso normalise=%v Yp[0]-yTrue[0]=%g\n", normalize, Yp[0]-yTrue[0])
 			t.Fail()
 		}
 		//fmt.Println("-----------------------------------------------------------")
@@ -125,7 +136,7 @@ func TestLasso(t *testing.T) {
 
 // ----
 func TestSGDRegressor(t *testing.T) {
-	var X [][]float = make([][]float, 10000)
+	var X = make([][]float, 10000)
 	Y := make([]float, len(X))
 	f := func(X []float) float { return 1. + 2.*X[0] + 3.*X[1] + 4.*X[2] }
 	for i := range X {
@@ -149,11 +160,11 @@ func TestSGDRegressor(t *testing.T) {
 		fmt.Printf("TestSGDRegressor normalize=%v score:%.4g elapsed:%s\n", normalize, score, elapsed)
 		eps := .1
 		Xp := [][]float{{7., 8., 9.}}
-		y_true := []float{f(Xp[0])}
+		yTrue := []float{f(Xp[0])}
 		Yp := m.Predict(Xp)
-		//fmt.Println(Yp[0], " expected: ", y_true)
-		if math.Abs(Yp[0]-y_true[0]) > eps {
-			fmt.Printf("TestSGDRegressor normalise=%v Yp[0]-y_true[0]=%g\n", normalize, Yp[0]-y_true[0])
+		//fmt.Println(Yp[0], " expected: ", yTrue)
+		if math.Abs(Yp[0]-yTrue[0]) > eps {
+			fmt.Printf("TestSGDRegressor normalise=%v Yp[0]-yTrue[0]=%g\n", normalize, Yp[0]-yTrue[0])
 			t.Fail()
 		}
 		//fmt.Println("-----------------------------------------------------------")

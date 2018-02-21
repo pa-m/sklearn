@@ -32,14 +32,11 @@ func (gd *GD) Fit(x [][]float64, y []float64) *GD {
 	for i := 0; i < gd.Epochs; i++ {
 		Shuffle(x, y)
 		predY := gd.Predict(x)
-		errorSum := 0.0
 		errorSum2 := 0.0
 		// compute errorSum for updating w[0] and errorSum2 for Tol check
 		for k := 0; k < n; k++ {
 			errors[k] = y[k] - predY[k]
-			errorSum += errors[k]
 			errorSum2 += math.Pow(errors[k], 2.)
-
 		}
 		//fmt.Printf("GD %v %v\n", w, errorSum)
 		// update w[1]..w[n]

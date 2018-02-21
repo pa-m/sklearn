@@ -2,39 +2,39 @@ package metrics
 
 type float = float64
 
-// """R^2 (coefficient of determination) regression score function.
+// R2Score """R^2 (coefficient of determination) regression score function.
 // Best possible score is 1.0 and it can be negative (because the
 // model can be arbitrarily worse). A constant model that always
 // predicts the expected value of y, disregarding the input features,
 // would get a R^2 score of 0.0.
-// Read more in the :ref:`User Guide <r2_score>`.
+// Read more in the :ref:`User Guide <r2Score>`.
 // Parameters
 // ----------
-// y_true : array-like of shape = (n_samples) or (n_samples, n_outputs)
+// yTrue : array-like of shape = (nSamples) or (nSamples, nOutputs)
 //     Ground truth (correct) target values.
-// y_pred : array-like of shape = (n_samples) or (n_samples, n_outputs)
+// yPred : array-like of shape = (nSamples) or (nSamples, nOutputs)
 //     Estimated target values.
-// sample_weight : array-like of shape = (n_samples), optional
+// sampleWeight : array-like of shape = (nSamples), optional
 //     Sample weights.
-// multioutput : string in ['raw_values', 'uniform_average', \
-// 'variance_weighted'] or None or array-like of shape (n_outputs)
+// multioutput : string in ['rawValues', 'uniformAverage', \
+// 'varianceWeighted'] or None or array-like of shape (nOutputs)
 //     Defines aggregating of multiple output scores.
 //     Array-like value defines weights used to average scores.
-//     Default is "uniform_average".
-//     'raw_values' :
+//     Default is "uniformAverage".
+//     'rawValues' :
 //         Returns a full set of scores in case of multioutput input.
-//     'uniform_average' :
+//     'uniformAverage' :
 //         Scores of all outputs are averaged with uniform weight.
-//     'variance_weighted' :
+//     'varianceWeighted' :
 //         Scores of all outputs are averaged, weighted by the variances
 //         of each individual output.
 //     .. versionchanged:: 0.19
-//         Default value of multioutput is 'uniform_average'.
+//         Default value of multioutput is 'uniformAverage'.
 // Returns
 // -------
 // z : float or ndarray of floats
 //     The R^2 score or ndarray of scores if 'multioutput' is
-//     'raw_values'.
+//     'rawValues'.
 // Notes
 // -----
 // This is not a symmetric function.
@@ -43,73 +43,72 @@ type float = float64
 // References
 // ----------
 // .. [1] `Wikipedia entry on the Coefficient of determination
-//         <https://en.wikipedia.org/wiki/Coefficient_of_determination>`_
+//         <https://en.wikipedia.org/wiki/CoefficientOfDetermination>`_
 // Examples
 // --------
-// >>> from sklearn.metrics import r2_score
-// >>> y_true = [3, -0.5, 2, 7]
-// >>> y_pred = [2.5, 0.0, 2, 8]
-// >>> r2_score(y_true, y_pred)  # doctest: +ELLIPSIS
+// >>> from sklearn.metrics import r2Score
+// >>> yTrue = [3, -0.5, 2, 7]
+// >>> yPred = [2.5, 0.0, 2, 8]
+// >>> r2Score(yTrue, yPred)  # doctest: +ELLIPSIS
 // 0.948...
-// >>> y_true = [[0.5, 1], [-1, 1], [7, -6]]
-// >>> y_pred = [[0, 2], [-1, 2], [8, -5]]
-// >>> r2_score(y_true, y_pred, multioutput='variance_weighted')
+// >>> yTrue = [[0.5, 1], [-1, 1], [7, -6]]
+// >>> yPred = [[0, 2], [-1, 2], [8, -5]]
+// >>> r2Score(yTrue, yPred, multioutput='varianceWeighted')
 // ... # doctest: +ELLIPSIS
 // 0.938...
-// >>> y_true = [1,2,3]
-// >>> y_pred = [1,2,3]
-// >>> r2_score(y_true, y_pred)
+// >>> yTrue = [1,2,3]
+// >>> yPred = [1,2,3]
+// >>> r2Score(yTrue, yPred)
 // 1.0
-// >>> y_true = [1,2,3]
-// >>> y_pred = [2,2,2]
-// >>> r2_score(y_true, y_pred)
+// >>> yTrue = [1,2,3]
+// >>> yPred = [2,2,2]
+// >>> r2Score(yTrue, yPred)
 // 0.0
-// >>> y_true = [1,2,3]
-// >>> y_pred = [3,2,1]
-// >>> r2_score(y_true, y_pred)
+// >>> yTrue = [1,2,3]
+// >>> yPred = [3,2,1]
+// >>> r2Score(yTrue, yPred)
 // -3.0
 // """
-
-func R2Score(y_true, y_pred, sample_weight []float, multioutput string) float {
-	if sample_weight == nil {
-		sample_weight = make([]float, len(y_true), len(y_true))
-		for i := range sample_weight {
-			sample_weight[i] = 1.
+func R2Score(yTrue, yPred, sampleWeight []float, multioutput string) float {
+	if sampleWeight == nil {
+		sampleWeight = make([]float, len(yTrue), len(yTrue))
+		for i := range sampleWeight {
+			sampleWeight[i] = 1.
 		}
 	}
 	numerator := 0.
-	for i := range sample_weight {
-		t := y_true[i] - y_pred[i]
-		numerator += sample_weight[i] * t * t
+	for i := range sampleWeight {
+		t := yTrue[i] - yPred[i]
+		numerator += sampleWeight[i] * t * t
 	}
-	y_true_avg := 0.
-	sample_weight_sum := 0.
-	for i := range sample_weight {
-		y_true_avg += y_true[i] * sample_weight[i]
-		sample_weight_sum += sample_weight[i]
+	yTrueAvg := 0.
+	sampleWeightSum := 0.
+	for i := range sampleWeight {
+		yTrueAvg += yTrue[i] * sampleWeight[i]
+		sampleWeightSum += sampleWeight[i]
 	}
-	y_true_avg /= sample_weight_sum
+	yTrueAvg /= sampleWeightSum
 	denominator := 0.
-	for i := range sample_weight {
-		t := y_true[i] - y_true_avg
-		denominator += sample_weight[i] * t * t
+	for i := range sampleWeight {
+		t := yTrue[i] - yTrueAvg
+		denominator += sampleWeight[i] * t * t
 	}
 	return 1. - numerator/denominator
 }
 
-func mean_squared_error(y_true, y_pred, sample_weight []float) float {
+func meanSquaredError(yTrue, yPred, sampleWeight []float) float {
 	e := 0.
 	w := 0.
-	for i := range y_true {
-		e1 := y_true[i] - y_pred[i]
+	for i := range yTrue {
+		e1 := yTrue[i] - yPred[i]
 		e1 *= e1
-		if sample_weight == nil {
+		if sampleWeight == nil {
 			e = e + e1
 			w = w + 1
 		} else {
-			e = e + sample_weight[i]*e1
-			w = w + sample_weight[i]
+			e = e + sampleWeight[i]*e1
+			w = w + sampleWeight[i]
 		}
 	}
-	return e / float(len(y_true))
+	return e / float(len(yTrue))
 }

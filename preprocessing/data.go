@@ -8,265 +8,281 @@ import (
 
 type float = float64
 
+// MinMaxScaler rescale data between FeatureRange
 type MinMaxScaler struct {
 	FeatureRange                            []float
 	Scale, Min, DataMin, DataMax, DataRange []float
 	NSamplesSeen                            int
 }
 
-func NewMinMaxScaler(feature_range []float) *MinMaxScaler {
-	return &MinMaxScaler{FeatureRange: feature_range}
+// NewMinMaxScaler creates an *MinMaxScaler with FeatureRange 0..1
+func NewMinMaxScaler(featureRange []float) *MinMaxScaler {
+	return &MinMaxScaler{FeatureRange: featureRange}
 }
 
-func (self *MinMaxScaler) Reset() *MinMaxScaler {
-	self.NSamplesSeen = 0
-	return self
+// Reset resets scaler to its initial state
+func (scaler *MinMaxScaler) Reset() *MinMaxScaler {
+	scaler.NSamplesSeen = 0
+	return scaler
 }
 
-func (self *MinMaxScaler) Fit(X [][]float, y []float) *MinMaxScaler {
-	return self.Reset().PartialFit(X, y)
+// Fit computes Sale and Min
+func (scaler *MinMaxScaler) Fit(X [][]float, y []float) *MinMaxScaler {
+	return scaler.Reset().PartialFit(X, y)
 }
 
-func (self *MinMaxScaler) PartialFit(X [][]float, y []float) *MinMaxScaler {
+// PartialFit updates Scale and Min with partial data
+func (scaler *MinMaxScaler) PartialFit(X [][]float, y []float) *MinMaxScaler {
 	if len(X) == 0 {
-		return self
+		return scaler
 	}
-	n_features := len(X[0])
-	if self.NSamplesSeen == 0 {
-		self.DataRange = make([]float, n_features, n_features)
-		self.DataMin = make([]float, n_features, n_features)
-		self.DataMax = make([]float, n_features, n_features)
-		self.Min = make([]float, n_features, n_features)
-		self.Scale = make([]float, n_features, n_features)
+	nFeatures := len(X[0])
+	if scaler.NSamplesSeen == 0 {
+		scaler.DataRange = make([]float, nFeatures, nFeatures)
+		scaler.DataMin = make([]float, nFeatures, nFeatures)
+		scaler.DataMax = make([]float, nFeatures, nFeatures)
+		scaler.Min = make([]float, nFeatures, nFeatures)
+		scaler.Scale = make([]float, nFeatures, nFeatures)
 
-		copy(self.DataMin, X[0])
-		copy(self.DataMax, X[0])
+		copy(scaler.DataMin, X[0])
+		copy(scaler.DataMax, X[0])
 	}
 	for _, Xi := range X {
 		for j, Xij := range Xi {
-			self.DataMin[j] = math.Min(self.DataMin[j], Xij)
-			self.DataMax[j] = math.Max(self.DataMax[j], Xij)
+			scaler.DataMin[j] = math.Min(scaler.DataMin[j], Xij)
+			scaler.DataMax[j] = math.Max(scaler.DataMax[j], Xij)
 		}
-		self.NSamplesSeen++
+		scaler.NSamplesSeen++
 	}
-	// data_range = data_max - data_min
-	floats.SubTo(self.DataRange, self.DataMax, self.DataMin)
-	// handle _handle_zeros_in_scale
-	//self.scale_ = ((feature_range[1] - feature_range[0]) /_handle_zeros_in_scale(data_range))
-	for j, drj := range self.DataRange {
+	// dataRange = dataMax - dataMin
+	floats.SubTo(scaler.DataRange, scaler.DataMax, scaler.DataMin)
+	// handle HandleZerosInScale
+	//scaler.scale_ = ((featureRange[1] - featureRange[0]) /HandleZerosInScale(dataRange))
+	for j, drj := range scaler.DataRange {
 		if drj == 0. {
 			drj = 1.
 		}
-		self.Scale[j] = (self.FeatureRange[1] - self.FeatureRange[0]) / drj
+		scaler.Scale[j] = (scaler.FeatureRange[1] - scaler.FeatureRange[0]) / drj
 	}
-	//self.min_ = feature_range[0] - data_min * self.scale_
-	copy(self.Min, self.DataMin)
-	floats.Mul(self.Min, self.Scale)
-	floats.Scale(-1., self.Min)
-	floats.AddConst(self.FeatureRange[0], self.Min)
+	//scaler.min_ = featureRange[0] - dataMin * scaler.scale_
+	copy(scaler.Min, scaler.DataMin)
+	floats.Mul(scaler.Min, scaler.Scale)
+	floats.Scale(-1., scaler.Min)
+	floats.AddConst(scaler.FeatureRange[0], scaler.Min)
 	fmt.Println("ok")
-	return self
+	return scaler
 }
 
-func (self *MinMaxScaler) Transform(X [][]float) (Xout [][]float) {
+// Transform applies scaling to X
+func (scaler *MinMaxScaler) Transform(X [][]float) (Xout [][]float) {
 	Xout = make([][]float, len(X), len(X))
 	for i, Xi := range X {
 		Xout[i] = make([]float, len(Xi), len(Xi))
 		copy(Xout[i], Xi)
-		floats.Mul(Xout[i], self.Scale)
-		floats.Add(Xout[i], self.Min)
+		floats.Mul(Xout[i], scaler.Scale)
+		floats.Add(Xout[i], scaler.Min)
 	}
 	return
 }
 
-func (self *MinMaxScaler) InverseTransform(X [][]float) (Xout [][]float) {
+// InverseTransform rescale data into original bounds
+func (scaler *MinMaxScaler) InverseTransform(X [][]float) (Xout [][]float) {
 	Xout = make([][]float, len(X), len(X))
 	for i, Xi := range X {
 		Xout[i] = make([]float, len(Xi), len(Xi))
 		copy(Xout[i], Xi)
-		floats.Sub(Xout[i], self.Min)
-		floats.Div(Xout[i], self.Scale)
+		floats.Sub(Xout[i], scaler.Min)
+		floats.Div(Xout[i], scaler.Scale)
 
 	}
 	return
 }
 
+// StandardScaler scales data by removing Mean and dividing by stddev
 type StandardScaler struct {
 	Scale, Mean, Var []float
 	NSamplesSeen     int
 }
 
+// NewStandardScaler creates a *StandardScaler
 func NewStandardScaler() *StandardScaler {
 	return &StandardScaler{}
 }
 
-func (self *StandardScaler) Reset() *StandardScaler {
-	self.NSamplesSeen = 0
-	return self
+// Reset ...
+func (scaler *StandardScaler) Reset() *StandardScaler {
+	scaler.NSamplesSeen = 0
+	return scaler
 }
 
-func (self *StandardScaler) Fit(X [][]float, y []float) *StandardScaler {
-	return self.Reset().PartialFit(X, y)
+// Fit computes Mean snd Std
+func (scaler *StandardScaler) Fit(X [][]float, y []float) *StandardScaler {
+	return scaler.Reset().PartialFit(X, y)
 }
 
-func (self *StandardScaler) PartialFit(X [][]float, y []float) *StandardScaler {
+// PartialFit computes Mean snd Std
+func (scaler *StandardScaler) PartialFit(X [][]float, y []float) *StandardScaler {
 	if len(X) == 0 {
-		return self
+		return scaler
 	}
-	n_features := len(X[0])
-	if self.NSamplesSeen == 0 {
-		self.Var = make([]float, n_features, n_features)
-		self.Mean = make([]float, n_features, n_features)
-		self.Scale = make([]float, n_features, n_features)
+	nFeatures := len(X[0])
+	if scaler.NSamplesSeen == 0 {
+		scaler.Var = make([]float, nFeatures, nFeatures)
+		scaler.Mean = make([]float, nFeatures, nFeatures)
+		scaler.Scale = make([]float, nFeatures, nFeatures)
 
 	}
-	self.Mean, self.Var, self.NSamplesSeen = _incremental_mean_and_var(X, self.Mean, self.Var, self.NSamplesSeen)
-	for j, vj := range self.Var {
+	scaler.Mean, scaler.Var, scaler.NSamplesSeen = IncrementalMeanAndVar(X, scaler.Mean, scaler.Var, scaler.NSamplesSeen)
+	for j, vj := range scaler.Var {
 		if vj == 0. {
-			self.Scale[j] = 1.
+			scaler.Scale[j] = 1.
 		} else {
-			self.Scale[j] = math.Sqrt(vj)
+			scaler.Scale[j] = math.Sqrt(vj)
 		}
 
 	}
-	return self
+	return scaler
 }
 
-func (self *StandardScaler) Transform(X [][]float) (Xout [][]float) {
+// Transform scales data
+func (scaler *StandardScaler) Transform(X [][]float) (Xout [][]float) {
 	Xout = make([][]float, len(X), len(X))
 	for i, Xi := range X {
 		Xout[i] = make([]float, len(Xi), len(Xi))
 		copy(Xout[i], Xi)
-		floats.Sub(Xout[i], self.Mean)
-		floats.Div(Xout[i], self.Scale)
+		floats.Sub(Xout[i], scaler.Mean)
+		floats.Div(Xout[i], scaler.Scale)
 	}
 	return
 }
 
-func (self *StandardScaler) InverseTransform(X [][]float) (Xout [][]float) {
+// InverseTransform unscales data
+func (scaler *StandardScaler) InverseTransform(X [][]float) (Xout [][]float) {
 	Xout = make([][]float, len(X), len(X))
 	for i, Xi := range X {
 		Xout[i] = make([]float, len(Xi), len(Xi))
 		copy(Xout[i], Xi)
-		floats.Mul(Xout[i], self.Scale)
-		floats.Add(Xout[i], self.Mean)
+		floats.Mul(Xout[i], scaler.Scale)
+		floats.Add(Xout[i], scaler.Mean)
 	}
 	return
 }
 
-// """Calculate mean update and a Youngs and Cramer variance update.
-// last_mean and last_variance are statistics computed at the last step by the
+// IncrementalMeanAndVar Calculate mean update and a Youngs and Cramer variance update.
+// lastMean and lastVariance are statistics computed at the last step by the
 // function. Both must be initialized to 0.0. In case no scaling is required
-// last_variance can be None. The mean is always required and returned because
-// necessary for the calculation of the variance. last_n_samples_seen is the
+// lastVariance can be None. The mean is always required and returned because
+// necessary for the calculation of the variance. lastNSamplesSeen is the
 // number of samples encountered until now.
 // From the paper "Algorithms for computing the sample variance: analysis and
 // recommendations", by Chan, Golub, and LeVeque.
 // Parameters
 // ----------
-// X : array-like, shape (n_samples, n_features)
+// X : array-like, shape (nSamples, nFeatures)
 //     Data to use for variance update
-// last_mean : array-like, shape: (n_features,)
-// last_variance : array-like, shape: (n_features,)
-// last_sample_count : int
+// lastMean : array-like, shape: (nFeatures,)
+// lastVariance : array-like, shape: (nFeatures,)
+// lastSampleCount : int
 // Returns
 // -------
-// updated_mean : array, shape (n_features,)
-// updated_variance : array, shape (n_features,)
+// updatedMean : array, shape (nFeatures,)
+// updatedVariance : array, shape (nFeatures,)
 //     If None, only mean is computed
-// updated_sample_count : int
+// updatedSampleCount : int
 // References
 // ----------
 // T. Chan, G. Golub, R. LeVeque. Algorithms for computing the sample
 //     variance: recommendations, The American Statistician, Vol. 37, No. 3,
 //     pp. 242-247
 // Also, see the sparse implementation of this in
-// `utils.sparsefuncs.incr_mean_variance_axis` and
-// `utils.sparsefuncs_fast.incr_mean_variance_axis0`
+// `utils.sparsefuncs.incrMeanVarianceAxis` and
+// `utils.sparsefuncsFast.incrMeanVarianceAxis0`
 // """
-func _incremental_mean_and_var(X [][]float, last_mean, last_variance []float,
-	last_sample_count int) (updated_mean, updated_variance []float, updated_sample_count int) {
+func IncrementalMeanAndVar(X [][]float, lastMean, lastVariance []float,
+	lastSampleCount int) (updatedMean, updatedVariance []float, updatedSampleCount int) {
 	// # old = stats until now
 	// # new = the current increment
 	// # updated = the aggregated stats
-	//last_sum := last_mean * last_sample_count
-	last_sum := make([]float, len(X[0]), len(X[0]))
-	copy(last_sum, last_mean)
-	floats.Scale(float(last_sample_count), last_sum)
+	//lastSum := lastMean * lastSampleCount
+	lastSum := make([]float, len(X[0]), len(X[0]))
+	copy(lastSum, lastMean)
+	floats.Scale(float(lastSampleCount), lastSum)
 	// new sum
-	new_sum := make([]float, len(X[0]), len(X[0]))
+	newSum := make([]float, len(X[0]), len(X[0]))
 	for _, Xi := range X {
-		floats.Add(new_sum, Xi)
+		floats.Add(newSum, Xi)
 	}
 
-	new_sample_count := len(X)
-	updated_sample_count = last_sample_count + new_sample_count
+	newSampleCount := len(X)
+	updatedSampleCount = lastSampleCount + newSampleCount
 
-	//updated_mean = (last_sum + new_sum) / updated_sample_count
-	updated_mean = make([]float, len(X[0]), len(X[0]))
-	copy(updated_mean, last_sum)
-	floats.Add(updated_mean, new_sum)
-	floats.Scale(1./float(updated_sample_count), updated_mean)
+	//updatedMean = (lastSum + newSum) / updatedSampleCount
+	updatedMean = make([]float, len(X[0]), len(X[0]))
+	copy(updatedMean, lastSum)
+	floats.Add(updatedMean, newSum)
+	floats.Scale(1./float(updatedSampleCount), updatedMean)
 
-	//new_unnormalized_variance = X.var(axis=0) * new_sample_count
-	new_unnormalized_variance := make([]float, len(X[0]), len(X[0]))
-	var updated_unnormalized_variance []float
-	new_mean := make([]float, len(X[0]), len(X[0]))
-	copy(new_mean, new_sum)
-	floats.Scale(1./float(new_sample_count), new_mean)
+	//newUnnormalizedVariance = X.var(axis=0) * newSampleCount
+	newUnnormalizedVariance := make([]float, len(X[0]), len(X[0]))
+	var updatedUnnormalizedVariance []float
+	newMean := make([]float, len(X[0]), len(X[0]))
+	copy(newMean, newSum)
+	floats.Scale(1./float(newSampleCount), newMean)
 	tmp := make([]float, len(X[0]), len(X[0]))
 	for _, Xi := range X {
-		floats.SubTo(tmp, Xi, new_mean)
+		floats.SubTo(tmp, Xi, newMean)
 		floats.Mul(tmp, tmp)
-		floats.Add(new_unnormalized_variance, tmp)
+		floats.Add(newUnnormalizedVariance, tmp)
 	}
 
-	if last_sample_count == 0 { //# Avoid division by 0
-		updated_unnormalized_variance = new_unnormalized_variance
+	if lastSampleCount == 0 { //# Avoid division by 0
+		updatedUnnormalizedVariance = newUnnormalizedVariance
 	} else {
-		last_over_new_count := float(last_sample_count) / float(new_sample_count)
-		//last_unnormalized_variance := last_variance * last_sample_count
-		last_unnormalized_variance := make([]float, len(X[0]), len(X[0]))
-		copy(last_unnormalized_variance, last_variance)
-		floats.Scale(float(last_sample_count), last_unnormalized_variance)
+		lastOverNewCount := float(lastSampleCount) / float(newSampleCount)
+		//lastUnnormalizedVariance := lastVariance * lastSampleCount
+		lastUnnormalizedVariance := make([]float, len(X[0]), len(X[0]))
+		copy(lastUnnormalizedVariance, lastVariance)
+		floats.Scale(float(lastSampleCount), lastUnnormalizedVariance)
 
-		// updated_unnormalized_variance = (
-		//     last_unnormalized_variance +
-		//     new_unnormalized_variance +
-		//     last_over_new_count / updated_sample_count *
-		//     (last_sum / last_over_new_count - new_sum) ** 2)
-		updated_unnormalized_variance = make([]float, len(X[0]), len(X[0]))
+		// updatedUnnormalizedVariance = (
+		//     lastUnnormalizedVariance +
+		//     newUnnormalizedVariance +
+		//     lastOverNewCount / updatedSampleCount *
+		//     (lastSum / lastOverNewCount - newSum) ** 2)
+		updatedUnnormalizedVariance = make([]float, len(X[0]), len(X[0]))
 		tmp := make([]float, len(X[0]), len(X[0]))
-		copy(tmp, last_sum)
-		floats.Scale(1./last_over_new_count, tmp)
-		floats.Add(tmp, new_sum)
+		copy(tmp, lastSum)
+		floats.Scale(1./lastOverNewCount, tmp)
+		floats.Add(tmp, newSum)
 		floats.Mul(tmp, tmp)
-		floats.Scale(last_over_new_count/float(updated_sample_count), tmp)
+		floats.Scale(lastOverNewCount/float(updatedSampleCount), tmp)
 
-		copy(updated_unnormalized_variance, last_unnormalized_variance)
-		floats.Add(updated_unnormalized_variance, new_unnormalized_variance)
-		floats.Add(updated_unnormalized_variance, tmp)
+		copy(updatedUnnormalizedVariance, lastUnnormalizedVariance)
+		floats.Add(updatedUnnormalizedVariance, newUnnormalizedVariance)
+		floats.Add(updatedUnnormalizedVariance, tmp)
 	}
-	//updated_variance = updated_unnormalized_variance / updated_sample_count
-	updated_variance = make([]float, len(X[0]), len(X[0]))
-	copy(updated_variance, updated_unnormalized_variance)
-	floats.Scale(1./float(updated_sample_count), updated_variance)
+	//updatedVariance = updatedUnnormalizedVariance / updatedSampleCount
+	updatedVariance = make([]float, len(X[0]), len(X[0]))
+	copy(updatedVariance, updatedUnnormalizedVariance)
+	floats.Scale(1./float(updatedSampleCount), updatedVariance)
 
-	return updated_mean, updated_variance, updated_sample_count
+	return updatedMean, updatedVariance, updatedSampleCount
 }
 
+// PolynomialFeatures struct
 type PolynomialFeatures struct {
 	Degree                       int
 	InteractionOnly, IncludeBias bool
 	Powers                       [][]int
 }
 
+// NewPolynomialFeatures creates a *PolynomialFeatures
 func NewPolynomialFeatures() *PolynomialFeatures {
 	return &PolynomialFeatures{Degree: 2, InteractionOnly: false, IncludeBias: true}
 
 }
 
-func addpowers(Powers *[][]int, j, Degree, n_features int, ppowers []int, InteractionOnly, IncludeBias bool) {
+func addpowers(Powers *[][]int, j, Degree, nFeatures int, ppowers []int, InteractionOnly, IncludeBias bool) {
 	ppsum := 0
 	for jj := 0; jj < j; jj++ {
 		ppsum += ppowers[jj]
@@ -274,16 +290,16 @@ func addpowers(Powers *[][]int, j, Degree, n_features int, ppowers []int, Intera
 
 	for d := 0; d <= Degree-ppsum; d++ {
 		ppowers[j] = d
-		if j < n_features-1 {
+		if j < nFeatures-1 {
 
-			addpowers(Powers, j+1, Degree, n_features, ppowers, InteractionOnly, IncludeBias)
+			addpowers(Powers, j+1, Degree, nFeatures, ppowers, InteractionOnly, IncludeBias)
 		} else {
 			if !IncludeBias && ppsum+d == 0 {
 				continue
 			}
 			if InteractionOnly {
 				nnotz := 0
-				for j1 := 0; j1 < n_features; j1++ {
+				for j1 := 0; j1 < nFeatures; j1++ {
 					if ppowers[j1] != 0 {
 						nnotz++
 					}
@@ -293,7 +309,7 @@ func addpowers(Powers *[][]int, j, Degree, n_features int, ppowers []int, Intera
 				}
 			}
 			//fmt.Printf("append %v\n", ppowers)
-			ppower := make([]int, n_features, n_features)
+			ppower := make([]int, nFeatures, nFeatures)
 			copy(ppower, ppowers)
 
 			*Powers = append(
@@ -302,20 +318,22 @@ func addpowers(Powers *[][]int, j, Degree, n_features int, ppowers []int, Intera
 	}
 }
 
-func (self *PolynomialFeatures) Fit(X [][]float, y []float) *PolynomialFeatures {
-	n_features := len(X[0])
-	//powers_[i, j] is the exponent of the jth input in the ith output.
-	self.Powers = make([][]int, 0)
-	ppowers := make([]int, n_features, n_features)
-	addpowers(&self.Powers, 0, self.Degree, n_features, ppowers, self.InteractionOnly, self.IncludeBias)
-	return self
+// Fit precompute Powers
+// Powers[i, j] is the exponent of the jth input in the ith output.
+func (scaler *PolynomialFeatures) Fit(X [][]float, y []float) *PolynomialFeatures {
+	nFeatures := len(X[0])
+	scaler.Powers = make([][]int, 0)
+	ppowers := make([]int, nFeatures, nFeatures)
+	addpowers(&scaler.Powers, 0, scaler.Degree, nFeatures, ppowers, scaler.InteractionOnly, scaler.IncludeBias)
+	return scaler
 }
 
-func (self *PolynomialFeatures) Transform(X [][]float) [][]float {
+// Transform returns data with polynomial features added
+func (scaler *PolynomialFeatures) Transform(X [][]float) [][]float {
 	Xout := make([][]float, len(X), len(X))
 	for isample, Xi := range X {
-		Xout[isample] = make([]float, len(self.Powers), len(self.Powers))
-		for ioutput, p := range self.Powers {
+		Xout[isample] = make([]float, len(scaler.Powers), len(scaler.Powers))
+		for ioutput, p := range scaler.Powers {
 			v := 1.
 			for j, pj := range p {
 				v *= math.Pow(Xi[j], float(pj))

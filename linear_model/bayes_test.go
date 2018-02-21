@@ -1,4 +1,4 @@
-package linear_model
+package linearModel
 
 import (
 	"fmt"
@@ -10,7 +10,7 @@ import (
 
 func TestBayesianRidge(t *testing.T) {
 
-	var X [][]float = make([][]float, 10000)
+	X := make([][]float, 10000)
 	Y := make([]float, len(X))
 	f := func(X []float) float { return 1. + 2.*X[0] + 3.*X[1] + 4.*X[2] }
 	for i := range X {
@@ -31,11 +31,11 @@ func TestBayesianRidge(t *testing.T) {
 		fmt.Printf("TestBayesianRidge normalize=%v score:%.4g elapsed:%s\n", normalize, m.Score(X, Y, nil), elapsed)
 		eps := .1
 		Xp := [][]float{{7., 8., 9.}}
-		y_true := []float{f(Xp[0])}
+		yTrue := []float{f(Xp[0])}
 		Yp := m.Predict(Xp)
-		//fmt.Println(Yp[0], " expected: ", y_true)
-		if math.Abs(Yp[0]-y_true[0]) > eps {
-			fmt.Printf("TestBayesianRidge Yp[0]-y_true[0]=%g\n", Yp[0]-y_true[0])
+		//fmt.Println(Yp[0], " expected: ", yTrue)
+		if math.Abs(Yp[0]-yTrue[0]) > eps {
+			fmt.Printf("TestBayesianRidge Yp[0]-yTrue[0]=%g\n", Yp[0]-yTrue[0])
 			t.Fail()
 		}
 		// Output:
@@ -44,7 +44,7 @@ func TestBayesianRidge(t *testing.T) {
 }
 
 func ExampleBayesianRidge() {
-	var X [][]float = make([][]float, 10000)
+	X := make([][]float, 10000)
 	Y := make([]float, len(X))
 	f := func(X []float) float { return 1. + 2.*X[0] + 3.*X[1] + 4.*X[2] }
 	for i := range X {
@@ -62,11 +62,11 @@ func ExampleBayesianRidge() {
 	m.Fit(X, Y)
 	//fmt.Printf("Scores: %#v\n", m.Scores_)
 	Xp := [][]float{{7., 8., 9.}}
-	y_true := []float{f(Xp[0])}
+	yTrue := []float{f(Xp[0])}
 	Yp := m.Predict(Xp)
-	unused(y_true, Yp)
+	unused(yTrue, Yp)
 
-	//fmt.Println(Yp[0], " expected: ", y_true)
+	//fmt.Println(Yp[0], " expected: ", yTrue)
 	fmt.Printf("TestBayesianRidge score:%.2g\n", m.Score(X, Y, nil))
 	// Output:
 	// TestBayesianRidge score:0.99
