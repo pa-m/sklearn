@@ -155,7 +155,7 @@ func NewRidge() *Ridge {
 // Fit lears Coef for Ridge
 func (regr *Ridge) Fit(X0 [][]float, y0 []float) *Ridge {
 	if regr.Normalize {
-		fmt.Fprintf(os.Stderr, "Ridge don't work with Normalize. Reverting Normalize to False")
+		fmt.Fprintf(os.Stderr, "Ridge don't work with Normalize. Reverting Normalize to False\n")
 		regr.Normalize = false
 	}
 	var nFeatures = len(X0[0])
@@ -247,7 +247,7 @@ func NewLasso() *Lasso {
 // Fit learns Coef for Lasso
 func (regr *Lasso) Fit(X0 [][]float, y0 []float) *Lasso {
 	if regr.Normalize {
-		fmt.Fprintf(os.Stderr, "Lasso don't work with Normalize. Reverting Normalize to False")
+		fmt.Fprintf(os.Stderr, "Lasso don't work with Normalize. Reverting Normalize to False\n")
 		regr.Normalize = false
 	}
 	var nFeatures = len(X0[0])
@@ -443,7 +443,7 @@ func fill(n int, x float) []float {
 
 func ones(n int) []float { return fill(n, 1.) }
 
-func log(x float) float { return math.Log(x) }
+//func log(x float) float { return math.Log(x) }
 
 // SetIntercept adjusts Coefs and Intercept using preprocess data
 func (regr *LinearModel) SetIntercept(XOffset []float, yOffset float, XScale []float) {

@@ -153,6 +153,7 @@ func (regr *BayesianRidge) Fit(X0 [][]float, y0 []float) *BayesianRidge {
 
 		}
 		alpha = ((float(nSamples) - gamma + 2*alpha1) / (rmse + 2*alpha2))
+		log := math.Log
 		// # Compute the objective function
 		if regr.ComputeScore {
 			s := lambda1*log(lambda) - lambda2*lambda
