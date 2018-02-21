@@ -43,8 +43,6 @@ func TestBayesianRidge(t *testing.T) {
 	}
 }
 
-func unused(...interface{}) {}
-
 func ExampleBayesianRidge() {
 	var X [][]float = make([][]float, 10000)
 	Y := make([]float, len(X))

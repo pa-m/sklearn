@@ -522,3 +522,5 @@ func preprocess_data(X [][]float, y []float, fit_intercept bool, normalize bool)
 	return
 
 }
+
+func unused(...interface{}) {}

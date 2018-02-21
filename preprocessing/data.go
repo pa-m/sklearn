@@ -313,13 +313,15 @@ func (self *PolynomialFeatures) Fit(X [][]float, y []float) *PolynomialFeatures 
 
 func (self *PolynomialFeatures) Transform(X [][]float) [][]float {
 	Xout := make([][]float, len(X), len(X))
-  for isample,Xi:=range X {
-    Xout[isample]=make([]float,len(self.Powers),len(self.Powers))
-    for ioutput,p:=range self.Powers {
-      v:=1.
-      for j,pj:=range p {v*=math.Pow(Xi[j],float(pj))}
-      Xout[isample][ioutput] = v
-    }
-  }
+	for isample, Xi := range X {
+		Xout[isample] = make([]float, len(self.Powers), len(self.Powers))
+		for ioutput, p := range self.Powers {
+			v := 1.
+			for j, pj := range p {
+				v *= math.Pow(Xi[j], float(pj))
+			}
+			Xout[isample][ioutput] = v
+		}
+	}
 	return Xout
 }

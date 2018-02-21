@@ -1,32 +1,33 @@
 package base
 
 import (
-	_ "fmt"
 	"math"
 )
 
+// GD contains data for Gradient Descent regressor
 type GD struct {
 	RegressorMixin
-	Epochs                                              int
-	LearningRate, Decay, Tol, Momentum, Alpha, L1_ratio float
-	Coefs_                                              []float
+	Epochs                                             int
+	LearningRate, Decay, Tol, Momentum, Alpha, L1Ratio float
+	Coefs                                              []float
 }
 
+// NewGD create a GD with reasonable defaults
 func NewGD() *GD {
-	self := &GD{Epochs: 3000, LearningRate: 1e-3, Decay: .95, Tol: 1e-3, Momentum: .5, L1_ratio: .15}
+	self := &GD{Epochs: 3000, LearningRate: 1e-3, Decay: .95, Tol: 1e-3, Momentum: .5}
 	self.Predicter = self
 	return self
 }
 
+// Fit learns GD Coefs
 // adapted from gdSolver from  https://github.com/ohheydom/linearregression/blob/master/linear_regression.go
 // Gradient Descent algorithm.
-
 func (gd *GD) Fit(x [][]float64, y []float64) *GD {
 	n, nFeatures := len(x), len(x[0])
 	gamma := gd.LearningRate / float(n)
 	w := make([]float64, nFeatures+1)
 	dw := make([]float64, nFeatures+1)
-	gd.Coefs_ = w
+	gd.Coefs = w
 	errors := make([]float64, n)
 	for i := 0; i < gd.Epochs; i++ {
 		Shuffle(x, y)
@@ -53,8 +54,8 @@ func (gd *GD) Fit(x [][]float64, y []float64) *GD {
 				w[l] += dw[l]
 			}
 		}
-		// L1 : floats.sum(ewize(w,math.Abs));L2:=sum(ewise(w,func(w float)float{return w*w}));R=gd.L1_ratio*L1+(1-gd.L1_ratio*L2)
-		// TODO: use L1_ratio
+		// L1 : floats.sum(ewize(w,math.Abs));L2:=sum(ewise(w,func(w float)float{return w*w}));R=gd.L1Ratio*L1+(1-gd.L1Ratio*L2)
+		// TODO: use L1Ratio
 
 		//decrease lr/n
 		// TODO learning_rate=optimal eta(t)=1/(alpha*(t0+t))
@@ -65,13 +66,13 @@ func (gd *GD) Fit(x [][]float64, y []float64) *GD {
 			break
 		}
 	}
-	gd.Coefs_ = w
+	gd.Coefs = w
 	return gd
 }
 
-// predY uses the given weights to calculate each sample's label.
+// Predict uses the GD Coefs to calculate each sample's label.
 func (gd *GD) Predict(x [][]float64) []float64 {
-	w := gd.Coefs_
+	w := gd.Coefs
 	n, nFeatures := len(x), len(x[0])
 	predY := make([]float64, n)
 	for i := 0; i < n; i++ {
