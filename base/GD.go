@@ -7,13 +7,13 @@ import (
 
 type GD struct {
 	RegressorMixin
-	Epochs                             int
-	LearningRate, Decay, Tol, Momentum float
-	Coefs_                             []float
+	Epochs                                              int
+	LearningRate, Decay, Tol, Momentum, Alpha, L1_ratio float
+	Coefs_                                              []float
 }
 
 func NewGD() *GD {
-	self := &GD{Epochs: 3000, LearningRate: 1e-3, Decay: .99, Tol: 1e-3, Momentum: .5}
+	self := &GD{Epochs: 3000, LearningRate: 1e-3, Decay: .95, Tol: 1e-3, Momentum: .5, L1_ratio: .15}
 	self.Predicter = self
 	return self
 }
@@ -22,37 +22,44 @@ func NewGD() *GD {
 // Gradient Descent algorithm.
 
 func (gd *GD) Fit(x [][]float64, y []float64) *GD {
-	nIter := gd.Epochs
 	n, nFeatures := len(x), len(x[0])
 	gamma := gd.LearningRate / float(n)
 	w := make([]float64, nFeatures+1)
 	dw := make([]float64, nFeatures+1)
 	gd.Coefs_ = w
 	errors := make([]float64, n)
-	for i := 0; i < nIter; i++ {
+	for i := 0; i < gd.Epochs; i++ {
+		Shuffle(x, y)
 		predY := gd.Predict(x)
 		errorSum := 0.0
 		errorSum2 := 0.0
 		// compute errorSum for updating w[0] and errorSum2 for Tol check
-		for j := 0; j < n; j++ {
-			errors[j] = y[j] - predY[j]
-			errorSum += errors[j]
-			errorSum2 += math.Pow(errors[j], 2.)
+		for k := 0; k < n; k++ {
+			errors[k] = y[k] - predY[k]
+			errorSum += errors[k]
+			errorSum2 += math.Pow(errors[k], 2.)
 
 		}
+		//fmt.Printf("GD %v %v\n", w, errorSum)
 		// update w[1]..w[n]
 		for k := 0; k < n; k++ {
+			dw[0] = gd.Momentum*dw[0] + gamma*errors[k]
+			w[0] += dw[0]
 			for l := 1; l < len(w); l++ {
-				dw[l] = gd.Momentum*dw[l] + gamma*x[k][l-1]*errors[k]
+				// MomentumPart:=gd.Momentum*dw[l]
+				// ErrorPart:=gamma*errors[k]*x[k][l-1]
+				// RegulPart := gd.Alpha/float(n)*w[l]
+				dw[l] = gd.Momentum*dw[l] + gamma*x[k][l-1]*errors[k] + gd.Alpha/float(n)*w[l]
 				w[l] += dw[l]
 			}
 		}
-		// update w[0]
-		w[0] += gamma * errorSum
-		//fmt.Printf("GD %v %v\n", w, errorSum)
+		// L1 : floats.sum(ewize(w,math.Abs));L2:=sum(ewise(w,func(w float)float{return w*w}));R=gd.L1_ratio*L1+(1-gd.L1_ratio*L2)
+		// TODO: use L1_ratio
 
 		//decrease lr/n
+		// TODO learning_rate=optimal eta(t)=1/(alpha*(t0+t))
 		gamma *= gd.Decay
+		//fmt.Printf("Epoch %d gamma:%g\n", i, gamma)
 		//check Tol
 		if math.Sqrt(errorSum2)/float(n) < gd.Tol {
 			break

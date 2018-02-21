@@ -5,6 +5,7 @@ import (
 	"math"
 	"math/rand"
 	"testing"
+	"time"
 )
 
 func TestBayesianRidge(t *testing.T) {
@@ -24,8 +25,10 @@ func TestBayesianRidge(t *testing.T) {
 		m.Normalize = normalize
 		//m.Verbose = true
 		m.ComputeScore = true
+		start := time.Now()
 		m.Fit(X, Y)
-		fmt.Printf("TestBayesianRidge normalize=%v score:%.4g\n", normalize, m.Score(X, Y, nil))
+		elapsed := time.Since(start)
+		fmt.Printf("TestBayesianRidge normalize=%v score:%.4g elapsed:%s\n", normalize, m.Score(X, Y, nil), elapsed)
 		eps := .1
 		Xp := [][]float{{7., 8., 9.}}
 		y_true := []float{f(Xp[0])}

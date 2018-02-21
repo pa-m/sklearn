@@ -8,6 +8,7 @@ import (
 	. "gonum.org/v1/gonum/optimize"
 	"math"
 	"math/rand"
+	"os"
 	"runtime"
 )
 
@@ -64,7 +65,7 @@ func (self *LinearRegression) Fit(X0 [][]float, y0 []float) *LinearRegression {
 		X0, y0, self.FitIntercept, self.Normalize)
 	self.X_offset_ = X_offset_
 	self.X_scale_ = X_scale_
-	squares := func(coef_ []float) float {
+	loss := func(coef_ []float) float {
 		// e = sumi { (yi -sumj cj Xij)² }
 		// de/dcj =
 		coefMulXi := make([]float, n_features, n_features)
@@ -77,14 +78,14 @@ func (self *LinearRegression) Fit(X0 [][]float, y0 []float) *LinearRegression {
 		return e
 	}
 	p := Problem{}
-	p.Func = squares
+	p.Func = loss
 	p.Grad = func(grad, coef_ []float) {
 		h := 1e-6
 
 		settings := &fd.Settings{}
 		settings.Concurrent = true
 		settings.Step = h
-		fd.Gradient(grad, squares, coef_, settings)
+		fd.Gradient(grad, loss, coef_, settings)
 
 	}
 	initialcoefs_ := make([]float, n_features, n_features)
@@ -119,6 +120,7 @@ func (self *LinearRegression) Fit(X0 [][]float, y0 []float) *LinearRegression {
 
 	return self
 }
+
 func (self *LinearRegression) Predict(X [][]float) (y_mean []float) {
 	y_mean = self.DecisionFunction(X)
 	return
@@ -140,12 +142,16 @@ func NewRidge() *Ridge {
 }
 
 func (self *Ridge) Fit(X0 [][]float, y0 []float) *Ridge {
+	if self.Normalize {
+		fmt.Fprintf(os.Stderr, "Ridge don't work with Normalize. Reverting Normalize to False")
+		self.Normalize = false
+	}
 	var n_features = len(X0[0])
 	var X, y, X_offset_, y_offset_, X_scale_ = preprocess_data(
 		X0, y0, self.FitIntercept, self.Normalize)
 	self.X_offset_ = X_offset_
 	self.X_scale_ = X_scale_
-	squares := func(coef_ []float) float {
+	loss := func(coef_ []float) float {
 		// e = sumi { (yi -sumj cj Xij)² }
 		// de/dcj =
 		coefMulXi := make([]float, n_features, n_features)
@@ -161,14 +167,14 @@ func (self *Ridge) Fit(X0 [][]float, y0 []float) *Ridge {
 		return e
 	}
 	p := Problem{}
-	p.Func = squares
+	p.Func = loss
 	p.Grad = func(grad, coef_ []float) {
 		h := 1e-6
 
 		settings := &fd.Settings{}
 		settings.Concurrent = true
 		settings.Step = h
-		fd.Gradient(grad, squares, coef_, settings)
+		fd.Gradient(grad, loss, coef_, settings)
 
 	}
 	initialcoefs_ := make([]float, n_features, n_features)
@@ -225,6 +231,10 @@ func NewLasso() *Lasso {
 }
 
 func (self *Lasso) Fit(X0 [][]float, y0 []float) *Lasso {
+	if self.Normalize {
+		fmt.Fprintf(os.Stderr, "Lasso don't work with Normalize. Reverting Normalize to False")
+		self.Normalize = false
+	}
 	var n_features = len(X0[0])
 	var X, y, X_offset_, y_offset_, X_scale_ = preprocess_data(
 		X0, y0, self.FitIntercept, self.Normalize)
@@ -298,15 +308,24 @@ func (self *Lasso) Predict(X [][]float) (y_mean []float) {
 
 // ---
 // ---
+type Penalty int
+
+const (
+	penalty_L2 Penalty = iota
+	penalty_L1
+	penalty_elasticnet
+)
+
 type SGDRegressor struct {
 	LinearModel
 	base.RegressorMixin
-	LearningRate, Tol float
-	NJobs             int
+	LearningRate, Tol, Alpha, L1_ratio float
+	penalty                            Penalty
+	NJobs                              int
 }
 
 func NewSGDRegressor() *SGDRegressor {
-	self := &SGDRegressor{LearningRate: .1, Tol: 1e-4, NJobs: 1}
+	self := &SGDRegressor{Tol: 1e-4, Alpha: 0.0001, L1_ratio: 0.15, NJobs: 1}
 	self.LinearModel.FitIntercept = true
 	self.RegressorMixin.Predicter = self
 	return self
@@ -317,18 +336,83 @@ func (self *SGDRegressor) Fit(X0 [][]float, y0 []float) *SGDRegressor {
 		X0, y0, self.FitIntercept, self.Normalize)
 	self.X_offset_ = X_offset_
 	self.X_scale_ = X_scale_
+	/*
+		gd := base.NewGD()
+		gd.LearningRate = self.LearningRate
+		gd.Tol = self.Tol
+		gd.Fit(X, y)
+		//fmt.Printf("SGD X_offset_ %g, y_offset_ %g, X_scale_ %g", X_offset_, y_offset_, X_scale_)
+		xtest := []float{7, 8, 9}
+		floats.Sub(xtest, X_offset_)
+		floats.Div(xtest, X_scale_)
+		//fmt.Printf("SGD predict %g\n", gd.Predict([][]float{xtest})[0]+y_offset_)
+		self.Coef_ = gd.Coefs_[1:]
+	*/
+	// begin use gonum gradientDescent
+	n_features := len(X[0])
+	loss := func(coef_ []float) float {
+		// e = sumi { (yi -sumj cj Xij)² }
+		// de/dcj =
+		tmp := make([]float, n_features, n_features)
+		// e will be sum of squares of errors
+		e := 0.
+		for i, Xi := range X {
+			e1 := y[i] - floats.Sum(floats.MulTo(tmp, coef_, Xi))
+			e += e1 * e1
+			//fmt.Printf("coef_ %v yi %g yp %g e1 %g e %g\n", coef_, y[i], yp, e1, e)
+		}
+		// compute regularization term R
+		L1 := 0.
+		L2_2 := 0.
+		for _, c := range coef_[1:] {
+			L1 += math.Abs(c)
+			L2_2 += c * c
+		}
+		R := self.L1_ratio*L1 + (1.-self.L1_ratio)*L2_2
+		return (e + self.Alpha*R) / float(len(X))
+	}
+	p := Problem{}
+	p.Func = loss
+	p.Grad = func(grad, coef_ []float) {
+		h := 1e-6
 
-	gd := base.NewGD()
-	gd.LearningRate = self.LearningRate
-	gd.Decay = .99
-	gd.Tol = self.Tol
-	gd.Fit(X, y)
-	//fmt.Printf("SGD X_offset_ %g, y_offset_ %g, X_scale_ %g", X_offset_, y_offset_, X_scale_)
-	xtest := []float{7, 8, 9}
-	floats.Sub(xtest, X_offset_)
-	floats.Div(xtest, X_scale_)
-	//fmt.Printf("SGD predict %g\n", gd.Predict([][]float{xtest})[0]+y_offset_)
-	self.Coef_ = gd.Coefs_[1:]
+		settings := &fd.Settings{}
+		settings.Concurrent = true
+		settings.Step = h
+		fd.Gradient(grad, loss, coef_, settings)
+
+	}
+
+	initialcoefs_ := make([]float, n_features, n_features)
+	for j := 0; j < n_features; j++ {
+		initialcoefs_[j] = rand.Float64()
+	}
+	settings := DefaultSettings()
+	settings.FunctionThreshold = self.Tol
+	settings.GradientThreshold = 1.e-12
+	/*  settings.FunctionConverge.Iterations = 1000
+	 */
+	settings.FunctionConverge = nil
+	if self.NJobs <= 0 {
+		settings.Concurrent = runtime.NumCPU()
+	} else {
+		settings.Concurrent = self.NJobs
+	}
+
+	// printer := NewPrinter()
+	// printer.HeadingInterval = 1
+	// settings.Recorder = printer
+
+	method := &GradientDescent{}
+	res, err := Local(p, initialcoefs_, settings, method)
+	//fmt.Printf("res=%s %#v\n", res.Status.String(), res)
+	if err != nil && err.Error() != "linesearch: no change in location after Linesearcher step" {
+
+		fmt.Println(err)
+	}
+	self.Coef_ = res.X
+
+	// end use gonum gradient gradientDescent
 	self._set_intercept(X_offset_, y_offset_, X_scale_)
 
 	return self
