@@ -10,6 +10,7 @@ import (
 	"gorgonia.org/tensor"
 )
 
+// Float is gorgonia's Float64
 var Float = gg.Float64
 
 // LinearRegressionGorgonia uses gorgonia
@@ -19,12 +20,12 @@ type LinearRegressionGorgonia struct {
 	LearningRate, Tol float
 }
 
-// NewLinearRegressionGorgonia
+// NewLinearRegressionGorgonia create and inits an *LinearRegressionGorgonia
 func NewLinearRegressionGorgonia() *LinearRegressionGorgonia {
 	return &LinearRegressionGorgonia{LinearModel: LinearModel{FitIntercept: true}, LearningRate: .1, Tol: 1e-7}
 }
 
-// LinearRegressionGorgonia is a linear regression using gorgonia
+// Fit fits a *LinearRegressionGorgonia
 func (regr *LinearRegressionGorgonia) Fit(X0 [][]float, y0 []float) *LinearRegressionGorgonia {
 	var X, Y, XOffset, yOffset, XScale = preprocessData(
 		X0, y0, regr.FitIntercept, regr.Normalize)
@@ -74,14 +75,15 @@ func (regr *LinearRegressionGorgonia) Fit(X0 [][]float, y0 []float) *LinearRegre
 
 }
 
-// Predict
+// Predict predicts Ys for passed Xs
 func (regr *LinearRegressionGorgonia) Predict(X [][]float) (yMean []float) {
 	yMean = regr.DecisionFunction(X)
 	return
 }
 
 // --------
-// LinearRegressionGorgonia uses gorgonia
+
+// LinearRegressionGorgonia2 is a multioutput libear regression using gorgonia
 type LinearRegressionGorgonia2 struct {
 	LinearModel2
 	base.RegressorMixin2
@@ -89,12 +91,12 @@ type LinearRegressionGorgonia2 struct {
 	LearningRate, Tol float
 }
 
-// NewLinearRegressionGorgonia
+// NewLinearRegressionGorgonia2 create a *LinearRegressionGorgonia2 with good defaults
 func NewLinearRegressionGorgonia2() *LinearRegressionGorgonia2 {
 	return &LinearRegressionGorgonia2{LinearModel2: LinearModel2{FitIntercept: true}, LearningRate: .1, Tol: 1e-7}
 }
 
-// LinearRegressionGorgonia is a linear regression using gorgonia
+// Fit lears coef and intercept for a *LinearRegressionGorgonia2
 func (regr *LinearRegressionGorgonia2) Fit(X0, y0 [][]float) *LinearRegressionGorgonia2 {
 	regr.nOutputs = len(y0[0])
 	Float := gg.Float64
@@ -180,7 +182,7 @@ func (regr *LinearRegressionGorgonia2) Fit(X0, y0 [][]float) *LinearRegressionGo
 
 }
 
-// Predict
+// Predict return predicted Ys for a list or Xs
 func (regr *LinearRegressionGorgonia2) Predict(X [][]float) (yMean [][]float) {
 	nSamples := len(X)
 	XC, err := tensor.MatMul(ToDense(X), ToDense(regr.Coef))
@@ -206,6 +208,7 @@ func check(err error) {
 	}
 }
 
+// ToTensor converts an multidimensionnal flat array to a *tensor.Tensor
 func ToTensor(X interface{}) tensor.Tensor {
 	switch v := X.(type) {
 	case []float:
@@ -225,6 +228,7 @@ func ToTensor(X interface{}) tensor.Tensor {
 	}
 }
 
+// ToDense converts an multidimensionnal flat array to a *tensor.Dense
 func ToDense(X interface{}) *tensor.Dense {
 	switch v := X.(type) {
 	case []float:

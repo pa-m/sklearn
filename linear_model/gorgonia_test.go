@@ -52,7 +52,7 @@ func TestLinearRegressionGorgonia(t *testing.T) {
 		elapsed := time.Since(start)
 		fmt.Println("TestLinearRegressionGorgonia", elapsed)
 		//fmt.Printf("TestLinearRegressionG(normalize=%v) %v: Intercept=%g Coef=%#v\nelapsed:%s\n", norm, Float, m.Intercept, m.Coef, elapsed)
-		erry := 14. - m.Predict([][]float{[]float{1, 1, 1}})[0]
+		erry := 14. - m.Predict([][]float{{1, 1, 1}})[0]
 		if math.Abs(erry) > m.Tol {
 			t.Errorf("TestLinearRegressionG Error:%g", erry)
 		}
@@ -75,7 +75,7 @@ func TestLinearRegressionGorgonia2(t *testing.T) {
 		elapsed := time.Since(start)
 		//fmt.Printf("TestLinearRegressionG(normalize=%v) %v: Intercept=%v Coef=%#v\nelapsed:%s\n", norm, Float, m.Intercept, m.Coef, elapsed)
 		fmt.Println("TestLinearRegressionGorgonia2", elapsed)
-		ypred := m.Predict([][]float{[]float{1, 1, 1}})
+		ypred := m.Predict([][]float{{1, 1, 1}})
 		erry := 14. - ypred[0][0]
 		if math.Abs(erry) > 2*m.Tol {
 			t.Errorf("TestLinearRegressionG Error:%g", erry)
