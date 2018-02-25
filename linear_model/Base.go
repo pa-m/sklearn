@@ -2,14 +2,15 @@ package linearModel
 
 import (
 	"fmt"
-	"github.com/gonum/floats"
-	"github.com/pa-m/sklearn/base"
-	"gonum.org/v1/gonum/diff/fd"
-	"gonum.org/v1/gonum/optimize"
 	"math"
 	"math/rand"
 	"os"
 	"runtime"
+
+	"github.com/gonum/floats"
+	"github.com/pa-m/sklearn/base"
+	"gonum.org/v1/gonum/diff/fd"
+	"gonum.org/v1/gonum/optimize"
 )
 
 type float = float64
@@ -21,6 +22,14 @@ type LinearModel struct {
 	Intercept               float
 	FitIntercept, Normalize bool
 	Method                  optimize.Method
+}
+
+// LinearModel2 is a base struct for some predicters
+type LinearModel2 struct {
+	XOffset, XScale         []float
+	Coef                    [][]float
+	Intercept               []float
+	FitIntercept, Normalize bool
 }
 
 // LinearRegression ia Ordinary least squares Linear Regression.

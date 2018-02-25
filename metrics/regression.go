@@ -1,5 +1,9 @@
 package metrics
 
+import (
+	"github.com/gonum/floats"
+)
+
 type float = float64
 
 // R2Score """R^2 (coefficient of determination) regression score function.
@@ -94,6 +98,20 @@ func R2Score(yTrue, yPred, sampleWeight []float, multioutput string) float {
 		denominator += sampleWeight[i] * t * t
 	}
 	return 1. - numerator/denominator
+}
+
+func R2Score2(yTrue, yPred [][]float, sampleWeight []float, multioutput string) float {
+	nSamples, nOutputs := len(yTrue), len(yTrue[0])
+	scores := make([]float, nOutputs)
+	yTrue1, yPred1 := make([]float, nSamples, nSamples), make([]float, nSamples, nSamples)
+	for j := range scores {
+		for i := range yTrue {
+			yTrue1[i], yPred1[i] = yTrue[i][j], yPred[i][j]
+		}
+		scores[j] = R2Score(yTrue1, yPred1, sampleWeight, multioutput)
+	}
+	// TODO implement multioutput=="variance_weighted"
+	return floats.Sum(scores) / float(nOutputs)
 }
 
 func meanSquaredError(yTrue, yPred, sampleWeight []float) float {

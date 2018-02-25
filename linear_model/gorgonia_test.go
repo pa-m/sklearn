@@ -2,10 +2,9 @@ package linearModel
 
 import (
 	"fmt"
+	"math"
 	"math/rand"
 
-	. "gorgonia.org/gorgonia"
-	"gorgonia.org/tensor"
 	"testing"
 	"time"
 )
@@ -14,10 +13,8 @@ const (
 	vecSize = 10000
 )
 
-var Float = Float64
-
 // manually generate a fake dataset which is y=2x+random
-func xy() (x tensor.Tensor, y tensor.Tensor) {
+func xy() (xBack [][]float, yBack []float) {
 	/*var xBack, yBack interface{}
 
 	xBack = tensor.Range(Float, 1, vecSize+1).([]float64)
@@ -30,30 +27,62 @@ func xy() (x tensor.Tensor, y tensor.Tensor) {
 	*/
 	nFeatures := 3
 	nOutputs := 1 // Grad can't handle fails with more than one output
-	xBack := make([]float, vecSize*nFeatures)
-	yBack := make([]float, vecSize*nOutputs)
+	xBack = make([][]float, vecSize)
+	yBack = make([]float, vecSize*nOutputs)
 	for i := range yBack {
-		xBack[nFeatures*i] = rand.Float64()*20. - 10.
-		xBack[nFeatures*i+1] = rand.Float64()*20. - 10.
-		xBack[nFeatures*i+2] = rand.Float64()*20. - 10.
+		xBack[i] = make([]float, nFeatures, nFeatures)
 
-		yBack[nOutputs*i] = 2*xBack[nFeatures*i] + 3*xBack[nFeatures*i+1] + xBack[nFeatures*i+2]
+		xBack[i][0] = rand.Float64()*20. - 10.
+		xBack[i][1] = rand.Float64()*20. - 10.
+		xBack[i][2] = rand.Float64()*20. - 10.
+
+		yBack[nOutputs*i] = 8 + 2*xBack[i][0] + 3*xBack[i][1] + xBack[i][2]
 	}
-
-	//x = tensor.New(tensor.WithBacking(xBack), tensor.WithShape(vecSize, 2))
-	x = tensor.NewDense(Float, []int{vecSize, nFeatures}, tensor.WithBacking(xBack))
-
-	y = tensor.New(tensor.WithBacking(yBack), tensor.WithShape(vecSize))
 	return
 }
 
-func TestLinearRegressionG(t *testing.T) {
-	var xT, yT Value
-	xT, yT = xy()
+func TestLinearRegressionGorgonia(t *testing.T) {
 	start := time.Now()
+	X, Y := xy()
+	for _, norm := range []bool{false, true} {
+		m := NewLinearRegressionGorgonia()
+		m.Normalize = norm
+		m.Tol = 1e-6
+		m.Fit(X, Y)
+		elapsed := time.Since(start)
+		fmt.Println("TestLinearRegressionGorgonia", elapsed)
+		//fmt.Printf("TestLinearRegressionG(normalize=%v) %v: Intercept=%g Coef=%#v\nelapsed:%s\n", norm, Float, m.Intercept, m.Coef, elapsed)
+		erry := 14. - m.Predict([][]float{[]float{1, 1, 1}})[0]
+		if math.Abs(erry) > m.Tol {
+			t.Errorf("TestLinearRegressionG Error:%g", erry)
+		}
+	}
+}
 
-	m := linearRegression(Float, xT, yT)
-	elapsed := time.Since(start)
-	fmt.Printf("TestLinearRegressionG %v: m=%#v\nelapsed:%s\n", Float, m.Value(), elapsed)
-
+// LinearRegressionGorgonia2 is a linear regr with sevelal outputs
+func TestLinearRegressionGorgonia2(t *testing.T) {
+	start := time.Now()
+	X, Y1 := xy()
+	Y := make([][]float, len(Y1))
+	for i, yi := range Y1 {
+		Y[i] = []float{yi, 2 * yi}
+	}
+	for _, norm := range []bool{false, true} {
+		m := NewLinearRegressionGorgonia2()
+		m.Normalize = norm
+		m.Tol = 1e-6
+		m.Fit(X, Y)
+		elapsed := time.Since(start)
+		//fmt.Printf("TestLinearRegressionG(normalize=%v) %v: Intercept=%v Coef=%#v\nelapsed:%s\n", norm, Float, m.Intercept, m.Coef, elapsed)
+		fmt.Println("TestLinearRegressionGorgonia2", elapsed)
+		ypred := m.Predict([][]float{[]float{1, 1, 1}})
+		erry := 14. - ypred[0][0]
+		if math.Abs(erry) > 2*m.Tol {
+			t.Errorf("TestLinearRegressionG Error:%g", erry)
+		}
+		erry = 28. - ypred[0][1]
+		if math.Abs(erry) > 2*m.Tol {
+			t.Errorf("TestLinearRegressionG Error:%g", erry)
+		}
+	}
 }

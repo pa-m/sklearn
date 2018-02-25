@@ -2,11 +2,12 @@ package linearModel
 
 import (
 	"fmt"
+	"math"
+
 	"github.com/gonum/floats"
 	"github.com/gonum/stat"
 	"github.com/pa-m/sklearn/base"
 	"gonum.org/v1/gonum/mat"
-	"math"
 )
 
 // BayesianRidge regression struct

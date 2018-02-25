@@ -2,11 +2,12 @@ package linearModel
 
 import (
 	"fmt"
-	"gonum.org/v1/gonum/optimize"
 	"math"
 	"math/rand"
 	"testing"
 	"time"
+
+	"gonum.org/v1/gonum/optimize"
 )
 
 func TestLinearRegression(t *testing.T) {
