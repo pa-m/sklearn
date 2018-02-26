@@ -15,14 +15,16 @@ var Float = gg.Float64
 
 // LinearRegressionGorgonia uses gorgonia
 type LinearRegressionGorgonia struct {
-	LinearModel
-	base.RegressorMixin
+	LinearModel1
+	base.RegressorMixin1
 	LearningRate, Tol float
 }
 
 // NewLinearRegressionGorgonia create and inits an *LinearRegressionGorgonia
 func NewLinearRegressionGorgonia() *LinearRegressionGorgonia {
-	return &LinearRegressionGorgonia{LinearModel: LinearModel{FitIntercept: true}, LearningRate: .1, Tol: 1e-7}
+	regr := &LinearRegressionGorgonia{LearningRate: .1, Tol: 1e-7}
+	regr.FitIntercept = true
+	return regr
 }
 
 // Fit fits a *LinearRegressionGorgonia

@@ -12,8 +12,8 @@ import (
 
 // BayesianRidge regression struct
 type BayesianRidge struct {
-	LinearModel
-	base.RegressorMixin
+	LinearModel1
+	base.RegressorMixin1
 	NIter                                 int
 	Tol, Alpha1, Alpha2, Lambda1, Lambda2 float
 	ComputeScore, Verbose                 bool
@@ -24,10 +24,11 @@ type BayesianRidge struct {
 
 // NewBayesianRidge creates a *BayesianRidge with defaults
 func NewBayesianRidge() *BayesianRidge {
-	regr := &BayesianRidge{LinearModel: LinearModel{FitIntercept: true}, RegressorMixin: base.RegressorMixin{}, NIter: 300, Tol: 1e-3, Alpha1: 1e-6, Alpha2: 1e-6,
+	regr := &BayesianRidge{NIter: 300, Tol: 1e-3, Alpha1: 1e-6, Alpha2: 1e-6,
 		Lambda1: 1e-6, Lambda2: 1e-6, ComputeScore: false, Verbose: false,
 	}
-	regr.RegressorMixin.Predicter = regr
+	regr.FitIntercept = true
+	regr.RegressorMixin1.Predicter = regr
 	return regr
 }
 

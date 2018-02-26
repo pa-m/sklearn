@@ -6,7 +6,7 @@ import (
 
 // GD contains data for Gradient Descent regressor
 type GD struct {
-	RegressorMixin
+	RegressorMixin1
 	Epochs                                             int
 	LearningRate, Decay, Tol, Momentum, Alpha, L1Ratio float
 	Coefs                                              []float

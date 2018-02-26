@@ -15,8 +15,8 @@ import (
 
 type float = float64
 
-// LinearModel is a base struct for some predicters
-type LinearModel struct {
+// LinearModel1 is a base struct for mono-output regressions
+type LinearModel1 struct {
 	XOffset, XScale         []float
 	Coef                    []float
 	Intercept               float
@@ -24,13 +24,16 @@ type LinearModel struct {
 	Method                  optimize.Method
 }
 
-// LinearModel2 is a base struct for some predicters
+// LinearModel2 is a base struct for multioutput regressions
 type LinearModel2 struct {
 	XOffset, XScale         []float
 	Coef                    [][]float
 	Intercept               []float
 	FitIntercept, Normalize bool
 }
+
+// LinearModel is a base struct for multioutput regressions
+type LinearModel = LinearModel2
 
 // LinearRegression ia Ordinary least squares Linear Regression.
 // Parameters
@@ -55,8 +58,8 @@ type LinearModel2 struct {
 // intercept : array
 //     Independent term in the linear model.
 type LinearRegression struct {
-	LinearModel
-	base.RegressorMixin
+	LinearModel1
+	base.RegressorMixin1
 	Tol   float
 	NJobs int
 }
@@ -64,8 +67,8 @@ type LinearRegression struct {
 // NewLinearRegression create a *LinearRegression with defaults
 func NewLinearRegression() *LinearRegression {
 	regr := &LinearRegression{Tol: 1e-6, NJobs: 1}
-	regr.LinearModel.FitIntercept = true
-	regr.RegressorMixin.Predicter = regr
+	regr.FitIntercept = true
+	regr.RegressorMixin1.Predicter = regr
 	return regr
 }
 
@@ -118,7 +121,7 @@ func (regr *LinearRegression) Fit(X0 [][]float, y0 []float) *LinearRegression {
 	// printer := optimize.NewPrinter()
 	// printer.HeadingInterval = 1
 	// settings.Recorder = printer
-	method := regr.Method
+	var method optimize.Method
 	if method == nil {
 		// the fastest method seems to be CG when normalized and BFGS when non-normalized
 		if regr.Normalize {
@@ -147,8 +150,8 @@ func (regr *LinearRegression) Predict(X [][]float) (yMean []float) {
 
 // Ridge regression base struct
 type Ridge struct {
-	LinearModel
-	base.RegressorMixin
+	LinearModel1
+	base.RegressorMixin1
 	Alpha, Tol float
 	NJobs      int
 }
@@ -156,8 +159,8 @@ type Ridge struct {
 // NewRidge creates a *Ridge with defaults
 func NewRidge() *Ridge {
 	regr := &Ridge{Alpha: 1., Tol: 1e-3, NJobs: 1}
-	regr.LinearModel.FitIntercept = true
-	regr.RegressorMixin.Predicter = regr
+	regr.FitIntercept = true
+	regr.RegressorMixin1.Predicter = regr
 	return regr
 }
 
@@ -239,8 +242,8 @@ func (regr *Ridge) Predict(X [][]float) (yMean []float) {
 
 // Lasso regression base struct
 type Lasso struct {
-	LinearModel
-	base.RegressorMixin
+	LinearModel1
+	base.RegressorMixin1
 	Alpha, Tol float
 	NJobs      int
 }
@@ -248,8 +251,8 @@ type Lasso struct {
 //NewLasso creates a *Lasso with defaults
 func NewLasso() *Lasso {
 	regr := &Lasso{Alpha: 1., Tol: 1e-4, NJobs: 1}
-	regr.LinearModel.FitIntercept = true
-	regr.RegressorMixin.Predicter = regr
+	regr.FitIntercept = true
+	regr.RegressorMixin1.Predicter = regr
 	return regr
 }
 
@@ -333,8 +336,8 @@ func (regr *Lasso) Predict(X [][]float) (yMean []float) {
 
 // SGDRegressor base struct
 type SGDRegressor struct {
-	LinearModel
-	base.RegressorMixin
+	LinearModel1
+	base.RegressorMixin1
 	LearningRate, Tol, Alpha, L1Ratio float
 	NJobs                             int
 }
@@ -342,8 +345,8 @@ type SGDRegressor struct {
 // NewSGDRegressor creates a *SGDRegressor with defaults
 func NewSGDRegressor() *SGDRegressor {
 	regr := &SGDRegressor{Tol: 1e-4, Alpha: 0.0001, L1Ratio: 0.15, NJobs: 1}
-	regr.LinearModel.FitIntercept = true
-	regr.RegressorMixin.Predicter = regr
+	regr.FitIntercept = true
+	regr.RegressorMixin1.Predicter = regr
 	return regr
 }
 
@@ -455,7 +458,7 @@ func ones(n int) []float { return fill(n, 1.) }
 //func log(x float) float { return math.Log(x) }
 
 // SetIntercept adjusts Coefs and Intercept using preprocess data
-func (regr *LinearModel) SetIntercept(XOffset []float, yOffset float, XScale []float) {
+func (regr *LinearModel1) SetIntercept(XOffset []float, yOffset float, XScale []float) {
 	// """Set the intercept
 	// """
 	if regr.FitIntercept {
@@ -474,7 +477,7 @@ func (regr *LinearModel) SetIntercept(XOffset []float, yOffset float, XScale []f
 }
 
 // DecisionFunction returns y from X and Coef (for preprocessed data)
-func (regr *LinearModel) DecisionFunction(X [][]float) (y []float) {
+func (regr *LinearModel1) DecisionFunction(X [][]float) (y []float) {
 	y = make([]float, len(X))
 	for i, Xi := range X {
 		y[i] = regr.Intercept

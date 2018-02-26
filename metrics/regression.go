@@ -100,6 +100,7 @@ func R2Score(yTrue, yPred, sampleWeight []float, multioutput string) float {
 	return 1. - numerator/denominator
 }
 
+// REScore2 is the R2 score for multioutput regressions
 func R2Score2(yTrue, yPred [][]float, sampleWeight []float, multioutput string) float {
 	nSamples, nOutputs := len(yTrue), len(yTrue[0])
 	scores := make([]float, nOutputs)
