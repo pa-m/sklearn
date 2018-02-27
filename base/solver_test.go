@@ -2,6 +2,7 @@ package base
 
 import (
 	"fmt"
+	"github.com/pa-m/sklearn/preprocessing"
 	"gonum.org/v1/gonum/mat"
 	"math"
 	"math/rand"
@@ -38,7 +39,8 @@ func NewRandomSigmoidProblem(nSamples, nFeatures, nOutputs int) *Problem {
 }
 
 func (p *Problem) Normalize() *Problem {
-	DenseNormalize(p.X, p.Y)
+	preprocessing.DenseNormalize(p.X)
+	preprocessing.DenseNormalize(p.Y)
 	return p
 }
 

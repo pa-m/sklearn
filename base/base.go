@@ -84,21 +84,6 @@ func DenseShuffle(X, Y *mat.Dense) {
 	}
 }
 
-// DenseMean puts in Xmean[1,nFeatures] the mean of X rows
-func DenseMean(Xmean *mat.Dense, X mat.Matrix) *mat.Dense {
-	nSamples, nFeatures := X.Dims()
-	if Xmean == nil {
-		Xmean = mat.NewDense(1, nFeatures, nil)
-	}
-	Xmean.Apply(func(i int, j int, v float64) float64 {
-		for i := 0; i < nSamples; i++ {
-			v += X.At(i, j)
-		}
-		return v / float64(nSamples)
-	}, Xmean)
-	return Xmean
-}
-
 // DenseSigmoid put emelent-wise sigmoid of X into dst
 func DenseSigmoid(dst *mat.Dense, X mat.Matrix) *mat.Dense {
 	if dst == nil {
@@ -109,30 +94,6 @@ func DenseSigmoid(dst *mat.Dense, X mat.Matrix) *mat.Dense {
 		return 1. / (1. + math.Exp(-v))
 	}, X)
 	return dst
-}
-
-// DenseNormalize normalize matrix rows by removing mean and dividing with standard deviation
-func DenseNormalize(Xs ...*mat.Dense) {
-	for _, X := range Xs {
-		nSamples, nFeatures := X.Dims()
-		Xmean := mat.NewDense(1, nFeatures, nil)
-		DenseMean(Xmean, X)
-		Xvar := mat.NewDense(1, nFeatures, nil)
-		Xvar.Apply(func(i int, j int, xmean float64) float64 {
-			v := 0.
-			for i := 0; i < nSamples; i++ {
-				v += math.Pow(X.At(i, j)-xmean, 2)
-			}
-			return v / float64(nSamples)
-		}, Xmean)
-		X.Apply(func(i int, j int, v float64) float64 {
-			stdj := math.Sqrt(Xvar.At(0, j))
-			if stdj == 0 {
-				stdj = 1.
-			}
-			return (v - Xmean.At(0, j)) / stdj
-		}, X)
-	}
 }
 
 func unused(...interface{}) {}

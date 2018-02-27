@@ -361,25 +361,25 @@ func DenseMean(Xmean *mat.Dense, X mat.Matrix) *mat.Dense {
 }
 
 // DenseNormalize normalize matrix rows by removing mean and dividing with standard deviation
-func DenseNormalize(Xs ...*mat.Dense) {
-	for _, X := range Xs {
-		nSamples, nFeatures := X.Dims()
-		Xmean := mat.NewDense(1, nFeatures, nil)
-		DenseMean(Xmean, X)
-		Xvar := mat.NewDense(1, nFeatures, nil)
-		Xvar.Apply(func(i int, j int, xmean float64) float64 {
-			v := 0.
-			for i := 0; i < nSamples; i++ {
-				v += math.Pow(X.At(i, j)-xmean, 2)
-			}
-			return v / float64(nSamples)
-		}, Xmean)
-		X.Apply(func(i int, j int, v float64) float64 {
-			stdj := math.Sqrt(Xvar.At(0, j))
-			if stdj == 0 {
-				stdj = 1.
-			}
-			return (v - Xmean.At(0, j)) / stdj
-		}, X)
-	}
+func DenseNormalize(X *mat.Dense) (XOffset, XScale *mat.Dense) {
+
+	nSamples, nFeatures := X.Dims()
+	XOffset = mat.NewDense(1, nFeatures, nil)
+	DenseMean(XOffset, X)
+	XScale = mat.NewDense(1, nFeatures, nil)
+	XScale.Apply(func(i int, j int, XOffset float64) float64 {
+		v := 0.
+		for i := 0; i < nSamples; i++ {
+			v += math.Pow(X.At(i, j)-XOffset, 2)
+		}
+		v = math.Sqrt(v / float64(nSamples))
+		if v == 0. {
+			v = 1.
+		}
+		return v
+	}, XOffset)
+	X.Apply(func(i int, j int, v float64) float64 {
+		return (v - XOffset.At(0, j)) / XScale.At(0, j)
+	}, X)
+	return XOffset, XScale
 }
