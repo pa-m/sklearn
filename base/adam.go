@@ -80,3 +80,5 @@ func (s *AdamSolver) UpdateParams(grad mat.Matrix) {
 	s.Tmp2.Apply(fn, s.Mtcap)
 	s.Theta.Add(s.Theta, s.Tmp2)
 }
+
+// -----------

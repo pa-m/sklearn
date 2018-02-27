@@ -1,10 +1,28 @@
 package metrics
 
 import (
-	"github.com/gonum/floats"
+	"gonum.org/v1/gonum/mat"
 )
 
 type float = float64
+
+type constVector struct {
+	Value      float64
+	Length     int
+	Transposed bool
+}
+
+func (v constVector) Dims() (int, int) {
+	if v.Transposed {
+		return 1, v.Length
+	}
+	return v.Length, 1
+
+}
+func (v constVector) At(int, int) float64 { return v.Value }
+func (v constVector) T() mat.Matrix       { return &constVector{v.Value, v.Length, !v.Transposed} }
+func (v constVector) Len() int            { return v.Length }
+func (v constVector) AtVec(int) float64   { return v.Value }
 
 // R2Score """R^2 (coefficient of determination) regression score function.
 // Best possible score is 1.0 and it can be negative (because the
@@ -73,46 +91,54 @@ type float = float64
 // >>> r2Score(yTrue, yPred)
 // -3.0
 // """
-func R2Score(yTrue, yPred, sampleWeight []float, multioutput string) float {
+func R2Score(yTrue, yPred *mat.Dense, sampleWeight *mat.VecDense, multioutput string) *mat.Dense {
+	nSamples, nOutputs := yTrue.Dims()
 	if sampleWeight == nil {
-		sampleWeight = make([]float, len(yTrue), len(yTrue))
-		for i := range sampleWeight {
-			sampleWeight[i] = 1.
-		}
-	}
-	numerator := 0.
-	for i := range sampleWeight {
-		t := yTrue[i] - yPred[i]
-		numerator += sampleWeight[i] * t * t
-	}
-	yTrueAvg := 0.
-	sampleWeightSum := 0.
-	for i := range sampleWeight {
-		yTrueAvg += yTrue[i] * sampleWeight[i]
-		sampleWeightSum += sampleWeight[i]
-	}
-	yTrueAvg /= sampleWeightSum
-	denominator := 0.
-	for i := range sampleWeight {
-		t := yTrue[i] - yTrueAvg
-		denominator += sampleWeight[i] * t * t
-	}
-	return 1. - numerator/denominator
-}
 
-// REScore2 is the R2 score for multioutput regressions
-func R2Score2(yTrue, yPred [][]float, sampleWeight []float, multioutput string) float {
-	nSamples, nOutputs := len(yTrue), len(yTrue[0])
-	scores := make([]float, nOutputs)
-	yTrue1, yPred1 := make([]float, nSamples, nSamples), make([]float, nSamples, nSamples)
-	for j := range scores {
-		for i := range yTrue {
-			yTrue1[i], yPred1[i] = yTrue[i][j], yPred[i][j]
-		}
-		scores[j] = R2Score(yTrue1, yPred1, sampleWeight, multioutput)
+		sampleWeight = mat.VecDenseCopyOf(constVector{1., nSamples, false})
+
 	}
-	// TODO implement multioutput=="variance_weighted"
-	return floats.Sum(scores) / float(nOutputs)
+	numerator := mat.NewDense(1, nOutputs, nil)
+	diff := mat.NewDense(nSamples, nOutputs, nil)
+	diff.Sub(yPred, yTrue)
+	diff2 := mat.NewDense(nSamples, nOutputs, nil)
+	diff2.MulElem(diff, diff)
+	numerator.Mul(sampleWeight.T(), diff2)
+
+	sampleWeightSum := mat.NewDense(1, 1, nil)
+	sampleWeightSum.Mul(sampleWeight.T(), constVector{1, nSamples, false})
+
+	yTrueAvg := mat.NewDense(1, nOutputs, nil)
+	yTrueAvg.Mul(sampleWeight.T(), yTrue)
+	yTrueAvg.Scale(1./sampleWeightSum.At(0, 0), yTrueAvg)
+
+	diff2.Apply(func(i int, j int, v float64) float64 {
+		v = yTrue.At(i, j) - yTrueAvg.At(0, j)
+		return v * v
+	}, diff2)
+	denominator := mat.NewDense(1, nOutputs, nil)
+	denominator.Mul(sampleWeight.T(), diff2)
+
+	r2score := mat.NewDense(1, nOutputs, nil)
+	quotient := mat.NewDense(1, nOutputs, nil)
+	quotient.DivElem(numerator, denominator)
+	r2score.Sub(constVector{1, nOutputs, true}, quotient)
+	switch multioutput {
+	case "raw_values":
+		return r2score
+	case "variance_weighted":
+		r2 := mat.NewDense(1, 1, nil)
+		r2.Mul(denominator, r2score.T())
+		sumden := mat.NewDense(1, 1, nil)
+		sumden.Mul(denominator, constVector{1, nOutputs, false})
+		r2.Scale(1./sumden.At(0, 0), r2)
+		return r2
+	default: // "uniform_average":
+		r2 := mat.NewDense(1, 1, nil)
+		r2.Mul(constVector{1. / float(nOutputs), nOutputs, true}, r2score.T())
+		return r2score
+	}
+
 }
 
 func meanSquaredError(yTrue, yPred, sampleWeight []float) float {
