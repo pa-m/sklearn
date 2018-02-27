@@ -44,8 +44,21 @@ func (p *Problem) Normalize() *Problem {
 	return p
 }
 
-func testSolver(t *testing.T, name string, s Optimizer, p *Problem) {
-	X, _, Ytrue := p.X, p.Theta, p.Y
+type Regression interface {
+	Fit(X, Y *mat.Dense)
+	Predict(X, Y *mat.Dense)
+	Score(X, Y *mat.Dense)
+	Coef() *mat.Dense
+	Intercept() *mat.Dense
+}
+
+type lrOptions struct {
+	Epochs, MiniBatchSize int
+	Tol                   float64
+	Solver                Optimizer
+}
+
+func linregfit(X, Ytrue *mat.Dense, opts *lrOptions) (converged bool, rmse float64, epoch int) {
 	nSamples, nFeatures := X.Dims()
 	_, nOutputs := Ytrue.Dims()
 
@@ -55,12 +68,11 @@ func testSolver(t *testing.T, name string, s Optimizer, p *Problem) {
 	}, Theta)
 
 	var (
-		epochs         = 1000
 		miniBatchStart = 0
 		miniBatchSize  = 200
 	)
-	if p.MiniBatchSize > 0 {
-		miniBatchSize = p.MiniBatchSize
+	if opts.MiniBatchSize > 0 {
+		miniBatchSize = opts.MiniBatchSize
 	}
 
 	YpredMini := mat.NewDense(miniBatchSize, nOutputs, nil)
@@ -71,15 +83,12 @@ func testSolver(t *testing.T, name string, s Optimizer, p *Problem) {
 
 	grad := mat.NewDense(nFeatures, nOutputs, nil)
 
-	Tol := 1e-3
-
-	start := time.Now()
+	s := opts.Solver
 	s.SetTheta(Theta)
 	var timeStep uint64
-	rmse := math.Inf(1)
-	converged := false
-	var epoch int
-	for epoch = 1; epoch <= epochs && !converged; epoch++ {
+	rmse = math.Inf(1)
+	converged = false
+	for epoch = 1; epoch <= opts.Epochs && !converged; epoch++ {
 		DenseShuffle(X, Ytrue)
 		for miniBatch := 0; miniBatch*miniBatchSize < nSamples; miniBatch++ {
 			miniBatchStart = miniBatch * miniBatchSize
@@ -93,8 +102,8 @@ func testSolver(t *testing.T, name string, s Optimizer, p *Problem) {
 			grad.Scale(2./float(miniBatchSize), grad)
 
 			s.UpdateParams(grad)
-			if epoch >= epochs-1 {
-				fmt.Printf("%s mini rmse = %.6f\n", name, mat.Norm(ErrMini, 2)/float(miniBatchSize))
+			if epoch >= opts.Epochs-1 {
+				fmt.Printf("%T mini rmse = %.6f\n", s, mat.Norm(ErrMini, 2)/float(miniBatchSize))
 			}
 		}
 
@@ -103,11 +112,18 @@ func testSolver(t *testing.T, name string, s Optimizer, p *Problem) {
 		Err.Sub(Ypred, Ytrue)
 		rmse = mat.Norm(Err, 2) / float64(nSamples)
 
-		converged = rmse < Tol
+		converged = rmse < opts.Tol
 		timeStep = s.GetTimeStep()
 
 	}
-	unused(timeStep, fmt.Println, start)
+	unused(timeStep, fmt.Println)
+	return
+}
+
+func testSolver(t *testing.T, name string, s Optimizer, p *Problem) {
+	X, _, Ytrue := p.X, p.Theta, p.Y
+	start := time.Now()
+	converged, rmse, epoch := linregfit(X, Ytrue, &lrOptions{Epochs: 1000, MiniBatchSize: p.MiniBatchSize, Tol: 1e-3, Solver: s})
 	if !converged {
 		t.Errorf("%s RMSE:%g", name, rmse)
 	}
