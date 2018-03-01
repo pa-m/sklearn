@@ -28,7 +28,7 @@ func NewLinearRegressionGorgonia() *LinearRegressionGorgonia {
 }
 
 // Fit lears coef and intercept for a *LinearRegressionGorgonia
-func (regr *LinearRegressionGorgonia) Fit(X0, y0 *mat.Dense) *LinearRegressionGorgonia {
+func (regr *LinearRegressionGorgonia) Fit(X0, y0 *mat.Dense) Regressor {
 	Float := gg.Float64
 
 	g := gg.NewGraph()

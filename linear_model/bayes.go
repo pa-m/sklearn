@@ -37,7 +37,7 @@ func NewBayesianRidge() *BayesianRidge {
 //             Training data
 //         y : numpy array of shape [nSamples]
 //             Target values. Will be cast to X's dtype if necessary
-func (regr *BayesianRidge) Fit(X0, Y *mat.Dense) *BayesianRidge {
+func (regr *BayesianRidge) Fit(X0, Y *mat.Dense) Regressor {
 	var nSamples, nFeatures = X0.Dims()
 	var _, nOutputs = Y.Dims()
 	X := mat.NewDense(nSamples, nFeatures, nil)
@@ -164,7 +164,9 @@ func (regr *BayesianRidge) Fit(X0, Y *mat.Dense) *BayesianRidge {
 		if iter > 0 {
 			sumabsdiff := 0.
 			for j := 0; j < nFeatures; j++ {
-				sumabsdiff += math.Abs(coefOld.At(j, 0) - coef.At(j, 0))
+				for o := 0; o < nOutputs; o++ {
+					sumabsdiff += math.Abs(coefOld.At(j, o) - coef.At(j, o))
+				}
 			}
 			if sumabsdiff < regr.Tol {
 				if verbose {

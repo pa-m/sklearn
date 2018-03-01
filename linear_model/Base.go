@@ -22,6 +22,13 @@ type LinearModel struct {
 	XOffset, XScale, Coef, Intercept *mat.Dense
 }
 
+// Regressor is the common interface for all regressors
+type Regressor interface {
+	Fit(X, Y *mat.Dense) Regressor
+	Predict(X, Y *mat.Dense)
+	Score(X, T *mat.Dense) float64
+}
+
 // LinearRegression ia Ordinary least squares Linear Regression.
 // Parameters
 // ----------
@@ -51,22 +58,18 @@ type LinearRegression struct {
 }
 
 // NewLinearRegression create a *LinearRegression with defaults
-// implemented as a per-output optimization of (possibly regularized) square-loss a base.Optimizer (defaults to Adadelta)
+// implemented as a per-output optimization of (possibly regularized) square-loss a base.Optimizer (defaults to Adam)
 func NewLinearRegression() *LinearRegression {
 	regr := &LinearRegression{Tol: 1e-6}
-	regr.Optimizer = func() base.Optimizer {
-		o := base.NewSGDSolver()
-		o.Adadelta = true
-		return o
-	}()
+	regr.Optimizer = base.NewAdamOptimizer()
 	regr.FitIntercept = true
 	regr.Normalize = false
 	return regr
 }
 
 // Fit fits Coef for a LinearRegression
-func (regr *LinearRegression) Fit(X0, Y0 *mat.Dense) *LinearRegression {
-	solver := base.NewSGDSolver()
+func (regr *LinearRegression) Fit(X0, Y0 *mat.Dense) Regressor {
+	solver := base.NewSGDOptimizer()
 	X := mat.DenseCopyOf(X0)
 	regr.XOffset, regr.XScale = preprocessing.DenseNormalize(X, regr.FitIntercept, regr.Normalize)
 	Y := mat.DenseCopyOf(Y0)
@@ -126,7 +129,7 @@ func NewSGDRegressor() *SGDRegressor {
 }
 
 // Fit learns Coef
-func (regr *SGDRegressor) Fit(X0, y0 *mat.Dense) *SGDRegressor {
+func (regr *SGDRegressor) Fit(X0, y0 *mat.Dense) Regressor {
 	X := mat.DenseCopyOf(X0)
 	regr.XOffset, regr.XScale = preprocessing.DenseNormalize(X, regr.FitIntercept, regr.Normalize)
 	Y := mat.DenseCopyOf(y0)
@@ -469,4 +472,12 @@ func (regr *LinearModel) DecisionFunction(X, Y *mat.Dense) {
 
 		return v + regr.Intercept.At(0, o)
 	}, Y)
+}
+
+// Score returns R2Score between Y and X dot Coef+Intercept
+func (regr *LinearModel) Score(X, Y *mat.Dense) float64 {
+	nSamples, nOutputs := Y.Dims()
+	Ypred := mat.NewDense(nSamples, nOutputs, nil)
+	regr.DecisionFunction(X, Ypred)
+	return metrics.R2Score(Y, Ypred, nil, "").At(0, 0)
 }

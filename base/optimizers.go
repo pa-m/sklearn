@@ -1,7 +1,7 @@
 package base
 
 import (
-	//	"fmt"
+	"fmt"
 	"gonum.org/v1/gonum/mat"
 	"math"
 )
@@ -12,10 +12,11 @@ type Optimizer interface {
 	SetTheta(Theta *mat.Dense)
 	GetTheta() *mat.Dense
 	GetTimeStep() uint64
+	String() string
 }
 
-// SGDSolver is struct for SGD solver v https://en.wikipedia.org/wiki/Stochastic_gradient_descent
-type SGDSolver struct {
+// SGDOptimizer is struct for SGD solver v https://en.wikipedia.org/wiki/Stochastic_gradient_descent
+type SGDOptimizer struct {
 	// alpha, StepSize
 	StepSize, Momentum         float64
 	Adagrad, Adadelta, RMSProp bool
@@ -26,24 +27,77 @@ type SGDSolver struct {
 	TimeStep, RMSPropGamma    float64
 }
 
-// NewSGDSolver returns an initialized sgd solver with stepsize 1e-4 and omentum 0.9
-func NewSGDSolver() *SGDSolver {
-	s := &SGDSolver{StepSize: 1e-4, Momentum: .9, RMSPropGamma: .9}
+// NewSGDOptimizer returns an initialized *SGDOptimizer with stepsize 1e-4 and momentum 0.9
+func NewSGDOptimizer() *SGDOptimizer {
+	s := &SGDOptimizer{StepSize: 1e-4, Momentum: .9, RMSPropGamma: .9}
 
 	return s
 }
 
+// NewAdagradOptimizer return a *SGDOptimizer setup for adagrad
+func NewAdagradOptimizer() *SGDOptimizer {
+	s := NewSGDOptimizer()
+	s.Adagrad = true
+	return s
+}
+
+// NewAdadeltaOptimizer return a *SGDOptimizer setup for adadelta
+func NewAdadeltaOptimizer() *SGDOptimizer {
+	s := NewSGDOptimizer()
+	s.Adadelta = true
+	return s
+}
+
+// NewRMSPropOptimizer return a *SGDOptimizer setup for rmsprop
+func NewRMSPropOptimizer() *SGDOptimizer {
+	s := NewSGDOptimizer()
+	s.RMSProp = true
+	return s
+}
+
+func (s *SGDOptimizer) String() string {
+	switch {
+	case s.Adagrad:
+		return "adagrad"
+	case s.RMSProp:
+		return "rmsprop" + fmt.Sprintf(" gamma:%g", s.RMSPropGamma)
+	case s.Adadelta:
+		return "adadelta" + fmt.Sprintf(" gamma:%g", s.RMSPropGamma)
+	default:
+		return "sgd" + fmt.Sprintf(" StepSize:%g,Momentum:%g", s.StepSize, s.Momentum)
+	}
+
+}
+
+// NewOptimizer only accepts SGD|adagrad|adadelta|rmsprop|adam
+func NewOptimizer(name string) Optimizer {
+	switch name {
+	case "sgd":
+		return NewSGDOptimizer()
+	case "adagrad":
+		return NewAdagradOptimizer()
+	case "adadelta":
+		return NewAdadeltaOptimizer()
+	case "rmsprop":
+		return NewRMSPropOptimizer()
+	case "adam":
+		return NewAdamOptimizer()
+	default:
+		panic("NewOptimizer only accepts SGD|adagrad|adadelta|rmsprop|adam")
+	}
+}
+
 // SetTheta should be called before first call to UpdateParams to let the solver know the theta pointer
-func (s *SGDSolver) SetTheta(Theta *mat.Dense) { s.Theta = Theta }
+func (s *SGDOptimizer) SetTheta(Theta *mat.Dense) { s.Theta = Theta }
 
 // GetTheta can be called anytime after SetTheta to get read access to theta
-func (s *SGDSolver) GetTheta() *mat.Dense { return s.Theta }
+func (s *SGDOptimizer) GetTheta() *mat.Dense { return s.Theta }
 
 // GetTimeStep return the number of theta updates already occured
-func (s *SGDSolver) GetTimeStep() uint64 { return uint64(s.TimeStep) }
+func (s *SGDOptimizer) GetTimeStep() uint64 { return uint64(s.TimeStep) }
 
 // UpdateParams updates theta from gradient. first call allocates required temporary storage
-func (s *SGDSolver) UpdateParams(grad mat.Matrix) {
+func (s *SGDOptimizer) UpdateParams(grad mat.Matrix) {
 
 	NFeatures, NOutputs := s.Theta.Dims()
 	if s.TimeStep == 0. {
@@ -131,8 +185,8 @@ func (s *SGDSolver) UpdateParams(grad mat.Matrix) {
 
 // --------
 
-// AdamSolver is struct for adam solver v https://arxiv.org/pdf/1412.6980v9.pdf?
-type AdamSolver struct {
+// AdamOptimizer is struct for adam solver v https://arxiv.org/pdf/1412.6980v9.pdf?
+type AdamOptimizer struct {
 	// alpha, StepSize
 	StepSize float64
 	// Beta1,Beta2 are exponential decay rate for the moment estimates
@@ -145,24 +199,28 @@ type AdamSolver struct {
 	TimeStep                                      float64
 }
 
-// NewAdamSolver returns an initialized adam solver
-func NewAdamSolver() *AdamSolver {
-	s := &AdamSolver{StepSize: 1e-3, Beta1: .9, Beta2: .999, Epsilon: 1e-8}
+// NewAdamOptimizer returns an initialized adam solver
+func NewAdamOptimizer() *AdamOptimizer {
+	s := &AdamOptimizer{StepSize: 1e-3, Beta1: .9, Beta2: .999, Epsilon: 1e-8}
 
 	return s
 }
 
+func (s *AdamOptimizer) String() string {
+	return fmt.Sprintf("adam stepsize:%g beta1:%g beta2:%g epsilon:%g", s.StepSize, s.Beta1, s.Beta2, s.Epsilon)
+}
+
 // SetTheta should be called before first call to UpdateParams to let the solver know the theta pointer
-func (s *AdamSolver) SetTheta(Theta *mat.Dense) { s.Theta = Theta }
+func (s *AdamOptimizer) SetTheta(Theta *mat.Dense) { s.Theta = Theta }
 
 // GetTheta can be called anytime after SetTheta to get read access to theta
-func (s *AdamSolver) GetTheta() *mat.Dense { return s.Theta }
+func (s *AdamOptimizer) GetTheta() *mat.Dense { return s.Theta }
 
 // GetTimeStep return the number of theta updates already occured
-func (s *AdamSolver) GetTimeStep() uint64 { return uint64(s.TimeStep) }
+func (s *AdamOptimizer) GetTimeStep() uint64 { return uint64(s.TimeStep) }
 
 // UpdateParams updates theta from gradient. first call allocates required temporary storage
-func (s *AdamSolver) UpdateParams(grad mat.Matrix) {
+func (s *AdamOptimizer) UpdateParams(grad mat.Matrix) {
 
 	NFeatures, NOutputs := s.Theta.Dims()
 	if s.TimeStep == 0. {
