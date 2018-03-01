@@ -1,7 +1,9 @@
 package metrics
 
 import (
+	//	"fmt"
 	"gonum.org/v1/gonum/mat"
+	"math"
 )
 
 type float = float64
@@ -120,9 +122,10 @@ func R2Score(yTrue, yPred *mat.Dense, sampleWeight *mat.VecDense, multioutput st
 	denominator.Mul(sampleWeight.T(), diff2)
 
 	r2score := mat.NewDense(1, nOutputs, nil)
-	quotient := mat.NewDense(1, nOutputs, nil)
-	quotient.DivElem(numerator, denominator)
-	r2score.Sub(constVector{1, nOutputs, true}, quotient)
+	r2score.Apply(func(i int, j int, v float64) float64 {
+		d := math.Max(denominator.At(i, j), 1e-20)
+		return 1. - numerator.At(i, j)/d
+	}, r2score)
 	switch multioutput {
 	case "raw_values":
 		return r2score
@@ -134,26 +137,123 @@ func R2Score(yTrue, yPred *mat.Dense, sampleWeight *mat.VecDense, multioutput st
 		r2.Scale(1./sumden.At(0, 0), r2)
 		return r2
 	default: // "uniform_average":
-		r2 := mat.NewDense(1, 1, nil)
-		r2.Mul(constVector{1. / float(nOutputs), nOutputs, true}, r2score.T())
-		return r2score
+		return mat.NewDense(1, 1, []float64{mat.Sum(r2score) / float64(nOutputs)})
 	}
 
 }
 
-func meanSquaredError(yTrue, yPred, sampleWeight []float) float {
-	e := 0.
-	w := 0.
-	for i := range yTrue {
-		e1 := yTrue[i] - yPred[i]
-		e1 *= e1
-		if sampleWeight == nil {
-			e = e + e1
-			w = w + 1
-		} else {
-			e = e + sampleWeight[i]*e1
-			w = w + sampleWeight[i]
+// MeanSquaredError regression loss
+// Read more in the :ref:`User Guide <mean_squared_error>`.
+// Parameters
+// ----------
+// y_true : array-like of shape = (n_samples) or (n_samples, n_outputs)
+//     Ground truth (correct) target values.
+// y_pred : array-like of shape = (n_samples) or (n_samples, n_outputs)
+//     Estimated target values.
+// sample_weight : array-like of shape = (n_samples), optional
+//     Sample weights.
+// multioutput : string in ['raw_values', 'uniform_average']
+//     or array-like of shape (n_outputs)
+//     Defines aggregating of multiple output values.
+//     Array-like value defines weights used to average errors.
+//     'raw_values' :
+//         Returns a full set of errors in case of multioutput input.
+//     'uniform_average' :
+//         Errors of all outputs are averaged with uniform weight.
+// Returns
+// -------
+// loss : float or ndarray of floats
+//     A non-negative floating point value (the best value is 0.0), or an
+//     array of floating point values, one for each individual target.
+func MeanSquaredError(yTrue, yPred mat.Matrix, sampleWeight *mat.Dense, multioutput string) *mat.Dense {
+	nSamples, nOutputs := yTrue.Dims()
+	tmp := mat.NewDense(1, nOutputs, nil)
+
+	tmp.Apply(func(_ int, j int, v float64) float64 {
+		N, D := 0., 0.
+		for i := 0; i < nSamples; i++ {
+			ydiff := yPred.At(i, j) - yTrue.At(i, j)
+			w := 1.
+			if sampleWeight != nil {
+				w = sampleWeight.At(0, j)
+			}
+			N += w * (ydiff * ydiff)
+			D += w
 		}
+		return N / D
+	}, tmp)
+	switch multioutput {
+	case "raw_values":
+		return tmp
+	default: // "uniform_average":
+		return mat.NewDense(1, 1, []float64{mat.Sum(tmp) / float64(nOutputs)})
 	}
-	return e / float(len(yTrue))
+}
+
+// MeanAbsoluteError regression loss
+// Read more in the :ref:`User Guide <mean_absolute_error>`.
+// Parameters
+// ----------
+// y_true : array-like of shape = (n_samples) or (n_samples, n_outputs)
+//     Ground truth (correct) target values.
+// y_pred : array-like of shape = (n_samples) or (n_samples, n_outputs)
+//     Estimated target values.
+// sample_weight : array-like of shape = (n_samples), optional
+//     Sample weights.
+// multioutput : string in ['raw_values', 'uniform_average']
+//     or array-like of shape (n_outputs)
+//     Defines aggregating of multiple output values.
+//     Array-like value defines weights used to average errors.
+//     'raw_values' :
+//         Returns a full set of errors in case of multioutput input.
+//     'uniform_average' :
+//         Errors of all outputs are averaged with uniform weight.
+// Returns
+// -------
+// loss : float or ndarray of floats
+//     If multioutput is 'raw_values', then mean absolute error is returned
+//     for each output separately.
+//     If multioutput is 'uniform_average' or an ndarray of weights, then the
+//     weighted average of all output errors is returned.
+//     MAE output is non-negative floating point. The best value is 0.0.
+// Examples
+// --------
+// >>> from sklearn.metrics import mean_absolute_error
+// >>> y_true = [3, -0.5, 2, 7]
+// >>> y_pred = [2.5, 0.0, 2, 8]
+// >>> mean_absolute_error(y_true, y_pred)
+// 0.5
+// >>> y_true = [[0.5, 1], [-1, 1], [7, -6]]
+// >>> y_pred = [[0, 2], [-1, 2], [8, -5]]
+// >>> mean_absolute_error(y_true, y_pred)
+// 0.75
+// >>> mean_absolute_error(y_true, y_pred, multioutput='raw_values')
+// array([ 0.5,  1. ])
+// >>> mean_absolute_error(y_true, y_pred, multioutput=[0.3, 0.7])
+// ... # doctest: +ELLIPSIS
+// 0.849...
+func MeanAbsoluteError(yTrue, yPred mat.Matrix, sampleWeight *mat.Dense, multioutput string) *mat.Dense {
+	nSamples, nOutputs := yTrue.Dims()
+	tmp := mat.NewDense(1, nOutputs, nil)
+
+	tmp.Apply(func(_ int, j int, v float64) float64 {
+		N, D := 0., 0.
+		for i := 0; i < nSamples; i++ {
+			ydiff := yPred.At(i, j) - yTrue.At(i, j)
+			w := 1.
+			if sampleWeight != nil {
+				w = sampleWeight.At(0, j)
+			}
+			N += w * math.Abs(ydiff)
+			D += w
+		}
+		return N / D
+	}, tmp)
+
+	switch multioutput {
+	case "raw_values":
+		return tmp
+	default: // "uniform_average":
+		return mat.NewDense(1, 1, []float64{mat.Sum(tmp) / float64(nOutputs)})
+	}
 }

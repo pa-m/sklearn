@@ -361,18 +361,22 @@ func DenseMean(Xmean *mat.Dense, X mat.Matrix) *mat.Dense {
 }
 
 // DenseNormalize normalize matrix rows by removing mean and dividing with standard deviation
-func DenseNormalize(X *mat.Dense) (XOffset, XScale *mat.Dense) {
+func DenseNormalize(X *mat.Dense, FitIntercept, Normalize bool) (XOffset, XScale *mat.Dense) {
 
 	nSamples, nFeatures := X.Dims()
 	XOffset = mat.NewDense(1, nFeatures, nil)
-	DenseMean(XOffset, X)
+	if FitIntercept {
+		DenseMean(XOffset, X)
+	}
 	XScale = mat.NewDense(1, nFeatures, nil)
 	XScale.Apply(func(i int, j int, XOffset float64) float64 {
 		v := 0.
-		for i := 0; i < nSamples; i++ {
-			v += math.Pow(X.At(i, j)-XOffset, 2)
+		if Normalize {
+			for i := 0; i < nSamples; i++ {
+				v += math.Pow(X.At(i, j)-XOffset, 2)
+			}
+			v = math.Sqrt(v / float64(nSamples))
 		}
-		v = math.Sqrt(v / float64(nSamples))
 		if v == 0. {
 			v = 1.
 		}

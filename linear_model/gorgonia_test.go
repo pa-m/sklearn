@@ -2,87 +2,38 @@ package linearModel
 
 import (
 	"fmt"
-	"math"
-	"math/rand"
+	"github.com/pa-m/sklearn/metrics"
+	"gonum.org/v1/gonum/mat"
 
+	//	"math"
 	"testing"
 	"time"
 )
 
-const (
-	vecSize = 10000
-)
-
-// manually generate a fake dataset which is y=2x+random
-func xy() (xBack [][]float, yBack []float) {
-	/*var xBack, yBack interface{}
-
-	xBack = tensor.Range(Float, 1, vecSize+1).([]float64)
-	yBackC := tensor.Range(Float, 1, vecSize+1).([]float64)
-
-	for i, v := range yBackC {
-		yBackC[i] = v*2 + rand.Float64()
-	}
-	yBack = yBackC
-	*/
-	nFeatures := 3
-	nOutputs := 1 // Grad can't handle fails with more than one output
-	xBack = make([][]float, vecSize)
-	yBack = make([]float, vecSize*nOutputs)
-	for i := range yBack {
-		xBack[i] = make([]float, nFeatures, nFeatures)
-
-		xBack[i][0] = rand.Float64()*20. - 10.
-		xBack[i][1] = rand.Float64()*20. - 10.
-		xBack[i][2] = rand.Float64()*20. - 10.
-
-		yBack[nOutputs*i] = 8 + 2*xBack[i][0] + 3*xBack[i][1] + xBack[i][2]
-	}
-	return
-}
-
+// LinearRegressionGorgonia is a linear regr with sevelal outputs
 func TestLinearRegressionGorgonia(t *testing.T) {
 	start := time.Now()
-	X, Y := xy()
-	for _, norm := range []bool{false, true} {
-		m := NewLinearRegressionGorgonia()
-		m.Normalize = norm
-		m.Tol = 1e-6
-		m.Fit(X, Y)
-		elapsed := time.Since(start)
-		fmt.Println("TestLinearRegressionGorgonia", elapsed)
-		//fmt.Printf("TestLinearRegressionG(normalize=%v) %v: Intercept=%g Coef=%#v\nelapsed:%s\n", norm, Float, m.Intercept, m.Coef, elapsed)
-		erry := 14. - m.Predict([][]float{{1, 1, 1}})[0]
-		if math.Abs(erry) > m.Tol {
-			t.Errorf("TestLinearRegressionG Error:%g", erry)
-		}
-	}
-}
-
-// LinearRegressionGorgonia2 is a linear regr with sevelal outputs
-func TestLinearRegressionGorgonia2(t *testing.T) {
-	start := time.Now()
-	X, Y1 := xy()
-	Y := make([][]float, len(Y1))
-	for i, yi := range Y1 {
-		Y[i] = []float{yi, 2 * yi}
-	}
-	for _, norm := range []bool{false, true} {
-		m := NewLinearRegressionGorgonia2()
-		m.Normalize = norm
-		m.Tol = 1e-6
-		m.Fit(X, Y)
-		elapsed := time.Since(start)
-		//fmt.Printf("TestLinearRegressionG(normalize=%v) %v: Intercept=%v Coef=%#v\nelapsed:%s\n", norm, Float, m.Intercept, m.Coef, elapsed)
-		fmt.Println("TestLinearRegressionGorgonia2", elapsed)
-		ypred := m.Predict([][]float{{1, 1, 1}})
-		erry := 14. - ypred[0][0]
-		if math.Abs(erry) > 2*m.Tol {
-			t.Errorf("TestLinearRegressionG Error:%g", erry)
-		}
-		erry = 28. - ypred[0][1]
-		if math.Abs(erry) > 2*m.Tol {
-			t.Errorf("TestLinearRegressionG Error:%g", erry)
+	nSamples, nFeatures, nOutputs := 100, 5, 5
+	p := NewRandomLinearProblem(nSamples, nFeatures, nOutputs)
+	{
+		for _, normalize := range []bool{false, true} {
+			regr := NewLinearRegressionGorgonia()
+			regr.Normalize = normalize
+			regr.Tol = 1e-3
+			regr.Fit(p.X, p.Y)
+			elapsed := time.Since(start)
+			//fmt.Println("XOffset", regr.XOffset, "Intercept", regr.Intercept, "Coef", regr.Coef)
+			Ypred := mat.NewDense(nSamples, nOutputs, nil)
+			regr.Predict(p.X, Ypred)
+			r2score := metrics.R2Score(p.Y, Ypred, nil, "").At(0, 0)
+			mse := metrics.MeanSquaredError(p.Y, Ypred, nil, "").At(0, 0)
+			mae := metrics.MeanAbsoluteError(p.Y, Ypred, nil, "").At(0, 0)
+			if r2score < .99 {
+				t.Errorf("Test %T normalize=%v r2score=%g (%v) mse=%g mae=%g \n", regr, normalize, r2score, metrics.R2Score(p.Y, Ypred, nil, "raw_values"), mse, mae)
+				t.Fail()
+			} else {
+				fmt.Printf("Test %T ok normalize=%v r2score=%g  mse=%g mae=%g elapsed=%s\n", regr, normalize, r2score, mse, mae, elapsed)
+			}
 		}
 	}
 }
