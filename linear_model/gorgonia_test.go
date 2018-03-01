@@ -22,6 +22,7 @@ func TestLinearRegressionGorgonia(t *testing.T) {
 			regr.Tol = 1e-3
 			regr.Fit(p.X, p.Y)
 			elapsed := time.Since(start)
+			unused(elapsed, fmt.Printf)
 			//fmt.Println("XOffset", regr.XOffset, "Intercept", regr.Intercept, "Coef", regr.Coef)
 			Ypred := mat.NewDense(nSamples, nOutputs, nil)
 			regr.Predict(p.X, Ypred)
@@ -32,7 +33,7 @@ func TestLinearRegressionGorgonia(t *testing.T) {
 				t.Errorf("Test %T normalize=%v r2score=%g (%v) mse=%g mae=%g \n", regr, normalize, r2score, metrics.R2Score(p.Y, Ypred, nil, "raw_values"), mse, mae)
 				t.Fail()
 			} else {
-				fmt.Printf("Test %T ok normalize=%v r2score=%g  mse=%g mae=%g elapsed=%s\n", regr, normalize, r2score, mse, mae, elapsed)
+				//fmt.Printf("Test %T ok normalize=%v r2score=%g  mse=%g mae=%g elapsed=%s\n", regr, normalize, r2score, mse, mae, elapsed)
 			}
 		}
 	}

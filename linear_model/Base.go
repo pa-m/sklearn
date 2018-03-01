@@ -55,6 +55,12 @@ type LinearRegression struct {
 	LinearModel
 	Optimizer           base.Optimizer
 	Tol, Alpha, L1Ratio float64
+	LossFunction        Loss
+	ActivationFunction  Activation
+}
+
+type LogisticRegression struct {
+	LinearRegression
 }
 
 // NewLinearRegression create a *LinearRegression with defaults
@@ -64,6 +70,19 @@ func NewLinearRegression() *LinearRegression {
 	regr.Optimizer = base.NewAdamOptimizer()
 	regr.FitIntercept = true
 	regr.Normalize = false
+	regr.ActivationFunction = Identity{}
+	regr.LossFunction = SquareLoss
+	return regr
+}
+
+func NewLogisticRegression() *LogisticRegression {
+	regr := &LogisticRegression{}
+	regr.Tol = 1e-6
+	regr.Optimizer = base.NewAdamOptimizer()
+	regr.FitIntercept = true
+	regr.Normalize = false
+	regr.ActivationFunction = Sigmoid{}
+	regr.LossFunction = CrossEntropyLoss
 	return regr
 }
 
@@ -78,7 +97,7 @@ func (regr *LinearRegression) Fit(X0, Y0 *mat.Dense) Regressor {
 	//fmt.Println("YOffset", YOffset)
 	//fmt.Println("X", X, "Y", Y)
 	solver.StepSize = .01
-	res := LinFit(X, Y, &LinFitOptions{Epochs: 0, MiniBatchSize: 50, Tol: regr.Tol, Solver: solver})
+	res := LinFit(X, Y, &LinFitOptions{Epochs: 0, MiniBatchSize: 50, Tol: regr.Tol, Solver: solver, Loss: regr.LossFunction, Activation: regr.ActivationFunction})
 	/*if !res.Converged || res.RMSE > 1e-3 {
 		fmt.Printf("LinFit:%#v\n", res)
 	}*/
@@ -92,6 +111,22 @@ func (regr *LinearRegression) Fit(X0, Y0 *mat.Dense) Regressor {
 func (regr *LinearRegression) Predict(X, Y *mat.Dense) {
 	regr.DecisionFunction(X, Y)
 
+}
+
+// PredictProba predicts probabolity of y=1 for X using Coef
+func (regr *LogisticRegression) PredictProba(X, Y *mat.Dense) {
+	regr.DecisionFunction(X, Y)
+}
+
+// Predict predicts y for X using Coef
+func (regr *LogisticRegression) Predict(X, Y *mat.Dense) {
+	regr.DecisionFunction(X, Y)
+	Y.Apply(func(i int, j int, v float64) float64 {
+		if v >= .5 {
+			return 1.
+		}
+		return 0.
+	}, Y)
 }
 
 // NewRidge creates a *Ridge with defaults
@@ -111,7 +146,7 @@ func NewLasso() *LinearRegression {
 }
 
 // SGDRegressor base struct
-// not really a SGD regressor, see LinearRegression for this
+// should  be named GonumOptimizeRegressor
 // implemented as a per-output optimization of (possibly regularized) square-loss with gonum/optimize methods
 type SGDRegressor struct {
 	LinearModel
@@ -228,11 +263,12 @@ func (regr *SGDRegressor) Fit(X0, y0 *mat.Dense) Regressor {
 
 		method := regr.Method
 		res, err := optimize.Local(p, initialcoefs, settings, method)
+		unused(err)
 		//fmt.Printf("res=%s %#v\n", res.Status.String(), res)
-		if err != nil && err.Error() != "linesearch: no change in location after Linesearcher step" {
-
-			fmt.Println(err)
-		}
+		// if err != nil && err.Error() != "linesearch: no change in location after Linesearcher step" {
+		//
+		// 	fmt.Println(err)
+		// }
 		regr.Coef.SetCol(o, res.X)
 	}
 
@@ -315,7 +351,9 @@ type LinFitOptions struct {
 	// Alpha is regularization factor for Ridge,Lasso
 	Alpha float64
 	// L1Ratio is the part of L1 regularization 0 for ridge,1 for Lasso
-	L1Ratio float64
+	L1Ratio    float64
+	Loss       Loss
+	Activation Activation
 }
 
 // LinFitResult is the result or LinFit
@@ -327,7 +365,10 @@ type LinFitResult struct {
 }
 
 // LinFit is an internal helper to fit linear regressions
-func LinFit(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
+var LinFit = LinFit2
+
+// LinFit1 is an internal helper to fit linear regressions
+func LinFit1(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 	nSamples, nFeatures := X.Dims()
 	_, nOutputs := Ytrue.Dims()
 
@@ -403,6 +444,105 @@ func LinFit(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 			if epoch >= opts.Epochs-1 {
 				fmt.Printf("%T mini rmse = %.6f\n", s, mat.Norm(ErrMini, 2)/float(miniBatchSize))
 			}
+		}
+
+		//d := func(X mat.Matrix) string { r, c := X.Dims(); return fmt.Sprintf("%d,%d", r, c) }
+		Ypred.Mul(X, Theta)
+		rmse = math.Sqrt(metrics.MeanSquaredError(Ytrue, Ypred, nil, "").At(0, 0))
+
+		converged = rmse < opts.Tol
+		timeStep = s.GetTimeStep()
+
+	}
+	unused(timeStep, fmt.Println)
+	return &LinFitResult{Converged: converged, RMSE: rmse, Epoch: epoch, Theta: Theta}
+}
+
+// LinFit2 is an internal helper to fit linear regressions
+func LinFit2(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
+	nSamples, nFeatures := X.Dims()
+	_, nOutputs := Ytrue.Dims()
+
+	Theta := mat.NewDense(nFeatures, nOutputs, nil)
+	Theta.Apply(func(i, j int, v float64) float64 {
+		return rand.NormFloat64()
+	}, Theta)
+
+	var (
+		miniBatchStart = 0
+		miniBatchSize  = 200
+	)
+	if opts.MiniBatchSize > 0 {
+		miniBatchSize = opts.MiniBatchSize
+	}
+	if miniBatchSize > nSamples {
+		miniBatchSize = 1
+	}
+	if opts.Loss == nil {
+		opts.Loss = SquareLoss
+	}
+	if opts.Activation == nil {
+		opts.Activation = Identity{}
+	}
+
+	YpredMini := mat.NewDense(miniBatchSize, nOutputs, nil)
+	YdiffMini := mat.NewDense(miniBatchSize, nOutputs, nil)
+	YtmpMini := mat.NewDense(miniBatchSize, nOutputs, nil)
+
+	Ypred := mat.NewDense(nSamples, nOutputs, nil)
+
+	grad := mat.NewDense(nFeatures, nOutputs, nil)
+
+	s := opts.Solver
+	s.SetTheta(Theta)
+	var timeStep uint64
+	rmse := math.Inf(1)
+	converged := false
+	if opts.Epochs <= 0 {
+		opts.Epochs = 1e6 / nSamples
+	}
+	J := math.Inf(1)
+	var epoch int
+	for epoch = 1; epoch <= opts.Epochs && !converged; epoch++ {
+		base.DenseShuffle(X, Ytrue)
+		for miniBatch := 0; miniBatch*miniBatchSize < nSamples; miniBatch++ {
+			miniBatchStart = miniBatch * miniBatchSize
+			Xmini := (X.Slice(miniBatchStart, miniBatchStart+miniBatchSize, 0, nFeatures))
+			YtrueMini := (Ytrue.Slice(miniBatchStart, miniBatchStart+miniBatchSize, 0, nOutputs))
+			J = opts.Loss(YtrueMini, Xmini, Theta, YpredMini, YdiffMini, YtmpMini, grad, opts.Alpha, opts.L1Ratio, miniBatchSize, opts.Activation)
+			/*YpredMini.Mul(Xmini, Theta)
+			ErrMini.Sub(YpredMini, YtrueMini)
+
+			// compute the gradient of squared error = 2*Xt*err
+			grad.Product(Xmini.T(), ErrMini)
+			grad.Scale(2./float(miniBatchSize), grad)
+			// add Ridge L2 regularization and Lasso L1 regularization
+			if opts.Alpha > 0. {
+				if opts.L1Ratio < 1. {
+					AlphaTheta.Scale(opts.Alpha*(1.-opts.L1Ratio)/float(2*nSamples), Theta)
+					grad.Add(grad, AlphaTheta)
+				}
+				if opts.L1Ratio > 0. {
+					alphal1ratio := opts.Alpha * opts.L1Ratio / float(2*nSamples)
+					grad.Apply(func(j int, o int, gradjo float64) float64 {
+						tethajo := Theta.At(j, o)
+						if tethajo > 0. {
+							gradjo += alphal1ratio
+						}
+						if tethajo < 0. {
+							gradjo -= alphal1ratio
+						}
+						return gradjo
+					}, grad)
+					grad.Add(grad, AlphaTheta)
+				}
+			}
+			*/
+			s.UpdateParams(grad)
+			unused(J)
+			// if epoch >= opts.Epochs {
+			// 	fmt.Printf("LinFit2 J=%g\n", J)
+			//}
 		}
 
 		//d := func(X mat.Matrix) string { r, c := X.Dims(); return fmt.Sprintf("%d,%d", r, c) }

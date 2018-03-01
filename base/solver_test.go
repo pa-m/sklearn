@@ -78,7 +78,10 @@ func testSigSolver(t *testing.T, name string, s Optimizer, p *Problem) {
 		return rand.NormFloat64()
 	}, Theta)
 
-	epochs, miniBatchStart, miniBatchSize := 1000, 0, 200
+	opts := &lm.LinFitOptions{Epochs: 1000, MiniBatchSize: p.MiniBatchSize, Tol: 1e-3, Solver: s}
+	//var activation Activation = Sigmoid
+	//var loss Loss = CrossEntropyLoss
+	epochs, miniBatchStart, miniBatchSize := opts.Epochs, 0, opts.MiniBatchSize
 	if p.MiniBatchSize > 0 {
 		miniBatchSize = p.MiniBatchSize
 	}
@@ -92,7 +95,7 @@ func testSigSolver(t *testing.T, name string, s Optimizer, p *Problem) {
 
 	grad := mat.NewDense(nFeatures, nOutputs, nil)
 
-	Tol := 1e-3
+	Tol := opts.Tol
 
 	start := time.Now()
 	s.SetTheta(Theta)

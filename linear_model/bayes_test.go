@@ -37,7 +37,8 @@ func TestBayesianRidge(t *testing.T) {
 		Ypred := mat.NewDense(nSamples, nOutputs, nil)
 		m.Predict(X, Ypred)
 		r2score := metrics.R2Score(Y, Ypred, nil, "variance_weighted").At(0, 0)
-		fmt.Printf("TestBayesianRidge normalize=%v score:%.4g elapsed:%s\n", m.Normalize, r2score, elapsed)
+		unused(elapsed)
+		//fmt.Printf("TestBayesianRidge normalize=%v score:%.4g elapsed:%s\n", m.Normalize, r2score, elapsed)
 		if r2score < .99 {
 			t.Fail()
 		}

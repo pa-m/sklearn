@@ -38,6 +38,7 @@ func NewRandomLinearProblem(nSamples, nFeatures, nOutputs int) *Problem {
 func TestLinearRegression(t *testing.T) {
 	nSamples, nFeatures, nOutputs := 200, 2, 2
 	p := NewRandomLinearProblem(nSamples, nFeatures, nOutputs)
+
 	bestErr := make(map[string]float)
 	bestTime := time.Second * 86400
 	bestSetup := make(map[string]string)
@@ -80,11 +81,62 @@ func TestLinearRegression(t *testing.T) {
 				t.Errorf("Test %T %s normalize=%v r2score=%g (%v) mse=%g mae=%g \n", regr, optimizer, normalize, r2score, metrics.R2Score(p.Y, Ypred, nil, "raw_values"), mse, mae)
 				t.Fail()
 			} else {
-				fmt.Printf("Test %T %s ok normalize=%v r2score=%g  mse=%g mae=%g elapsed=%s\n", regr, optimizer, normalize, r2score, mse, mae, elapsed)
+				//fmt.Printf("Test %T %s ok normalize=%v r2score=%g  mse=%g mae=%g elapsed=%s\n", regr, optimizer, normalize, r2score, mse, mae, elapsed)
 			}
 		}
 	}
 	fmt.Printf("Test %T BEST SETUP:%v\n\n", LinearRegression{}, bestSetup)
+}
+
+// Test differents normalize setup for LinearRegression
+func _TestLogisticRegression(t *testing.T) {
+	nSamples, nFeatures, nOutputs := 200, 2, 2
+	p := NewRandomLinearProblem(nSamples, nFeatures, nOutputs)
+	activation := Sigmoid{}
+	p.Y.Apply(func(i int, o int, y float64) float64 {
+		y = activation.F(y)
+		if y >= .5 {
+			return 1.
+		}
+		return 0.
+	}, p.Y)
+
+	bestErr := make(map[string]float)
+	bestTime := time.Second * 86400
+	bestSetup := make(map[string]string)
+
+	for _, normalize := range []bool{false} {
+		for _, optimizer := range []base.Optimizer{ /*base.NewSGDOptimizer(), base.NewAdagradOptimizer(), base.NewRMSPropOptimizer(), base.NewAdadeltaOptimizer(),*/ base.NewAdamOptimizer()} {
+			testSetup := fmt.Sprintf("%s %v", optimizer, normalize)
+			regr := NewLogisticRegression()
+			regr.Normalize = normalize
+			regr.Optimizer = optimizer
+			regr.Alpha = 0.
+			start := time.Now()
+			regr.Fit(p.X, p.Y)
+			elapsed := time.Since(start)
+			//fmt.Println("XOffset", regr.XOffset, "Intercept", regr.Intercept, "Coef", regr.Coef)
+			Ypred := mat.NewDense(nSamples, nOutputs, nil)
+			regr.Predict(p.X, Ypred)
+			if elapsed < bestTime {
+				bestTime = elapsed
+				bestSetup["elapsed"] = testSetup + fmt.Sprintf("(%s)", elapsed)
+			}
+			accuracy := metrics.AccuracyScore(p.Y, Ypred, nil, "").At(0, 0)
+			tmpScore, ok := bestErr["accuracy"]
+			if !ok || accuracy > tmpScore {
+				bestErr["accuracy"] = accuracy
+				bestSetup["accuracy"] = testSetup + fmt.Sprintf("(%g)", accuracy)
+			}
+			if accuracy < .95 {
+				t.Errorf("Test LogisticRegression %s normalize=%v accuracy=%g \n", optimizer, normalize, accuracy)
+				t.Fail()
+			} else {
+				//fmt.Printf("Test LogisticRegression %s ok normalize=%v accuracy=%g elapsed=%s\n", optimizer, normalize, accuracy, elapsed)
+			}
+		}
+	}
+	fmt.Printf("Test Logisticregression BEST SETUP:%v\n\n", bestSetup)
 }
 
 func TestRidge(t *testing.T) {
@@ -100,6 +152,7 @@ func TestRidge(t *testing.T) {
 		start := time.Now()
 		regr.Fit(p.X, p.Y)
 		elapsed := time.Since(start)
+		unused(elapsed)
 		//fmt.Println("XOffset", regr.XOffset, "Intercept", regr.Intercept, "Coef", regr.Coef)
 		Ypred := mat.NewDense(nSamples, nOutputs, nil)
 		regr.Predict(p.X, Ypred)
@@ -110,7 +163,7 @@ func TestRidge(t *testing.T) {
 			t.Errorf("Test %T normalize=%v r2score=%g (%v) mse=%g mae=%g \n", regr, normalize, r2score, metrics.R2Score(p.Y, Ypred, nil, "raw_values"), mse, mae)
 			t.Fail()
 		} else {
-			fmt.Printf("Test %T ok normalize=%v r2score=%g  mse=%g mae=%g elapsed=%s\n", regr, normalize, r2score, mse, mae, elapsed)
+			//fmt.Printf("Test %T ok normalize=%v r2score=%g  mse=%g mae=%g elapsed=%s\n", regr, normalize, r2score, mse, mae, elapsed)
 		}
 	}
 
@@ -129,6 +182,7 @@ func TestLasso(t *testing.T) {
 		start := time.Now()
 		regr.Fit(p.X, p.Y)
 		elapsed := time.Since(start)
+		unused(elapsed)
 		//fmt.Println("XOffset", regr.XOffset, "Intercept", regr.Intercept, "Coef", regr.Coef)
 		Ypred := mat.NewDense(nSamples, nOutputs, nil)
 		regr.Predict(p.X, Ypred)
@@ -139,7 +193,7 @@ func TestLasso(t *testing.T) {
 			t.Errorf("Test %T normalize=%v r2score=%g (%v) mse=%g mae=%g \n", regr, normalize, r2score, metrics.R2Score(p.Y, Ypred, nil, "raw_values"), mse, mae)
 			t.Fail()
 		} else {
-			fmt.Printf("Test %T ok normalize=%v r2score=%g  mse=%g mae=%g elapsed=%s\n", regr, normalize, r2score, mse, mae, elapsed)
+			//fmt.Printf("Test %T ok normalize=%v r2score=%g  mse=%g mae=%g elapsed=%s\n", regr, normalize, r2score, mse, mae, elapsed)
 		}
 	}
 
@@ -198,7 +252,7 @@ func TestGonumOptimizeRegressor(t *testing.T) {
 				t.Errorf("Test %T %12T normalize=%v\nr2score=%g (%v) mse=%g mae=%g \n", regr, method, normalize, r2score, *metrics.R2Score(p.Y, Ypred, nil, "raw_values"), mse, mae)
 				t.Fail()
 			} else {
-				fmt.Printf("Test %T %12T ok normalize=%v\nr2score=%g  mse=%g mae=%g elapsed=%s\n", regr, method, normalize, r2score, mse, mae, elapsed)
+				//fmt.Printf("Test %T %12T ok normalize=%v\nr2score=%g  mse=%g mae=%g elapsed=%s\n", regr, method, normalize, r2score, mse, mae, elapsed)
 			}
 		}
 	}
@@ -248,11 +302,11 @@ func TestBestRegressionImplementation(t *testing.T) {
 			bestSetup["MAE"] = testSetup + fmt.Sprintf("(%g)", mae)
 		}
 		//if math.Sqrt(mse) > regr.Tol {
-		if r2score < .98 {
+		if r2score < .95 {
 			t.Errorf("Test %s\nr2score=%g (%v) mse=%g mae=%g \n", testSetup, r2score, *metrics.R2Score(p.Y, Ypred, nil, "raw_values"), mse, mae)
 			t.Fail()
 		} else {
-			fmt.Printf("Test %s ok\nr2score=%g  mse=%g mae=%g elapsed=%s\n", testSetup, r2score, mse, mae, elapsed)
+			//fmt.Printf("Test %s ok\nr2score=%g  mse=%g mae=%g elapsed=%s\n", testSetup, r2score, mse, mae, elapsed)
 		}
 		//}
 	}

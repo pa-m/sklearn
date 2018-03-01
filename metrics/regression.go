@@ -257,3 +257,29 @@ func MeanAbsoluteError(yTrue, yPred mat.Matrix, sampleWeight *mat.Dense, multiou
 		return mat.NewDense(1, 1, []float64{mat.Sum(tmp) / float64(nOutputs)})
 	}
 }
+
+func AccuracyScore(yTrue, yPred mat.Matrix, sampleWeight *mat.Dense, multioutput string) *mat.Dense {
+	nSamples, nOutputs := yTrue.Dims()
+	tmp := mat.NewDense(1, nOutputs, nil)
+
+	tmp.Apply(func(_ int, j int, v float64) float64 {
+		N, D := 0., 0.
+		for i := 0; i < nSamples; i++ {
+			ydiff := yPred.At(i, j) - yTrue.At(i, j)
+			w := 1.
+			if sampleWeight != nil {
+				w = sampleWeight.At(0, j)
+			}
+			N += w * math.Abs(ydiff)
+			D += w
+		}
+		return 1. - N/D
+	}, tmp)
+
+	switch multioutput {
+	case "raw_values":
+		return tmp
+	default: // "uniform_average":
+		return mat.NewDense(1, 1, []float64{mat.Sum(tmp) / float64(nOutputs)})
+	}
+}
