@@ -16,7 +16,7 @@ import (
 // Alpha and L1Ratio are for regularization
 type Loss func(Ytrue, X mat.Matrix, Theta, Ypred, Ydiff, Ytmp, grad *mat.Dense, Alpha, L1Ratio float, nSamples int, activation Activation) (J float64)
 
-// SquareLoss, Quadratic Loss, for regressions
+// SquareLoss Quadratic Loss, for regressions
 // Ytrue, X, Theta must be passed in
 // Ypred,Ydiff,Ytmp are temporary matrices passed in here to avoid reallocations. nothing to initialize for them except storage
 // Alpha, L1Ratio are regularization parameters
@@ -53,10 +53,10 @@ func SquareLoss(Ytrue, X mat.Matrix, Theta, Ypred, Ydiff, Ytmp, grad *mat.Dense,
 	return
 }
 
-// Cross entropy Loss
+// CrossEntropyLoss is the loss for LogisticRegression and Classifiers
 // J: -y*math.Log(h)-(1.-y)*log(1.-h)
 // grad:  hprime*(-y/h + (1-y)/(1-h))
-
+//
 func CrossEntropyLoss(Ytrue, X mat.Matrix, Theta, Ypred, Ydiff, Ytmp, grad *mat.Dense, Alpha, L1Ratio float, nSamples int, activation Activation) (J float64) {
 	Ypred.Mul(X, Theta)
 	Ypred.Apply(func(i, o int, xtheta float64) float64 { return activation.F(xtheta) }, Ypred)

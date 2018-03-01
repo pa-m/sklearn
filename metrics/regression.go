@@ -283,3 +283,44 @@ func AccuracyScore(yTrue, yPred mat.Matrix, sampleWeight *mat.Dense, multioutput
 		return mat.NewDense(1, 1, []float64{mat.Sum(tmp) / float64(nOutputs)})
 	}
 }
+
+func countTPFPTNFN(Ytrue, Ypred mat.Matrix, pivot float64) (TP, FP, TN, FN float64) {
+	nSamples, nOutputs := Ytrue.Dims()
+	for i := 0; i < nSamples; i++ {
+		for o := 0; o < nOutputs; o++ {
+			if Ypred.At(i, o) >= pivot {
+				if Ytrue.At(i, o) >= pivot {
+					TP += 1.
+				} else {
+					FP += 1.
+				}
+			} else {
+				if Ytrue.At(i, o) >= pivot {
+					FN += 1.
+				} else {
+					TN += 1.
+				}
+			}
+		}
+	}
+	return
+}
+
+// Precision v https://en.wikipedia.org/wiki/F1_score
+func Precision(Ytrue, Ypred mat.Matrix, pivot float64) float64 {
+	TP, FP, _, _ := countTPFPTNFN(Ytrue, Ypred, pivot)
+	return TP / (TP + FP)
+
+}
+
+// Recall v https://en.wikipedia.org/wiki/F1_score
+func Recall(Ytrue, Ypred mat.Matrix, pivot float64) float64 {
+	TP, _, _, FN := countTPFPTNFN(Ytrue, Ypred, pivot)
+	return TP / (TP + FN)
+}
+
+// F1Score v https://en.wikipedia.org/wiki/F1_score
+func F1Score(Ytrue, Ypred mat.Matrix, pivot float64) float64 {
+	P, R := Precision(Ytrue, Ypred, pivot), Recall(Ytrue, Ypred, pivot)
+	return 2. / ((1. / R) + (1. / P))
+}

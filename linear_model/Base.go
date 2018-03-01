@@ -59,6 +59,7 @@ type LinearRegression struct {
 	ActivationFunction  Activation
 }
 
+// LogisticRegression WIP
 type LogisticRegression struct {
 	LinearRegression
 }
@@ -75,6 +76,7 @@ func NewLinearRegression() *LinearRegression {
 	return regr
 }
 
+// NewLogisticRegression create and init a *LogisticRegression
 func NewLogisticRegression() *LogisticRegression {
 	regr := &LogisticRegression{}
 	regr.Tol = 1e-6
@@ -116,17 +118,25 @@ func (regr *LinearRegression) Predict(X, Y *mat.Dense) {
 // PredictProba predicts probabolity of y=1 for X using Coef
 func (regr *LogisticRegression) PredictProba(X, Y *mat.Dense) {
 	regr.DecisionFunction(X, Y)
+	Y.Apply(func(i int, o int, y float64) float64 {
+		return (Sigmoid{}).F(y)
+	}, Y)
 }
 
 // Predict predicts y for X using Coef
 func (regr *LogisticRegression) Predict(X, Y *mat.Dense) {
-	regr.DecisionFunction(X, Y)
-	Y.Apply(func(i int, j int, v float64) float64 {
-		if v >= .5 {
-			return 1.
+	regr.PredictProba(X, Y)
+	nSamples, nOutputs := Y.Dims()
+	for i := 0; i < nSamples; i++ {
+		o1 := floats.MaxIdx(Y.RawRowView(i))
+		for o := 0; o < nOutputs; o++ {
+			v := 0.
+			if o == o1 {
+				v = 1.
+			}
+			Y.Set(i, o, v)
 		}
-		return 0.
-	}, Y)
+	}
 }
 
 // NewRidge creates a *Ridge with defaults

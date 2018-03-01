@@ -30,13 +30,13 @@ func TestCrossEntropy(t *testing.T){
 
 func TestLossDerivatives(t *testing.T) {
 	nSamples := 100
-	type pair_t struct {
+	type pairType struct {
 		Loss       Loss
 		Activation Activation
 	}
-	for _, pair := range []pair_t{
-		//pair_t{SquareLoss, Identity{}},
-		pair_t{CrossEntropyLoss, Sigmoid{}},
+	for _, pair := range []pairType{
+		//pairType{SquareLoss, Identity{}},
+		{CrossEntropyLoss, Sigmoid{}},
 	} {
 		lossFunc := pair.Loss
 		activation := pair.Activation

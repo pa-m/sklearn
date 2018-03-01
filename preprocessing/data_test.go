@@ -3,6 +3,7 @@ package preprocessing
 import (
 	"fmt"
 	"github.com/gonum/floats"
+	"gonum.org/v1/gonum/mat"
 	_ "math"
 
 	"testing"
@@ -10,81 +11,82 @@ import (
 
 func TestMinMaxScaler(t *testing.T) {
 	m := NewMinMaxScaler([]float{0, 1})
-	m.Fit([][]float{
-		{1, 2, 3},
-		{1, 4, 7},
-		{1, 5, 9},
-	}, nil)
-	if !floats.EqualApprox(m.Scale, []float{1, 1. / 3, 1. / 6}, 1e-6) {
-		fmt.Println("bad scale")
+	isTransformer := func(Transformer) {}
+	isTransformer(m)
+	X := mat.NewDense(3, 3, []float64{1, 2, 3, 1, 4, 7, 1, 5, 9})
+	m.Fit(X, nil)
+	if !floats.EqualApprox(m.Scale.RawRowView(0), []float{1, 1. / 3, 1. / 6}, 1e-6) {
+		t.Error("bad scale")
 		t.Fail()
 	}
-	m.Fit([][]float{
-		{1, 2, 3},
-		{1, 4, 7},
-		{9, 5, 9},
-	}, nil)
-	X := [][]float{{1, 2, 3}}
-	Y := m.Transform(X)
-	if !floats.EqualApprox(Y[0], []float{0, 0, 0}, 1e-6) {
-		fmt.Println("bad min")
+	X = mat.NewDense(3, 3, []float64{1, 2, 3, 1, 4, 7, 9, 5, 9})
+	m.Fit(X, nil)
+	X = mat.NewDense(1, 3, []float64{1, 2, 3})
+	Y, _ := m.Transform(X, nil)
+	if !floats.EqualApprox(Y.RawRowView(0), []float{0, 0, 0}, 1e-6) {
+		t.Error("bad min")
 		t.Fail()
 	}
-	X = [][]float{{9, 5, 9}}
-	Y = m.Transform(X)
-	if !floats.EqualApprox(Y[0], []float{1, 1, 1}, 1e-6) {
-		fmt.Printf("bad Y=%v\n", Y)
+
+	X = mat.NewDense(1, 3, []float64{9, 5, 9})
+	Y, _ = m.Transform(X, nil)
+	if !floats.EqualApprox(Y.RawRowView(0), []float{1, 1, 1}, 1e-6) {
+		t.Errorf("bad Y=%v\n", Y)
 		t.Fail()
 	}
 
 	m = NewMinMaxScaler([]float{0, 10})
-	m.Fit([][]float{
-		{1, 2, 3},
-		{1, 4, 7},
-		{9, 5, 9},
-	}, nil)
-	X = [][]float{{8, 8, 8}}
-	Y = m.Transform(X)
-	X2 := m.InverseTransform(Y)
-	if !floats.EqualApprox(X[0], X2[0], 1e-6) {
+	X = mat.NewDense(3, 3, []float64{1, 2, 3, 1, 4, 7, 9, 5, 9})
+	m.Fit(X, nil)
+	X = mat.NewDense(1, 3, []float64{8, 8, 8})
+	Y, _ = m.Transform(X, nil)
+	X2, _ := m.InverseTransform(Y, nil)
+	if !floats.EqualApprox(X.RawRowView(0), X2.RawRowView(0), 1e-6) {
+		t.Errorf("MinMaxScaler InverseTransform failed %v", X2.RawRowView(0))
 		t.Fail()
 	}
 }
 
 func TestStandardScaler(t *testing.T) {
+
 	m := NewStandardScaler()
-	m.Fit([][]float{
-		{1, 2, 3},
-		{1, 4, 7},
-		{9, 5, 9},
-	}, nil)
-	X := [][]float{{8, 8, 8}}
-	Y := m.Transform(X)
+	isTransformer := func(Transformer) {}
+	isTransformer(m)
+	X := mat.NewDense(3, 3, []float64{1, 2, 3, 1, 4, 7, 9, 5, 9})
+	m.Fit(X, nil)
+	X = mat.NewDense(1, 3, []float64{8, 8, 8})
+	Y, _ := m.Transform(X, nil)
 	//fmt.Printf("Y=%#v\n", Y)
-	X2 := m.InverseTransform(Y)
-	if !floats.EqualApprox(X[0], X2[0], 1e-6) {
+	X2, _ := m.InverseTransform(Y, nil)
+	if !floats.EqualApprox(X.RawRowView(0), X2.RawRowView(0), 1e-6) {
+		t.Errorf("StandardScaler inversetransform failed %v", X2.RawRowView(0))
 		t.Fail()
 	}
 }
 
 func TestPolynomialFeatures(t *testing.T) {
 	pf := NewPolynomialFeatures()
+	isTransformer := func(Transformer) {}
+	isTransformer(pf)
 	pf.Degree = 3
 	fmt.Println("TestPolynomialFeatures")
 	pf.IncludeBias = true
 	pf.InteractionOnly = false
-	X := [][]float{{1, 2, 3}}
+	X := mat.NewDense(1, 3, []float{1, 2, 3})
 	pf.Fit(X, nil)
-	fmt.Printf("powers=%v\n", pf.Powers)
+	//fmt.Printf("powers=%v\n", pf.Powers)
 	if fmt.Sprintf("%v", pf.Powers) != "[[0 0 0] [0 0 1] [0 0 2] [0 0 3] [0 1 0] [0 1 1] [0 1 2] [0 2 0] [0 2 1] [0 3 0] [1 0 0] [1 0 1] [1 0 2] [1 1 0] [1 1 1] [1 2 0] [2 0 0] [2 0 1] [2 1 0] [3 0 0]]" {
 		t.Fail()
 	}
-	fmt.Printf("poly X:%v\n", pf.Transform(X))
+	Xout, _ := pf.Transform(X, nil)
+	if "[1 3 9 27 2 6 18 4 12 8 1 3 9 2 6 4 1 3 2 1]" != fmt.Sprint(Xout.RawRowView(0)) {
+		t.Fail()
+	}
 
 	pf.IncludeBias = true
 	pf.InteractionOnly = true
-	pf.Fit([][]float{{1, 2, 3}}, nil)
-	fmt.Printf("powers interactiononly=%v\n", pf.Powers)
+	pf.Fit(X, nil)
+	//fmt.Printf("powers interactiononly=%v\n", pf.Powers)
 	if fmt.Sprintf("%v", pf.Powers) != "[[0 0 0] [0 0 1] [0 0 2] [0 0 3] [0 1 0] [0 2 0] [0 3 0] [1 0 0] [2 0 0] [3 0 0]]" {
 		fmt.Println("failed interactiononly")
 		t.Fail()
@@ -92,8 +94,8 @@ func TestPolynomialFeatures(t *testing.T) {
 
 	pf.IncludeBias = false
 	pf.InteractionOnly = false
-	pf.Fit([][]float{{1, 2, 3}}, nil)
-	fmt.Printf("powers=%v\n", pf.Powers)
+	pf.Fit(X, nil)
+	//fmt.Printf("powers=%v\n", pf.Powers)
 	if fmt.Sprintf("%v", pf.Powers) != "[[0 0 1] [0 0 2] [0 0 3] [0 1 0] [0 1 1] [0 1 2] [0 2 0] [0 2 1] [0 3 0] [1 0 0] [1 0 1] [1 0 2] [1 1 0] [1 1 1] [1 2 0] [2 0 0] [2 0 1] [2 1 0] [3 0 0]]" {
 		t.Fail()
 	}

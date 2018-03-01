@@ -123,12 +123,14 @@ func _TestLogisticRegression(t *testing.T) {
 				bestSetup["elapsed"] = testSetup + fmt.Sprintf("(%s)", elapsed)
 			}
 			accuracy := metrics.AccuracyScore(p.Y, Ypred, nil, "").At(0, 0)
+			fmt.Println("R2", metrics.R2Score(p.Y, Ypred, nil, "").At(0, 0))
+			fmt.Println("MAE", metrics.MeanAbsoluteError(p.Y, Ypred, nil, "").At(0, 0))
 			tmpScore, ok := bestErr["accuracy"]
 			if !ok || accuracy > tmpScore {
 				bestErr["accuracy"] = accuracy
 				bestSetup["accuracy"] = testSetup + fmt.Sprintf("(%g)", accuracy)
 			}
-			if accuracy < .95 {
+			if accuracy < .99 {
 				t.Errorf("Test LogisticRegression %s normalize=%v accuracy=%g \n", optimizer, normalize, accuracy)
 				t.Fail()
 			} else {
