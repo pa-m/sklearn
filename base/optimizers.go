@@ -93,7 +93,7 @@ func (s *SGDOptimizer) SetTheta(Theta *mat.Dense) { s.Theta = Theta }
 // GetTheta can be called anytime after SetTheta to get read access to theta
 func (s *SGDOptimizer) GetTheta() *mat.Dense { return s.Theta }
 
-// GetTimeStep return the number of theta updates already occured
+// GetTimeStep return the number of theta updates already occurred
 func (s *SGDOptimizer) GetTimeStep() uint64 { return uint64(s.TimeStep) }
 
 // UpdateParams updates theta from gradient. first call allocates required temporary storage
@@ -216,7 +216,7 @@ func (s *AdamOptimizer) SetTheta(Theta *mat.Dense) { s.Theta = Theta }
 // GetTheta can be called anytime after SetTheta to get read access to theta
 func (s *AdamOptimizer) GetTheta() *mat.Dense { return s.Theta }
 
-// GetTimeStep return the number of theta updates already occured
+// GetTimeStep return the number of theta updates already occurred
 func (s *AdamOptimizer) GetTimeStep() uint64 { return uint64(s.TimeStep) }
 
 // UpdateParams updates theta from gradient. first call allocates required temporary storage

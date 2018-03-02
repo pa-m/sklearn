@@ -258,6 +258,7 @@ func MeanAbsoluteError(yTrue, yPred mat.Matrix, sampleWeight *mat.Dense, multiou
 	}
 }
 
+// AccuracyScore reports (weighted) true values/nSamples
 func AccuracyScore(yTrue, yPred mat.Matrix, sampleWeight *mat.Dense, multioutput string) *mat.Dense {
 	nSamples, nOutputs := yTrue.Dims()
 	tmp := mat.NewDense(1, nOutputs, nil)
