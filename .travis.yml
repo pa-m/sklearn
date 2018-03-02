@@ -1,15 +1,14 @@
-language: go
-
-install:
-  - go get -d -t -v ./... && go build -v ./...
+# v https://github.com/codecov/example-go
 
 go:
   - 1.8.x
-  - 1.9.x
+  - tip
+
+before_install:
+  - go get -t -v ./...
 
 script:
-  - go vet ./...
-  - go test ./... -v -coverprofile=coverage.txt -covermode=atomic
+  - go test -race -coverprofile=coverage.txt -covermode=atomic
 
 after_success:
   - bash <(curl -s https://codecov.io/bash)
