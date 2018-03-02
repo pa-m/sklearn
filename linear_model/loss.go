@@ -21,20 +21,19 @@ type Loss func(Ytrue, X mat.Matrix, Theta, Ypred, Ydiff, Ytmp, grad *mat.Dense, 
 // Ypred,Ydiff,Ytmp are temporary matrices passed in here to avoid reallocations. nothing to initialize for them except storage
 // Alpha, L1Ratio are regularization parameters
 // J: mat.Pow(h-y,2)/2
-// grad:  hprime*X*(h-y)
+// grad:  hprime*(h-y)
+//
 func SquareLoss(Ytrue, X mat.Matrix, Theta, Ypred, Ydiff, Ytmp, grad *mat.Dense, Alpha, L1Ratio float, nSamples int, activation Activation) (J float64) {
 	Ypred.Mul(X, Theta)
 	Ypred.Apply(func(i, o int, xtheta float64) float64 { return activation.F(xtheta) }, Ypred)
 	Ydiff.Sub(Ypred, Ytrue)
-	Ytmp.MulElem(Ydiff, Ydiff)
-	// compute hprime
-	Ytmp.Apply(func(i, o int, ypred float64) float64 {
-		return activation.Fprime(ypred)
-	}, Ypred)
-	Ytmp.MulElem(Ytmp, Ydiff)
+	J = 0.
+	Ydiff.Apply(func(_ int, _ int, ydiff float64) float64 {
+		J += ydiff * ydiff
+		return ydiff
+	}, Ydiff)
 	// put into grad
-	J = mat.Sum(Ytmp)
-	grad.Mul(X.T(), Ytmp)
+	grad.Mul(X.T(), Ydiff)
 	// add regularization to cost and grad
 	if Alpha > 0. {
 		L1, L2 := 0., 0.
@@ -101,7 +100,7 @@ func CrossEntropyLoss(Ytrue, X mat.Matrix, Theta, Ypred, Ydiff, Ytmp, grad *mat.
 }
 
 // J=-y*log(h)-(1-y)*log(1-h)
-// J = (sym)
+// J =
 //
 //          ⎛    1    ⎞               ⎛        1    ⎞
 //   - y⋅log⎜─────────⎟ - (-y + 1)⋅log⎜1 - ─────────⎟
@@ -109,7 +108,6 @@ func CrossEntropyLoss(Ytrue, X mat.Matrix, Theta, Ypred, Ydiff, Ytmp, grad *mat.
 //          ⎝1 + ℯ    ⎠               ⎝    1 + ℯ    ⎠
 //
 // >> diff(J,theta)
-// ans = (sym)
 //
 //          -X⋅θ                     -X⋅θ
 //     X⋅y⋅ℯ             X⋅(-y + 1)⋅ℯ
