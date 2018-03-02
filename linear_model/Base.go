@@ -497,7 +497,6 @@ func LinFit2(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 
 	YpredMini := mat.NewDense(miniBatchSize, nOutputs, nil)
 	YdiffMini := mat.NewDense(miniBatchSize, nOutputs, nil)
-	YtmpMini := mat.NewDense(miniBatchSize, nOutputs, nil)
 
 	Ypred := mat.NewDense(nSamples, nOutputs, nil)
 
@@ -519,7 +518,7 @@ func LinFit2(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 			miniBatchStart = miniBatch * miniBatchSize
 			Xmini := (X.Slice(miniBatchStart, miniBatchStart+miniBatchSize, 0, nFeatures))
 			YtrueMini := (Ytrue.Slice(miniBatchStart, miniBatchStart+miniBatchSize, 0, nOutputs))
-			J = opts.Loss(YtrueMini, Xmini, Theta, YpredMini, YdiffMini, YtmpMini, grad, opts.Alpha, opts.L1Ratio, miniBatchSize, opts.Activation)
+			J = opts.Loss(YtrueMini, Xmini, Theta, YpredMini, YdiffMini, grad, opts.Alpha, opts.L1Ratio, miniBatchSize, opts.Activation)
 			/*YpredMini.Mul(Xmini, Theta)
 			ErrMini.Sub(YpredMini, YtrueMini)
 

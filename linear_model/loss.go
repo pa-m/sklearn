@@ -14,7 +14,7 @@ import (
 // Ytrue, X, Theta must be passed in
 // Ypred,Ydiff,Ytmp are temporary matrices passed in here to avoid reallocations. nothing to initialize for them except storage
 // Alpha and L1Ratio are for regularization
-type Loss func(Ytrue, X mat.Matrix, Theta, Ypred, Ydiff, Ytmp, grad *mat.Dense, Alpha, L1Ratio float, nSamples int, activation Activation) (J float64)
+type Loss func(Ytrue, X mat.Matrix, Theta, Ypred, Ydiff, grad *mat.Dense, Alpha, L1Ratio float, nSamples int, activation Activation) (J float64)
 
 // SquareLoss Quadratic Loss, for regressions
 // Ytrue, X, Theta must be passed in
@@ -23,7 +23,7 @@ type Loss func(Ytrue, X mat.Matrix, Theta, Ypred, Ydiff, Ytmp, grad *mat.Dense, 
 // J: mat.Pow(h-y,2)/2
 // grad:  hprime*(h-y)
 //
-func SquareLoss(Ytrue, X mat.Matrix, Theta, Ypred, Ydiff, Ytmp, grad *mat.Dense, Alpha, L1Ratio float, nSamples int, activation Activation) (J float64) {
+func SquareLoss(Ytrue, X mat.Matrix, Theta, Ypred, Ydiff, grad *mat.Dense, Alpha, L1Ratio float, nSamples int, activation Activation) (J float64) {
 	Ypred.Mul(X, Theta)
 	Ypred.Apply(func(i, o int, xtheta float64) float64 { return activation.F(xtheta) }, Ypred)
 	Ydiff.Sub(Ypred, Ytrue)
@@ -56,15 +56,16 @@ func SquareLoss(Ytrue, X mat.Matrix, Theta, Ypred, Ydiff, Ytmp, grad *mat.Dense,
 // J: -y*math.Log(h)-(1.-y)*log(1.-h)
 // grad:  hprime*(-y/h + (1-y)/(1-h))
 //
-func CrossEntropyLoss(Ytrue, X mat.Matrix, Theta, Ypred, Ydiff, Ytmp, grad *mat.Dense, Alpha, L1Ratio float, nSamples int, activation Activation) (J float64) {
+func CrossEntropyLoss(Ytrue, X mat.Matrix, Theta, Ypred, Ydiff, grad *mat.Dense, Alpha, L1Ratio float, nSamples int, activation Activation) (J float64) {
 	Ypred.Mul(X, Theta)
 	Ypred.Apply(func(i, o int, xtheta float64) float64 { return activation.F(xtheta) }, Ypred)
 	Ydiff.Sub(Ypred, Ytrue)
 	J = 0.
-	Ytmp.Apply(func(i int, o int, h float64) float64 {
+	Ypred.Apply(func(i int, o int, hpred float64) float64 {
 		eps := 1e-10
 		y := Ytrue.At(i, o)
-		if h == 0. {
+		h := hpred
+		if hpred == 0. {
 			h += eps
 		} else if h == 1. {
 			h -= eps
@@ -76,7 +77,7 @@ func CrossEntropyLoss(Ytrue, X mat.Matrix, Theta, Ypred, Ydiff, Ytmp, grad *mat.
 		if math.IsInf(J, 1) {
 			panic(fmt.Errorf("CrossEntropyLoss J Inf h=%g y=%g", h, y))
 		}
-		return h
+		return hpred
 	}, Ypred)
 	grad.Mul(X.T(), Ydiff)
 	// add regularization to cost and grad

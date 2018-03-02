@@ -34,7 +34,6 @@ func testLossDerivatives(t *testing.T, lossFunc Loss, activation Activation) {
 
 	Ypred := mat.NewDense(nSamples, 1, nil)
 	Ydiff := mat.NewDense(nSamples, 1, nil)
-	Ytmp := mat.NewDense(nSamples, 1, nil)
 	grad := mat.NewDense(1, 1, nil)
 	Theta := mat.NewDense(1, 1, nil)
 	{
@@ -52,12 +51,12 @@ func testLossDerivatives(t *testing.T, lossFunc Loss, activation Activation) {
 			theta0 := rand.NormFloat64()
 			eps := 1e-2
 			Theta.Set(0, 0, theta0+eps)
-			J1 := lossFunc(Ytrue, X, Theta, Ypred, Ydiff, Ytmp, grad, Alpha, L1Ratio, nSamples, activation)
+			J1 := lossFunc(Ytrue, X, Theta, Ypred, Ydiff, grad, Alpha, L1Ratio, nSamples, activation)
 			Theta.Set(0, 0, theta0-eps)
 
-			J0 := lossFunc(Ytrue, X, Theta, Ypred, Ydiff, Ytmp, grad, Alpha, L1Ratio, nSamples, activation)
+			J0 := lossFunc(Ytrue, X, Theta, Ypred, Ydiff, grad, Alpha, L1Ratio, nSamples, activation)
 			Theta.Set(0, 0, theta0)
-			lossFunc(Ytrue, X, Theta, Ypred, Ydiff, Ytmp, grad, Alpha, L1Ratio, nSamples, activation)
+			lossFunc(Ytrue, X, Theta, Ypred, Ydiff, grad, Alpha, L1Ratio, nSamples, activation)
 
 			dJ := (J1 - J0) / 2. / eps
 			//fmt.Printf("%t %g %g\n", activation, grad.At(0, 0), dJ)
