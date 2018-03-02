@@ -2,14 +2,15 @@ package linearModel
 
 import (
 	"fmt"
-	"github.com/pa-m/sklearn/base"
-	"github.com/pa-m/sklearn/metrics"
-	"gonum.org/v1/gonum/mat"
-	"gonum.org/v1/gonum/optimize"
 	"math"
 	"math/rand"
 	"testing"
 	"time"
+
+	"github.com/pa-m/sklearn/base"
+	"github.com/pa-m/sklearn/metrics"
+	"gonum.org/v1/gonum/mat"
+	"gonum.org/v1/gonum/optimize"
 )
 
 type Problem struct {
@@ -43,10 +44,17 @@ func TestLinearRegression(t *testing.T) {
 	bestTime := time.Second * 86400
 	bestSetup := make(map[string]string)
 
-	for _, normalize := range []bool{false, true} {
-		for _, optimizer := range []base.Optimizer{base.NewSGDOptimizer(), base.NewAdagradOptimizer(), base.NewRMSPropOptimizer(), base.NewAdadeltaOptimizer(), base.NewAdamOptimizer()} {
+	for _, normalize := range []bool{false} { //true
+
+		for _, optimizer := range []base.Optimizer{
+			base.NewSGDOptimizer(),
+			//base.NewAdagradOptimizer(),
+			//base.NewRMSPropOptimizer(),
+			base.NewAdadeltaOptimizer(), base.NewAdamOptimizer()} {
 			testSetup := fmt.Sprintf("%s %v", optimizer, normalize)
 			regr := NewLinearRegression()
+			regr.Alpha = 0.
+
 			regr.Normalize = normalize
 			regr.Optimizer = optimizer
 			start := time.Now()
@@ -88,67 +96,14 @@ func TestLinearRegression(t *testing.T) {
 	fmt.Printf("Test %T BEST SETUP:%v\n\n", LinearRegression{}, bestSetup)
 }
 
-// Test differents normalize setup for LinearRegression
-func _TestLogisticRegression(t *testing.T) {
-	nSamples, nFeatures, nOutputs := 200, 2, 2
-	p := NewRandomLinearProblem(nSamples, nFeatures, nOutputs)
-	activation := Sigmoid{}
-	p.Y.Apply(func(i int, o int, y float64) float64 {
-		y = activation.F(y)
-		if y >= .5 {
-			return 1.
-		}
-		return 0.
-	}, p.Y)
-
-	bestErr := make(map[string]float)
-	bestTime := time.Second * 86400
-	bestSetup := make(map[string]string)
-
-	for _, normalize := range []bool{false} {
-		for _, optimizer := range []base.Optimizer{ /*base.NewSGDOptimizer(), base.NewAdagradOptimizer(), base.NewRMSPropOptimizer(), base.NewAdadeltaOptimizer(),*/ base.NewAdamOptimizer()} {
-			testSetup := fmt.Sprintf("%s %v", optimizer, normalize)
-			regr := NewLogisticRegression()
-			regr.Normalize = normalize
-			regr.Optimizer = optimizer
-			regr.Alpha = 0.
-			start := time.Now()
-			regr.Fit(p.X, p.Y)
-			elapsed := time.Since(start)
-			//fmt.Println("XOffset", regr.XOffset, "Intercept", regr.Intercept, "Coef", regr.Coef)
-			Ypred := mat.NewDense(nSamples, nOutputs, nil)
-			regr.Predict(p.X, Ypred)
-			if elapsed < bestTime {
-				bestTime = elapsed
-				bestSetup["elapsed"] = testSetup + fmt.Sprintf("(%s)", elapsed)
-			}
-			accuracy := metrics.AccuracyScore(p.Y, Ypred, nil, "").At(0, 0)
-			fmt.Println("R2", metrics.R2Score(p.Y, Ypred, nil, "").At(0, 0))
-			fmt.Println("MAE", metrics.MeanAbsoluteError(p.Y, Ypred, nil, "").At(0, 0))
-			tmpScore, ok := bestErr["accuracy"]
-			if !ok || accuracy > tmpScore {
-				bestErr["accuracy"] = accuracy
-				bestSetup["accuracy"] = testSetup + fmt.Sprintf("(%g)", accuracy)
-			}
-			if accuracy < .99 {
-				t.Errorf("Test LogisticRegression %s normalize=%v accuracy=%g \n", optimizer, normalize, accuracy)
-				t.Fail()
-			} else {
-				//fmt.Printf("Test LogisticRegression %s ok normalize=%v accuracy=%g elapsed=%s\n", optimizer, normalize, accuracy, elapsed)
-			}
-		}
-	}
-	fmt.Printf("Test Logisticregression BEST SETUP:%v\n\n", bestSetup)
-}
-
 func TestRidge(t *testing.T) {
 	nSamples, nFeatures, nOutputs := 200, 2, 2
 	p := NewRandomLinearProblem(nSamples, nFeatures, nOutputs)
 
-	for _, normalize := range []bool{false, true} {
+	for _, normalize := range []bool{false} {
 
 		regr := NewRidge()
-		regr.Alpha = .1
+		regr.Alpha = 0.
 		regr.Tol = 1e-2
 		regr.Normalize = normalize
 		start := time.Now()
@@ -175,7 +130,7 @@ func TestLasso(t *testing.T) {
 	nSamples, nFeatures, nOutputs := 200, 2, 2
 	p := NewRandomLinearProblem(nSamples, nFeatures, nOutputs)
 
-	for _, normalize := range []bool{false, true} {
+	for _, normalize := range []bool{false} {
 
 		regr := NewLasso()
 		regr.Alpha = .1

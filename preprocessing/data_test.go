@@ -2,9 +2,10 @@ package preprocessing
 
 import (
 	"fmt"
+	_ "math"
+
 	"github.com/gonum/floats"
 	"gonum.org/v1/gonum/mat"
-	_ "math"
 
 	"testing"
 )
@@ -100,4 +101,14 @@ func TestPolynomialFeatures(t *testing.T) {
 		t.Fail()
 	}
 
+}
+
+func ExampleInsertOnes() {
+	X := mat.NewDense(2, 5, []float64{2, 3, 4, 5, 6, 7, 8, 9, 10, 11})
+	InsertOnes(X)
+	fmt.Printf("X %v\n", X.RawRowView(0))
+	fmt.Printf("X %v\n", X.RawRowView(1))
+	// Output:
+	// X [1 2 3 4 5 6]
+	// X [1 7 8 9 10 11]
 }

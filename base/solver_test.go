@@ -2,14 +2,15 @@ package base
 
 import (
 	"fmt"
+
 	lm "github.com/pa-m/sklearn/linear_model"
 	//"github.com/pa-m/sklearn/metrics"
-	"github.com/pa-m/sklearn/preprocessing"
-	"gonum.org/v1/gonum/mat"
-	"math"
 	"math/rand"
 	"testing"
 	"time"
+
+	"github.com/pa-m/sklearn/preprocessing"
+	"gonum.org/v1/gonum/mat"
 )
 
 type Problem struct {
@@ -57,103 +58,11 @@ type Regression interface {
 func testSolver(t *testing.T, name string, s Optimizer, p *Problem) {
 	X, _, Ytrue := p.X, p.Theta, p.Y
 	start := time.Now()
-	res := lm.LinFit(X, Ytrue, &lm.LinFitOptions{Epochs: 1000, MiniBatchSize: p.MiniBatchSize, Tol: 1e-3, Solver: s})
-	if !res.Converged {
+	res := lm.LinFit(X, Ytrue, &lm.LinFitOptions{Epochs: 1000, MiniBatchSize: p.MiniBatchSize, Tol: 1e-3, Solver: s, Alpha: 0})
+	if !res.Converged && res.RMSE > 1e-3 {
 		t.Errorf("%s RMSE:%g", name, res.RMSE)
 	}
 	fmt.Printf("%s ok. RMSE=%.9g epochs=%d elapsed=%s\n", name, res.RMSE, res.Epoch, time.Since(start))
-
-	//fmt.Println("Theta true", TrueTheta)
-	//fmt.Println("Theta Pred", s.Theta)
-	//fmt.Println("Test ", name, time.Since(start))
-}
-
-func testSigSolver(t *testing.T, name string, s Optimizer, p *Problem) {
-	X, _, Ytrue := p.X, p.Theta, p.Y
-	nSamples, nFeatures := X.Dims()
-	_, nOutputs := Ytrue.Dims()
-
-	Theta := mat.NewDense(nFeatures, nOutputs, nil)
-	Theta.Apply(func(i, j int, v float64) float64 {
-		return rand.NormFloat64()
-	}, Theta)
-
-	opts := &lm.LinFitOptions{Epochs: 1000, MiniBatchSize: p.MiniBatchSize, Tol: 1e-3, Solver: s}
-	//var activation Activation = Sigmoid
-	//var loss Loss = CrossEntropyLoss
-	epochs, miniBatchStart, miniBatchSize := opts.Epochs, 0, opts.MiniBatchSize
-	if p.MiniBatchSize > 0 {
-		miniBatchSize = p.MiniBatchSize
-	}
-
-	YpredMini := mat.NewDense(miniBatchSize, nOutputs, nil)
-	YdiffMini := mat.NewDense(miniBatchSize, nOutputs, nil)
-	ErrMini := mat.NewDense(miniBatchSize, nOutputs, nil)
-
-	Ypred := mat.NewDense(nSamples, nOutputs, nil)
-	Err := mat.NewDense(nSamples, nOutputs, nil)
-
-	grad := mat.NewDense(nFeatures, nOutputs, nil)
-
-	Tol := opts.Tol
-
-	start := time.Now()
-	s.SetTheta(Theta)
-	var timeStep uint64
-	ErrorSum := math.Inf(1)
-	converged := false
-	for epoch := 1; epoch <= epochs && !converged; epoch++ {
-		DenseShuffle(X, Ytrue)
-		ErrorSum = 0.
-		for miniBatch := 0; miniBatch*miniBatchSize < nSamples; miniBatch++ {
-			miniBatchStart = miniBatch * miniBatchSize
-			Xmini := (X.Slice(miniBatchStart, miniBatchStart+miniBatchSize, 0, nFeatures))
-			YtrueMini := (Ytrue.Slice(miniBatchStart, miniBatchStart+miniBatchSize, 0, nOutputs))
-			YpredMini.Product(Xmini, Theta)
-			DenseSigmoid(YpredMini, YpredMini)
-			ErrMini.Apply(func(i int, j int, v float64) float64 {
-				v = -YtrueMini.At(i, j)*math.Log(YpredMini.At(i, j)) - (1.-YtrueMini.At(i, j))*math.Log(1.-YpredMini.At(i, j))
-				v /= float64(miniBatchSize)
-				return v
-			}, ErrMini)
-
-			// compute the gradient
-			YdiffMini.Sub(YpredMini, YtrueMini)
-			grad.Product(Xmini.T(), YdiffMini)
-			grad.Scale(1./float64(miniBatchSize), grad)
-
-			s.UpdateParams(grad)
-			MiniErrorSum := 0.
-			ErrMini.Apply(func(i, j int, v float64) float64 {
-				MiniErrorSum += v
-				return v
-			}, ErrMini)
-			if epoch >= epochs-1 {
-				fmt.Printf("%s mini rmse = %.6f\n", name, MiniErrorSum)
-			}
-			ErrorSum += MiniErrorSum
-		}
-
-		//d := func(X mat.Matrix) string { r, c := X.Dims(); return fmt.Sprintf("%d,%d", r, c) }
-		Ypred.Mul(X, Theta)
-		DenseSigmoid(Ypred, Ypred)
-		ErrorSum = 0.
-		Err.Apply(func(i int, j int, v float64) float64 {
-			v = -Ytrue.At(i, j)*math.Log(Ypred.At(i, j)) - (1.-Ytrue.At(i, j))*math.Log(1.-Ypred.At(i, j))
-			v /= float64(nSamples)
-			ErrorSum += v
-			return v
-		}, Err)
-
-		converged = ErrorSum < Tol*Tol
-		timeStep = s.GetTimeStep()
-
-	}
-	unused(timeStep, fmt.Println, start)
-	if !converged {
-		t.Errorf("%s ErrorSum:%g", name, ErrorSum)
-	}
-	fmt.Printf("%s ok. ErrorSum=%.9g elapsed=%s\n", name, ErrorSum, time.Since(start))
 
 	//fmt.Println("Theta true", TrueTheta)
 	//fmt.Println("Theta Pred", s.Theta)

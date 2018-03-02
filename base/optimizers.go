@@ -2,8 +2,9 @@ package base
 
 import (
 	"fmt"
-	"gonum.org/v1/gonum/mat"
 	"math"
+
+	"gonum.org/v1/gonum/mat"
 )
 
 // Optimizer has updateParams method to update theta from gradient
@@ -254,5 +255,6 @@ func (s *AdamOptimizer) UpdateParams(grad mat.Matrix) {
 		return -s.StepSize * Mtcapij / (math.Sqrt(s.Vtcap.At(i, j)) + s.Epsilon)
 	}
 	s.Tmp2.Apply(fn, s.Mtcap)
+
 	s.Theta.Add(s.Theta, s.Tmp2)
 }

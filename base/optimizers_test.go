@@ -27,9 +27,9 @@ func TestRMSProp(t *testing.T) {
 	p.MiniBatchSize = 1000
 	s := NewRMSPropOptimizer()
 
-	s.RMSPropGamma = .9
+	//s.RMSPropGamma = .9
 	// our problem is simplissime with a convex loss function so start with a big StepSize
-	s.StepSize = 0.01
+	s.StepSize = 0.001
 
 	testSolver(t, "RMSProp", s, p)
 }

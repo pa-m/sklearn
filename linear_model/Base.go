@@ -2,16 +2,17 @@ package linearModel
 
 import (
 	"fmt"
-	"github.com/gonum/floats"
+
 	"github.com/pa-m/sklearn/base"
 	"github.com/pa-m/sklearn/metrics"
 	"github.com/pa-m/sklearn/preprocessing"
 	//"gonum.org/v1/gonum/diff/fd"
-	"gonum.org/v1/gonum/mat"
-	"gonum.org/v1/gonum/optimize"
 	"math"
 	"math/rand"
 	"runtime"
+
+	"gonum.org/v1/gonum/mat"
+	"gonum.org/v1/gonum/optimize"
 )
 
 type float = float64
@@ -57,11 +58,7 @@ type LinearRegression struct {
 	Tol, Alpha, L1Ratio float64
 	LossFunction        Loss
 	ActivationFunction  Activation
-}
-
-// LogisticRegression WIP
-type LogisticRegression struct {
-	LinearRegression
+	Options             LinFitOptions
 }
 
 // NewLinearRegression create a *LinearRegression with defaults
@@ -76,34 +73,18 @@ func NewLinearRegression() *LinearRegression {
 	return regr
 }
 
-// NewLogisticRegression create and init a *LogisticRegression
-func NewLogisticRegression() *LogisticRegression {
-	regr := &LogisticRegression{}
-	regr.Tol = 1e-6
-	regr.Optimizer = base.NewAdamOptimizer()
-	regr.FitIntercept = true
-	regr.Normalize = false
-	regr.ActivationFunction = Sigmoid{}
-	regr.LossFunction = CrossEntropyLoss
-	return regr
-}
-
 // Fit fits Coef for a LinearRegression
 func (regr *LinearRegression) Fit(X0, Y0 *mat.Dense) Regressor {
-	solver := base.NewSGDOptimizer()
 	X := mat.DenseCopyOf(X0)
 	regr.XOffset, regr.XScale = preprocessing.DenseNormalize(X, regr.FitIntercept, regr.Normalize)
 	Y := mat.DenseCopyOf(Y0)
 	YOffset, _ := preprocessing.DenseNormalize(Y, regr.FitIntercept, false)
-	solver.Adadelta = true
-	//fmt.Println("YOffset", YOffset)
-	//fmt.Println("X", X, "Y", Y)
-	solver.StepSize = .01
-	res := LinFit(X, Y, &LinFitOptions{Epochs: 0, MiniBatchSize: 50, Tol: regr.Tol, Solver: solver, Loss: regr.LossFunction, Activation: regr.ActivationFunction})
-	/*if !res.Converged || res.RMSE > 1e-3 {
-		fmt.Printf("LinFit:%#v\n", res)
-	}*/
-	//fmt.Printf("LinFit res :%#v\n", res)
+	opt := regr.Options
+	opt.Tol = regr.Tol
+	opt.Solver = regr.Optimizer
+	opt.Loss = regr.LossFunction
+	opt.Activation = regr.ActivationFunction
+	res := LinFit(X, Y, &opt)
 	regr.Coef = res.Theta
 	regr.LinearModel.setIntercept(regr.XOffset, YOffset, regr.XScale)
 	return regr
@@ -113,30 +94,6 @@ func (regr *LinearRegression) Fit(X0, Y0 *mat.Dense) Regressor {
 func (regr *LinearRegression) Predict(X, Y *mat.Dense) {
 	regr.DecisionFunction(X, Y)
 
-}
-
-// PredictProba predicts probabolity of y=1 for X using Coef
-func (regr *LogisticRegression) PredictProba(X, Y *mat.Dense) {
-	regr.DecisionFunction(X, Y)
-	Y.Apply(func(i int, o int, y float64) float64 {
-		return (Sigmoid{}).F(y)
-	}, Y)
-}
-
-// Predict predicts y for X using Coef
-func (regr *LogisticRegression) Predict(X, Y *mat.Dense) {
-	regr.PredictProba(X, Y)
-	nSamples, nOutputs := Y.Dims()
-	for i := 0; i < nSamples; i++ {
-		o1 := floats.MaxIdx(Y.RawRowView(i))
-		for o := 0; o < nOutputs; o++ {
-			v := 0.
-			if o == o1 {
-				v = 1.
-			}
-			Y.Set(i, o, v)
-		}
-	}
 }
 
 // NewRidge creates a *Ridge with defaults
@@ -294,63 +251,6 @@ func (regr *SGDRegressor) Predict(X, Y *mat.Dense) {
 	return
 }
 
-func preprocessData(X [][]float, y []float, fitIntercept bool, normalize bool) (
-	Xout [][]float, yout []float, XOffset []float, yOffset float, XScale []float) {
-	var nSamples, nFeatures = len(X), len(X[0])
-	Xout = make([][]float, nSamples, nSamples)
-	yout = make([]float, nSamples)
-	XOffset = make([]float, nFeatures)
-	XScale = make([]float, nFeatures)
-	yOffset = 0.
-	if fitIntercept {
-		for _, Xi := range X {
-			floats.Add(XOffset, Xi)
-		}
-		floats.Scale(1./float(nSamples), XOffset)
-
-		yOffset = floats.Sum(y) / float(nSamples)
-
-		if normalize {
-
-			var XVar = make([]float, nFeatures)
-			for _, Xi := range X {
-				var t = make([]float, nFeatures)
-				floats.Add(t, Xi)
-				floats.Sub(t, XOffset)
-				floats.Mul(t, t)
-				floats.Add(XVar, t)
-			}
-			floats.Scale(1./float(nSamples), XVar)
-			for i, Xi := range XVar {
-				XScale[i] = math.Sqrt(Xi)
-			}
-		} else {
-			// no normalize
-			for i := range XScale {
-				XScale[i] = 1.
-			}
-		}
-		for i, Xi := range X {
-			Xout[i] = make([]float, nFeatures, nFeatures)
-			floats.Add(Xout[i], Xi)
-			floats.Sub(Xout[i], XOffset)
-			floats.Div(Xout[i], XScale)
-		}
-		floats.Add(yout, y)
-		floats.AddConst(-yOffset, yout)
-
-	} else {
-		// no fit intercept
-		copy(Xout, X)
-		copy(yout, y)
-		for i := range XScale {
-			XScale[i] = 1.
-		}
-	}
-	return
-
-}
-
 func unused(...interface{}) {}
 
 // LinFitOptions are options for LinFit
@@ -364,6 +264,7 @@ type LinFitOptions struct {
 	L1Ratio    float64
 	Loss       Loss
 	Activation Activation
+	GOMethod   optimize.Method
 }
 
 // LinFitResult is the result or LinFit
@@ -375,10 +276,10 @@ type LinFitResult struct {
 }
 
 // LinFit is an internal helper to fit linear regressions
-var LinFit = LinFit2
-
-// LinFit1 is an internal helper to fit linear regressions
-func LinFit1(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
+func LinFit(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
+	if opts.GOMethod != nil {
+		return LinFitGOM(X, Ytrue, opts)
+	}
 	nSamples, nFeatures := X.Dims()
 	_, nOutputs := Ytrue.Dims()
 
@@ -386,7 +287,6 @@ func LinFit1(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 	Theta.Apply(func(i, j int, v float64) float64 {
 		return rand.NormFloat64()
 	}, Theta)
-
 	var (
 		miniBatchStart = 0
 		miniBatchSize  = 200
@@ -394,100 +294,7 @@ func LinFit1(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 	if opts.MiniBatchSize > 0 {
 		miniBatchSize = opts.MiniBatchSize
 	}
-	if miniBatchSize > nSamples {
-		miniBatchSize = 1
-	}
-
-	YpredMini := mat.NewDense(miniBatchSize, nOutputs, nil)
-	ErrMini := mat.NewDense(miniBatchSize, nOutputs, nil)
-
-	Ypred := mat.NewDense(nSamples, nOutputs, nil)
-
-	grad := mat.NewDense(nFeatures, nOutputs, nil)
-	// Ridge Theta2 for regularization
-	AlphaTheta := mat.NewDense(nFeatures, nOutputs, nil)
-
-	s := opts.Solver
-	s.SetTheta(Theta)
-	var timeStep uint64
-	rmse := math.Inf(1)
-	converged := false
-	if opts.Epochs <= 0 {
-		opts.Epochs = 1e6 / nSamples
-	}
-	var epoch int
-	for epoch = 1; epoch <= opts.Epochs && !converged; epoch++ {
-		base.DenseShuffle(X, Ytrue)
-		for miniBatch := 0; miniBatch*miniBatchSize < nSamples; miniBatch++ {
-			miniBatchStart = miniBatch * miniBatchSize
-			Xmini := (X.Slice(miniBatchStart, miniBatchStart+miniBatchSize, 0, nFeatures))
-			YtrueMini := (Ytrue.Slice(miniBatchStart, miniBatchStart+miniBatchSize, 0, nOutputs))
-			YpredMini.Mul(Xmini, Theta)
-			ErrMini.Sub(YpredMini, YtrueMini)
-
-			// compute the gradient of squared error = 2*Xt*err
-			grad.Product(Xmini.T(), ErrMini)
-			grad.Scale(2./float(miniBatchSize), grad)
-			// add Ridge L2 regularization and Lasso L1 regularization
-			if opts.Alpha > 0. {
-				if opts.L1Ratio < 1. {
-					AlphaTheta.Scale(opts.Alpha*(1.-opts.L1Ratio)/float(2*nSamples), Theta)
-					grad.Add(grad, AlphaTheta)
-				}
-				if opts.L1Ratio > 0. {
-					alphal1ratio := opts.Alpha * opts.L1Ratio / float(2*nSamples)
-					grad.Apply(func(j int, o int, gradjo float64) float64 {
-						tethajo := Theta.At(j, o)
-						if tethajo > 0. {
-							gradjo += alphal1ratio
-						}
-						if tethajo < 0. {
-							gradjo -= alphal1ratio
-						}
-						return gradjo
-					}, grad)
-					grad.Add(grad, AlphaTheta)
-				}
-			}
-
-			s.UpdateParams(grad)
-			if epoch >= opts.Epochs-1 {
-				fmt.Printf("%T mini rmse = %.6f\n", s, mat.Norm(ErrMini, 2)/float(miniBatchSize))
-			}
-		}
-
-		//d := func(X mat.Matrix) string { r, c := X.Dims(); return fmt.Sprintf("%d,%d", r, c) }
-		Ypred.Mul(X, Theta)
-		rmse = math.Sqrt(metrics.MeanSquaredError(Ytrue, Ypred, nil, "").At(0, 0))
-
-		converged = rmse < opts.Tol
-		timeStep = s.GetTimeStep()
-
-	}
-	unused(timeStep, fmt.Println)
-	return &LinFitResult{Converged: converged, RMSE: rmse, Epoch: epoch, Theta: Theta}
-}
-
-// LinFit2 is an internal helper to fit linear regressions
-func LinFit2(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
-	nSamples, nFeatures := X.Dims()
-	_, nOutputs := Ytrue.Dims()
-
-	Theta := mat.NewDense(nFeatures, nOutputs, nil)
-	Theta.Apply(func(i, j int, v float64) float64 {
-		return rand.NormFloat64()
-	}, Theta)
-
-	var (
-		miniBatchStart = 0
-		miniBatchSize  = 200
-	)
-	if opts.MiniBatchSize > 0 {
-		miniBatchSize = opts.MiniBatchSize
-	}
-	if miniBatchSize > nSamples {
-		miniBatchSize = 1
-	}
+	miniBatchSize = int(math.Max(1, math.Min(100., math.Sqrt(float64(nSamples)))))
 	if opts.Loss == nil {
 		opts.Loss = SquareLoss
 	}
@@ -497,10 +304,9 @@ func LinFit2(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 
 	YpredMini := mat.NewDense(miniBatchSize, nOutputs, nil)
 	YdiffMini := mat.NewDense(miniBatchSize, nOutputs, nil)
+	grad := mat.NewDense(nFeatures, nOutputs, nil)
 
 	Ypred := mat.NewDense(nSamples, nOutputs, nil)
-
-	grad := mat.NewDense(nFeatures, nOutputs, nil)
 
 	s := opts.Solver
 	s.SetTheta(Theta)
@@ -508,7 +314,7 @@ func LinFit2(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 	rmse := math.Inf(1)
 	converged := false
 	if opts.Epochs <= 0 {
-		opts.Epochs = 1e6 / nSamples
+		opts.Epochs = 4e6 / nSamples
 	}
 	J := math.Inf(1)
 	var epoch int
@@ -516,53 +322,102 @@ func LinFit2(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 		base.DenseShuffle(X, Ytrue)
 		for miniBatch := 0; miniBatch*miniBatchSize < nSamples; miniBatch++ {
 			miniBatchStart = miniBatch * miniBatchSize
-			Xmini := (X.Slice(miniBatchStart, miniBatchStart+miniBatchSize, 0, nFeatures))
-			YtrueMini := (Ytrue.Slice(miniBatchStart, miniBatchStart+miniBatchSize, 0, nOutputs))
-			J = opts.Loss(YtrueMini, Xmini, Theta, YpredMini, YdiffMini, grad, opts.Alpha, opts.L1Ratio, miniBatchSize, opts.Activation)
-			/*YpredMini.Mul(Xmini, Theta)
-			ErrMini.Sub(YpredMini, YtrueMini)
-
-			// compute the gradient of squared error = 2*Xt*err
-			grad.Product(Xmini.T(), ErrMini)
-			grad.Scale(2./float(miniBatchSize), grad)
-			// add Ridge L2 regularization and Lasso L1 regularization
-			if opts.Alpha > 0. {
-				if opts.L1Ratio < 1. {
-					AlphaTheta.Scale(opts.Alpha*(1.-opts.L1Ratio)/float(2*nSamples), Theta)
-					grad.Add(grad, AlphaTheta)
-				}
-				if opts.L1Ratio > 0. {
-					alphal1ratio := opts.Alpha * opts.L1Ratio / float(2*nSamples)
-					grad.Apply(func(j int, o int, gradjo float64) float64 {
-						tethajo := Theta.At(j, o)
-						if tethajo > 0. {
-							gradjo += alphal1ratio
-						}
-						if tethajo < 0. {
-							gradjo -= alphal1ratio
-						}
-						return gradjo
-					}, grad)
-					grad.Add(grad, AlphaTheta)
-				}
+			miniBatchEnd := miniBatchStart + miniBatchSize
+			if miniBatchEnd > nSamples {
+				miniBatchEnd = nSamples
 			}
-			*/
+			miniBatchRows := miniBatchEnd - miniBatchStart
+			Xmini := (X.Slice(miniBatchStart, miniBatchEnd, 0, nFeatures))
+			YtrueMini := (Ytrue.Slice(miniBatchStart, miniBatchEnd, 0, nOutputs))
+
+			J = opts.Loss(YtrueMini, Xmini, Theta, YpredMini.Slice(0, miniBatchRows, 0, nOutputs).(*mat.Dense), YdiffMini.Slice(0, miniBatchRows, 0, nOutputs).(*mat.Dense), grad, opts.Alpha, opts.L1Ratio, miniBatchSize, opts.Activation)
+
 			s.UpdateParams(grad)
 			unused(J)
 			// if epoch >= opts.Epochs {
-			// 	fmt.Printf("LinFit2 J=%g\n", J)
+			// if miniBatch == 0 && epoch%10 == 0 {
+			// 	fmt.Printf("%d %d LinFit J=%g grad0:%v\n", epoch, miniBatch, J, grad.ColView(0))
+			// }
+
 			//}
 		}
 
 		//d := func(X mat.Matrix) string { r, c := X.Dims(); return fmt.Sprintf("%d,%d", r, c) }
 		Ypred.Mul(X, Theta)
+		switch opts.Activation.(type) {
+		case Identity:
+		default:
+			Ypred.Apply(func(j, o int, xtheta float64) float64 { return opts.Activation.F(xtheta) }, Ypred)
+		}
 		rmse = math.Sqrt(metrics.MeanSquaredError(Ytrue, Ypred, nil, "").At(0, 0))
 
-		converged = rmse < opts.Tol
+		converged = math.Sqrt(rmse) < opts.Tol
 		timeStep = s.GetTimeStep()
 
 	}
 	unused(timeStep, fmt.Println)
+	return &LinFitResult{Converged: converged, RMSE: rmse, Epoch: epoch, Theta: Theta}
+}
+
+// LinFitGOM fits a regression with a gonum/optimizer Method
+func LinFitGOM(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
+	nSamples, nFeatures := X.Dims()
+	_, nOutputs := Ytrue.Dims()
+
+	if opts.Loss == nil {
+		opts.Loss = SquareLoss
+	}
+	if opts.Activation == nil {
+		opts.Activation = Identity{}
+	}
+
+	gradslice := make([]float64, nFeatures*nOutputs, nFeatures*nOutputs)
+	grad := mat.NewDense(nFeatures, nOutputs, gradslice)
+
+	Ypred := mat.NewDense(nSamples, nOutputs, nil)
+	Ydiff := mat.NewDense(nSamples, nOutputs, nil)
+
+	rmse := math.Inf(1)
+	converged := false
+	if opts.Epochs <= 0 {
+		opts.Epochs = 4e6 / nSamples
+	}
+	p := optimize.Problem{
+		Func: func(theta []float64) float64 {
+
+			J := opts.Loss(Ytrue, X, mat.NewDense(nFeatures, nOutputs, theta), Ypred, Ydiff, grad, opts.Alpha, opts.L1Ratio, nSamples, opts.Activation)
+			return J
+		},
+		Grad: func(gradSlice, theta []float64) {
+			opts.Loss(Ytrue, X, mat.NewDense(nFeatures, nOutputs, theta), Ypred, Ydiff, grad, opts.Alpha, opts.L1Ratio, nSamples, opts.Activation)
+			copy(gradSlice, gradslice)
+		},
+	}
+	settings := optimize.DefaultSettings()
+	settings.Recorder = nil
+	settings.GradientThreshold = 1e-12
+	settings.FunctionConverge = nil
+	settings.FuncEvaluations = opts.Epochs
+	settings.FunctionThreshold = opts.Tol * opts.Tol
+	//settings.Recorder = optimize.NewPrinter()
+	theta := make([]float64, nFeatures*nOutputs, nFeatures*nOutputs)
+	for j := 0; j < len(theta); j++ {
+		theta[j] = 0.01 * rand.NormFloat64()
+	}
+	ret, err := optimize.Local(p, theta, settings, opts.GOMethod)
+
+	fmt.Printf("ret:%#v\nstatus:%s\n", ret, ret.Status)
+	copy(theta, ret.X)
+	Theta := mat.NewDense(nFeatures, nOutputs, theta)
+	converged = err == nil
+	Ypred.Mul(X, Theta)
+	switch opts.Activation.(type) {
+	case Identity:
+	default:
+		Ypred.Apply(func(j, o int, xtheta float64) float64 { return opts.Activation.F(xtheta) }, Ypred)
+	}
+	rmse = math.Sqrt(metrics.MeanSquaredError(Ytrue, Ypred, nil, "").At(0, 0))
+	epoch := ret.FuncEvaluations
 	return &LinFitResult{Converged: converged, RMSE: rmse, Epoch: epoch, Theta: Theta}
 }
 

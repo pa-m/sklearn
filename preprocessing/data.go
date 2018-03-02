@@ -1,8 +1,9 @@
 package preprocessing
 
 import (
-	"gonum.org/v1/gonum/mat"
 	"math"
+
+	"gonum.org/v1/gonum/mat"
 )
 
 type float = float64
@@ -404,4 +405,17 @@ func DenseNormalize(X *mat.Dense, FitIntercept, Normalize bool) (XOffset, XScale
 		return (v - XOffset.At(0, j)) / XScale.At(0, j)
 	}, X)
 	return XOffset, XScale
+}
+
+// InsertOnes insert a column of ones to fit intercept
+func InsertOnes(X *mat.Dense) {
+	nSamples, nFeatures := X.Dims()
+	X1 := mat.NewDense(nSamples, nFeatures+1, nil)
+	X1.Apply(func(i, j int, _ float64) float64 {
+		if j == 0 {
+			return 1
+		}
+		return X.At(i, j-1)
+	}, X1)
+	X.Clone(X1)
 }

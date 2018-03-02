@@ -1,2 +1,4 @@
-gox
+gochecks
 coverage.txt
+.idea
+.vscode
