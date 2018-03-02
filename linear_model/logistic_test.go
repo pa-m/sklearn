@@ -6,8 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"gonum.org/v1/gonum/optimize"
-
 	"github.com/pa-m/sklearn/base"
 	"github.com/pa-m/sklearn/datasets"
 	"github.com/pa-m/sklearn/metrics"
@@ -28,17 +26,17 @@ func TestLogReg(t *testing.T) {
 
 	_, nOutputs := Ytrue.Dims()
 	regr := NewLogisticRegression()
-	regr.FitIntercept = false // we added ones columns instead
-	regr.Normalize = false
-	regr.Optimizer = func() base.Optimizer {
+	regr.FitIntercept = false // Fintintercept=false because we already added ones columns instead
+	//regr.Normalize = false
+	/*regr.Optimizer = func() base.Optimizer {
 		s := base.NewAdamOptimizer()
 		s.StepSize = .5
 		return s
-	}()
+	}()*/
 	regr.Coef = mat.NewDense(nFeatures, nOutputs, nil)
-	regr.Alpha = 0.
-	regr.Options.Epochs = int(4e6 / float64(nSamples))
-	regr.Options.GOMethod = &optimize.LBFGS{}
+	regr.Alpha = 0. // following test values require no regularization
+	//regr.Options.Epochs = int(4e6 / float64(nSamples))
+	//regr.Options.GOMethod = &optimize.LBFGS{}
 
 	Ypred := mat.NewDense(nSamples, nOutputs, nil)
 	Ydiff := mat.NewDense(nSamples, nOutputs, nil)
