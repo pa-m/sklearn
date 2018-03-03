@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"gonum.org/v1/gonum/optimize"
+
 	"github.com/pa-m/sklearn/base"
 	"github.com/pa-m/sklearn/datasets"
 	"github.com/pa-m/sklearn/metrics"
@@ -33,18 +35,21 @@ func TestLogReg(t *testing.T) {
 		s.StepSize = .5
 		return s
 	}()*/
-	regr.Coef = mat.NewDense(nFeatures, nOutputs, nil)
-	regr.Alpha = 0. // following test values require no regularization
 	//regr.Options.Epochs = int(4e6 / float64(nSamples))
-	//regr.Options.GOMethod = &optimize.LBFGS{}
+	// we allocate Coef here because we use it for loss and grad tests before Fit
+	regr.Coef = mat.NewDense(nFeatures, nOutputs, nil)
+
+	// Alpha=0 here because following test values require no regularization
+	regr.Alpha = 0.
 
 	Ypred := mat.NewDense(nSamples, nOutputs, nil)
 	Ydiff := mat.NewDense(nSamples, nOutputs, nil)
 	grad := mat.NewDense(nFeatures, nOutputs, nil)
 
 	J := math.Inf(1)
-	loss := func() float64 {
-		return regr.LossFunction(Ytrue, X, regr.Coef, Ypred, Ydiff, grad, regr.Alpha, regr.L1Ratio, nSamples, regr.ActivationFunction)
+	loss := func() (J float64) {
+		J = regr.LossFunction(Ytrue, X, regr.Coef, Ypred, Ydiff, grad, regr.Alpha, regr.L1Ratio, nSamples, regr.ActivationFunction)
+		return
 	}
 	chkLoss := func(context string, expectedLoss float64) {
 		if math.Abs(J-expectedLoss) > 1e-3 {
@@ -78,18 +83,79 @@ func TestLogReg(t *testing.T) {
 	J = loss()
 	chkLoss("at test theta", 0.218)
 
-	regr.Fit(X, Ytrue)
-	J = loss()
+	// test Fit with various gonum/optimize Method
 
-	chkLoss("after fit", 0.2030)
-	chkTheta("after fit", []float64{-25.161, 0.206, 0.201})
+	var GOMethods = []optimize.Method{
+		&optimize.BFGS{},
+		&optimize.CG{},
+		//&optimize.GradientDescent{},
+		&optimize.LBFGS{},
+		//&optimize.NelderMead{},
+		//&optimize.Newton{}
+	}
+
+	best := make(map[string]string)
+	bestLoss := math.Inf(1)
+	bestTime := time.Second * 86400
+
+	for _, method := range GOMethods {
+		testSetup := fmt.Sprintf("(%T)", method)
+		regr.Coef.SetCol(0, []float64{-24, 0.2, 0.2})
+		regr.Options.GOMethod = method
+		start := time.Now()
+		regr.Fit(X, Ytrue)
+		elapsed := time.Since(start)
+		J = loss()
+
+		chkLoss("after fit "+testSetup, 0.2030)
+		chkTheta("after fit "+testSetup, []float64{-25.161, 0.206, 0.201})
+		if J < bestLoss {
+			bestLoss = J
+			best["best for loss"] = testSetup + fmt.Sprintf("(%g)", J)
+		}
+		if elapsed < bestTime {
+			bestTime = elapsed
+			best["best for time"] = testSetup + fmt.Sprintf("(%g)", J)
+		}
+	}
+
+	// test Fit with various base.Optimizer
+	var Optimizers = []string{
+		// "sgd",
+		// "adagrad",
+		// "rmsprop",
+		// "adadelta",
+		// "adam",
+	}
+
+	for _, optimizer := range Optimizers {
+		testSetup := optimizer
+		regr.Coef.SetCol(0, []float64{-24, 0.2, 0.2})
+		regr.Options.GOMethod = nil
+		regr.Optimizer = base.NewOptimizer(optimizer)
+		start := time.Now()
+		regr.Fit(X, Ytrue)
+		elapsed := time.Since(start)
+		J = loss()
+
+		chkLoss("after fit "+testSetup, 0.2030)
+		chkTheta("after fit "+testSetup, []float64{-25.161, 0.206, 0.201})
+		if J < bestLoss {
+			bestLoss = J
+			best["best for loss"] = testSetup + fmt.Sprintf("(%g)", J)
+		}
+		if elapsed < bestTime {
+			bestTime = elapsed
+			best["best for time"] = testSetup + fmt.Sprintf("(%g)", J)
+		}
+	}
+	fmt.Println("LogisticRegression BEST SETUP:", best)
 
 	regr.PredictProba(X, Ypred)
-	fmt.Println("mae", metrics.MeanAbsoluteError(Ytrue, Ypred, nil, "uniform_average").At(0, 0))
 
 	regr.PredictProba(X, Ypred)
-	fmt.Println("acc:", metrics.AccuracyScore(Ytrue, Ypred, nil, "uniform_average").At(0, 0))
-	fmt.Println("ok")
+	// fmt.Println("acc:", metrics.AccuracyScore(Ytrue, Ypred, nil, "uniform_average").At(0, 0))
+	// fmt.Println("ok")
 }
 
 // Test differents normalize setup for LinearRegression

@@ -11,6 +11,9 @@ type Activation interface {
 	Fprime(y float64) float64
 }
 
+// Activations is the list of implemented activation functions
+var Activations = []Activation{Identity{}, Logistic{}, ReLU{}, Tanh{}}
+
 // see https://en.wikipedia.org/wiki/Activation_function
 
 // Identity ...

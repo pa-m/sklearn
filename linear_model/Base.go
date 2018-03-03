@@ -406,7 +406,7 @@ func LinFitGOM(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 	}
 	ret, err := optimize.Local(p, theta, settings, opts.GOMethod)
 
-	fmt.Printf("ret:%#v\nstatus:%s\n", ret, ret.Status)
+	//fmt.Printf("ret:%#v\nstatus:%s\n", ret, ret.Status)
 	copy(theta, ret.X)
 	Theta := mat.NewDense(nFeatures, nOutputs, theta)
 	converged = err == nil
@@ -435,12 +435,10 @@ func (regr *LinearModel) setIntercept(XOffset, YOffset, XScale mat.Matrix) {
 	if regr.Intercept == nil {
 		regr.Intercept = mat.NewDense(1, nOutputs, nil)
 	}
+	regr.Coef.Apply(func(j, o int, coef float64) float64 { return coef / XScale.At(0, j) }, regr.Coef)
 	if regr.FitIntercept {
-		regr.Coef.Apply(func(j, o int, coef float64) float64 { return coef / XScale.At(0, j) }, regr.Coef)
 		regr.Intercept.Mul(XOffset, regr.Coef)
-		chkdims("-", regr.Intercept, YOffset, regr.Intercept)
 		regr.Intercept.Sub(YOffset, regr.Intercept)
-
 	}
 }
 
@@ -452,6 +450,7 @@ func dims(mats ...mat.Matrix) string {
 	}
 	return s
 }
+
 func chkdims(op string, R, X, Y mat.Matrix) {
 	rx, cx := X.Dims()
 	ry, cy := Y.Dims()
