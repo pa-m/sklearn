@@ -269,8 +269,8 @@ type PolynomialFeatures struct {
 }
 
 // NewPolynomialFeatures creates a *PolynomialFeatures
-func NewPolynomialFeatures() *PolynomialFeatures {
-	return &PolynomialFeatures{Degree: 2, InteractionOnly: false, IncludeBias: true}
+func NewPolynomialFeatures(degree int) *PolynomialFeatures {
+	return &PolynomialFeatures{Degree: degree, InteractionOnly: false, IncludeBias: true}
 
 }
 

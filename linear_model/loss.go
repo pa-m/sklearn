@@ -54,13 +54,17 @@ func SquareLoss(Ytrue, X, Theta mat.Matrix, Ypred, Ydiff, grad *mat.Dense, Alpha
 	if Alpha > 0. {
 		L1, L2 := 0., 0.
 		grad.Apply(func(j, o int, g float64) float64 {
-			c := Theta.At(j, o)
-			L1 += math.Abs(c)
-			L2 += c * c
-			g += Alpha * (L1Ratio*sgn(c) + (1.-L1Ratio)*c)
+			// here we count feature 0 (not ones) in regularization
+			if j >= 0 {
+				c := Theta.At(j, o)
+
+				L1 += math.Abs(c)
+				L2 += c * c
+				g += Alpha * (L1Ratio*sgn(c) + (1.-L1Ratio)*c)
+			}
 			return g
 		}, grad)
-		J += Alpha * (L1Ratio*L1 + (1. - L1Ratio*L2))
+		J += Alpha * (L1Ratio*L1 + (1.-L1Ratio)*L2)
 	}
 
 	J /= 2. * float64(nSamples)
@@ -106,13 +110,16 @@ func LogLoss(Ytrue, X, Theta mat.Matrix, Ypred, Ydiff, grad *mat.Dense, Alpha, L
 	if Alpha > 0. {
 		L1, L2 := 0., 0.
 		grad.Apply(func(j, o int, g float64) float64 {
-			c := Theta.At(j, o)
-			L1 += math.Abs(c)
-			L2 += c * c
-			g += Alpha * (L1Ratio*sgn(c) + (1.-L1Ratio)*c)
+			// we dont count feature 0 (ones) in regularization
+			if j > 0 {
+				c := Theta.At(j, o)
+				L1 += math.Abs(c)
+				L2 += c * c / 2.
+				g += Alpha * (L1Ratio*sgn(c) + (1.-L1Ratio)*c)
+			}
 			return g
 		}, grad)
-		J += Alpha * (L1Ratio*L1 + (1. - L1Ratio*L2))
+		J += Alpha * (L1Ratio*L1 + (1.-L1Ratio)*L2)
 	}
 	J /= float64(nSamples)
 	grad.Scale(1./float64(nSamples), grad)
@@ -169,15 +176,21 @@ func CrossEntropyLoss(Ytrue, X, Theta mat.Matrix, Ypred, Ydiff, grad *mat.Dense,
 	if Alpha > 0. {
 		L1, L2 := 0., 0.
 		grad.Apply(func(j, o int, g float64) float64 {
-			c := Theta.At(j, o)
-			L1 += math.Abs(c)
-			L2 += c * c
-			g += Alpha * (L1Ratio*sgn(c) + (1.-L1Ratio)*c)
+			// we dont count feature 0 (ones) in regularization
+			if j > 0 || o > 0 {
+				c := Theta.At(j, o)
+				L1 += math.Abs(c)
+				L2 += c * c / 2.
+				g += Alpha * (L1Ratio*sgn(c) + (1.-L1Ratio)*c)
+			}
 			return g
 		}, grad)
-		J += Alpha * (L1Ratio*L1 + (1. - L1Ratio*L2))
+		//fmt.Printf("J=1/%d * { %g + %g * ( %g*%g +%g*%g) }\n", nSamples, J, Alpha, L1Ratio, L1, 1.-L1Ratio, L2)
+		J += Alpha * (L1Ratio*L1 + (1.-L1Ratio)*L2)
+		//fmt.Printf("=%g\n", J)
 	}
 	J /= float64(nSamples)
+	//fmt.Printf("/%d =>%g\n", nSamples, J)
 	grad.Scale(1./float64(nSamples), grad)
 	if math.IsNaN(J) {
 		panic("J Nan")

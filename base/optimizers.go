@@ -19,18 +19,16 @@ type Optimizer interface {
 // SGDOptimizer is struct for SGD solver v https://en.wikipedia.org/wiki/Stochastic_gradient_descent
 type SGDOptimizer struct {
 	// alpha, StepSize
-	StepSize, Momentum         float64
-	Adagrad, Adadelta, RMSProp bool
+	StepSize, Momentum, GradientClipping float64
+	Adagrad, Adadelta, RMSProp           bool
 	// running Parameters
-	Gt                        mat.Matrix
-	Theta, PrevUpdate, Update *mat.Dense
-	AdagradG, AdadeltaU       *mat.Dense
-	TimeStep, RMSPropGamma    float64
+	GtNorm, Theta, PrevUpdate, Update, AdagradG, AdadeltaU *mat.Dense
+	TimeStep, RMSPropGamma, Epsilon                        float64
 }
 
 // NewSGDOptimizer returns an initialized *SGDOptimizer with stepsize 1e-4 and momentum 0.9
 func NewSGDOptimizer() *SGDOptimizer {
-	s := &SGDOptimizer{StepSize: 1e-4, Momentum: .9, RMSPropGamma: .9}
+	s := &SGDOptimizer{StepSize: 1e-4, Momentum: .9, RMSPropGamma: .9, Epsilon: 1e-8}
 
 	return s
 }
@@ -38,13 +36,17 @@ func NewSGDOptimizer() *SGDOptimizer {
 // NewAdagradOptimizer return a *SGDOptimizer setup for adagrad
 func NewAdagradOptimizer() *SGDOptimizer {
 	s := NewSGDOptimizer()
+	s.StepSize = .5
+	s.Momentum = 0.
 	s.Adagrad = true
+	s.GradientClipping = 10.
 	return s
 }
 
 // NewAdadeltaOptimizer return a *SGDOptimizer setup for adadelta
 func NewAdadeltaOptimizer() *SGDOptimizer {
 	s := NewSGDOptimizer()
+	s.Momentum = 0.
 	s.Adadelta = true
 	return s
 }
@@ -52,7 +54,10 @@ func NewAdadeltaOptimizer() *SGDOptimizer {
 // NewRMSPropOptimizer return a *SGDOptimizer setup for rmsprop
 func NewRMSPropOptimizer() *SGDOptimizer {
 	s := NewSGDOptimizer()
+	s.StepSize = 0.05
+	s.Momentum = 0.
 	s.RMSProp = true
+	s.RMSPropGamma = 0.9
 	return s
 }
 
@@ -106,49 +111,53 @@ func (s *SGDOptimizer) UpdateParams(grad mat.Matrix) {
 			m.Apply(func(i int, j int, v float64) float64 { return v0 }, m)
 			return m
 		}
+		s.GtNorm = mat.NewDense(NOutputs, 1, nil)
 		s.Update = mat.NewDense(NFeatures, NOutputs, nil)
 		s.PrevUpdate = mat.NewDense(NFeatures, NOutputs, nil)
-		s.AdagradG = init(mat.NewDense(NFeatures, NOutputs, nil), 1.)
+		s.AdagradG = init(mat.NewDense(NFeatures, NOutputs, nil), s.Epsilon)
 		s.AdadeltaU = init(mat.NewDense(NFeatures, NOutputs, nil), 1.)
 
 	}
 	s.TimeStep += 1.
 	// gt ← ∇θft(θt−1) (Get gradients w.r.t. stochastic objective at timestep t)
-	s.Gt = grad
 
 	eta := s.StepSize * 100. / (100. + s.TimeStep)
+	for j := 0; j < NOutputs; j++ {
+		s.GtNorm.Set(j, 0, colNorm(grad, j))
+	}
+	gradientClipped := func(j, o int) float64 {
+		gradjo := grad.At(j, o)
+		if s.GradientClipping > 0. && s.GtNorm.At(o, 0) > s.GradientClipping {
+			gradjo *= s.GradientClipping / s.GtNorm.At(o, 0)
+		}
+		return gradjo
+	}
 	if s.RMSProp {
-		L2 := 1.
-
 		s.Update.Apply(func(j, o int, v float64) float64 {
-			etajo := s.StepSize / L2
-			if s.TimeStep > 1 {
-				etajo /= math.Sqrt(s.AdagradG.At(j, o))
+			etajo := s.StepSize
+			if s.TimeStep > 1 && math.Abs(s.AdagradG.At(j, o)) > 1. {
+				etajo /= math.Sqrt(s.AdagradG.At(j, o) + s.Epsilon)
 			}
-			gradjo := grad.At(j, o) / L2
-			return -etajo * gradjo
+			return -etajo * gradientClipped(j, o)
+
 		}, s.AdagradG)
 		s.AdagradG.Apply(func(j, o int, v float64) float64 {
-			gradjo := grad.At(j, o) / L2
+			gradjo := gradientClipped(j, o)
 			v = v*s.RMSPropGamma + (1.-s.RMSPropGamma)*gradjo*gradjo
 			return v
 		}, s.AdagradG)
 	} else if s.Adagrad {
-		L2 := 1.
-
-		// TODO make adagrad work
 		s.Update.Apply(func(j, o int, v float64) float64 {
-			etajo := s.StepSize / L2
+			etajo := s.StepSize
 			Gjo := s.AdagradG.At(j, o)
-			gradjo := grad.At(j, o) / L2
 			if s.TimeStep > 1 {
-				etajo /= math.Sqrt(Gjo)
+				etajo /= math.Sqrt(Gjo) + s.Epsilon
 			}
-			return -etajo * gradjo
+			return -etajo * gradientClipped(j, o)
 		}, grad)
 		// accumulate gradients
 		s.AdagradG.Apply(func(j, o int, v float64) float64 {
-			gradjo := grad.At(j, o) / L2
+			gradjo := gradientClipped(j, o)
 			v += gradjo * gradjo
 			return v
 		}, s.AdagradG)
@@ -156,16 +165,16 @@ func (s *SGDOptimizer) UpdateParams(grad mat.Matrix) {
 		// https://arxiv.org/pdf/1212.5701.pdf
 		// accumulate gradients
 		s.AdagradG.Apply(func(j, o int, v float64) float64 {
-			gradjo := grad.At(j, o)
+			gradjo := gradientClipped(j, o)
 			return s.RMSPropGamma*v + (1.-s.RMSPropGamma)*gradjo*gradjo
 		}, s.AdagradG)
 		// compute update
 		s.Update.Apply(func(j, o int, gradjo float64) float64 {
 			etajo := eta
 			if s.TimeStep > 1 {
-				etajo = math.Sqrt(s.AdadeltaU.At(j, o)) / math.Sqrt(s.AdagradG.At(j, o))
+				etajo = math.Sqrt(s.AdadeltaU.At(j, o)) / math.Sqrt(s.AdagradG.At(j, o)+s.Epsilon)
 			}
-			return -etajo * gradjo
+			return -etajo * gradientClipped(j, o)
 		}, grad)
 		s.AdadeltaU.Apply(func(j, o int, v float64) float64 {
 			upd := s.Update.At(j, o)
@@ -173,9 +182,15 @@ func (s *SGDOptimizer) UpdateParams(grad mat.Matrix) {
 		}, s.AdadeltaU)
 	} else {
 		// normal SGD with momentum
-		s.Update.Apply(func(j, o int, v float64) float64 {
-			return s.Momentum*s.PrevUpdate.At(j, o) - eta*grad.At(j, o)
+		s.Update.Apply(func(j, o int, gradjo float64) float64 {
+			return -eta * gradientClipped(j, o)
 		}, grad)
+	}
+	// Apply Momentum
+	if s.Momentum > 0 {
+		s.Update.Apply(func(j, o int, updjo float64) float64 {
+			return s.Momentum*s.PrevUpdate.At(j, o) + updjo
+		}, s.Update)
 	}
 	s.Theta.Add(s.Theta, s.Update)
 	if math.IsNaN(s.Theta.At(0, 0)) {
@@ -189,21 +204,19 @@ func (s *SGDOptimizer) UpdateParams(grad mat.Matrix) {
 // AdamOptimizer is struct for adam solver v https://arxiv.org/pdf/1412.6980v9.pdf?
 type AdamOptimizer struct {
 	// alpha, StepSize
-	StepSize float64
+	StepSize, Momentum, GradientClipping float64
 	// Beta1,Beta2 are exponential decay rate for the moment estimates
 	Beta1, Beta2 float64
 	// epsilon=1e-8 avoid zero division
 	Epsilon float64
 	// running Parameters
-	Gt                                            mat.Matrix
-	Theta, Mt, Vt, Mtcap, Vtcap, Tmp0, Tmp1, Tmp2 *mat.Dense
-	TimeStep                                      float64
+	GtNorm, Theta, Mt, Vt, Mtcap, Vtcap, PrevUpdate, Update *mat.Dense
+	TimeStep                                                float64
 }
 
 // NewAdamOptimizer returns an initialized adam solver
 func NewAdamOptimizer() *AdamOptimizer {
-	s := &AdamOptimizer{StepSize: 1e-3, Beta1: .9, Beta2: .999, Epsilon: 1e-8}
-
+	s := &AdamOptimizer{StepSize: .5, Beta1: .9, Beta2: .999, Epsilon: 1e-8}
 	return s
 }
 
@@ -225,36 +238,62 @@ func (s *AdamOptimizer) UpdateParams(grad mat.Matrix) {
 
 	NFeatures, NOutputs := s.Theta.Dims()
 	if s.TimeStep == 0. {
-		s.Tmp0 = mat.NewDense(NFeatures, NOutputs, nil)
-		s.Tmp1 = mat.NewDense(NFeatures, NOutputs, nil)
-		s.Tmp2 = mat.NewDense(NFeatures, NOutputs, nil)
+		s.Update = mat.NewDense(NFeatures, NOutputs, nil)
+		s.PrevUpdate = mat.NewDense(NFeatures, NOutputs, nil)
 		s.Mt = mat.NewDense(NFeatures, NOutputs, nil)
 		s.Vt = mat.NewDense(NFeatures, NOutputs, nil)
 		s.Mtcap = mat.NewDense(NFeatures, NOutputs, nil)
 		s.Vtcap = mat.NewDense(NFeatures, NOutputs, nil)
-
+		s.GtNorm = mat.NewDense(NOutputs, 1, nil)
 	}
 	s.TimeStep += 1.
 	// gt ← ∇θft(θt−1) (Get gradients w.r.t. stochastic objective at timestep t)
-	s.Gt = grad
+	for j := 0; j < NOutputs; j++ {
+		s.GtNorm.Set(j, 0, colNorm(grad, j))
+	}
+	gradientClipped := func(j, o int) float64 {
+		gradjo := grad.At(j, o)
+		if s.GradientClipping > 0. && s.GtNorm.At(o, 0) > s.GradientClipping {
+			gradjo *= s.GradientClipping / s.GtNorm.At(o, 0)
+		}
+		return gradjo
+	}
 	// mt ← β1 · mt−1 + (1 − β1) · gt (Update biased first moment estimate)
-	s.Tmp1.Scale(s.Beta1, s.Mt)
-	s.Tmp2.Scale(1.-s.Beta1, s.Gt)
-	s.Mt.Add(s.Tmp1, s.Tmp2)
+
+	s.Mt.Apply(func(j, o int, gradjo float64) float64 {
+		return s.Beta1*s.Mt.At(j, o) + (1.-s.Beta1)*gradientClipped(j, o)
+	}, grad)
 	// vt ← β2 · vt−1 + (1 − β2) · gt² (Update biased second raw moment estimate)
-	s.Tmp1.Scale(s.Beta2, s.Vt)
-	s.Tmp0.MulElem(s.Gt, s.Gt)
-	s.Tmp2.Scale(1.-s.Beta2, s.Tmp0)
-	s.Vt.Add(s.Tmp1, s.Tmp2)
+	s.Vt.Apply(func(j, o int, gradjo float64) float64 {
+		gradjo = gradientClipped(j, o)
+		return s.Beta2*s.Vt.At(j, o) + (1.-s.Beta2)*gradjo*gradjo
+	}, grad)
 	// mb t ← mt/(1 − β1^t) (Compute bias-corrected first moment estimate)
 	s.Mtcap.Scale(1./(1.-math.Pow(s.Beta1, s.TimeStep)), s.Mt)
 	// vbt ← vt/(1 − β2^t) (Compute bias-corrected second raw moment estimate)
 	s.Vtcap.Scale(1./(1.-math.Pow(s.Beta2, s.TimeStep)), s.Vt)
 	// θt ← θt−1 − α · mb t/(√vbt + epsilon) (Update parameters)
-	fn := func(i, j int, Mtcapij float64) float64 {
-		return -s.StepSize * Mtcapij / (math.Sqrt(s.Vtcap.At(i, j)) + s.Epsilon)
-	}
-	s.Tmp2.Apply(fn, s.Mtcap)
 
-	s.Theta.Add(s.Theta, s.Tmp2)
+	s.Update.Apply(func(i, j int, Mtcapij float64) float64 {
+		return -s.StepSize * Mtcapij / (math.Sqrt(s.Vtcap.At(i, j)) + s.Epsilon)
+	}, s.Mtcap)
+	// Apply Momentum
+	if s.Momentum > 0 {
+		s.Update.Apply(func(j, o int, updjo float64) float64 {
+			return s.Momentum*s.PrevUpdate.At(j, o) + updjo
+		}, s.Update)
+	}
+	s.Theta.Add(s.Theta, s.Update)
+	s.PrevUpdate.Clone(s.Update)
+}
+
+// colNorm returns the L2 norm of a matrix column
+func colNorm(m mat.Matrix, o int) float64 {
+	nFeatures, _ := m.Dims()
+	s := 0.
+	for j := 0; j < nFeatures; j++ {
+		v := m.At(j, o)
+		s += v * v
+	}
+	return math.Sqrt(s)
 }

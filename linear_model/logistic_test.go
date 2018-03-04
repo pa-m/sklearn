@@ -6,36 +6,24 @@ import (
 	"testing"
 	"time"
 
-	"gonum.org/v1/gonum/optimize"
-
 	"github.com/pa-m/sklearn/base"
 	"github.com/pa-m/sklearn/datasets"
 	"github.com/pa-m/sklearn/metrics"
 	"github.com/pa-m/sklearn/preprocessing"
 	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
+	"gonum.org/v1/gonum/optimize"
 )
 
-func TestLogReg(t *testing.T) {
-
+func TestLogRegExamScore(t *testing.T) {
 	X, Ytrue := datasets.LoadExamScore()
 	nSamples, nFeatures := X.Dims()
-
 	preprocessing.InsertOnes(X)
-	fmt.Println("nFeatures", nFeatures)
 	nFeatures++
-	//fmt.Println(base.MatStr(X.Slice(0, 10, 0, nFeatures)))
-
 	_, nOutputs := Ytrue.Dims()
 	regr := NewLogisticRegression()
 	regr.FitIntercept = false // Fintintercept=false because we already added ones columns instead
-	//regr.Normalize = false
-	/*regr.Optimizer = func() base.Optimizer {
-		s := base.NewAdamOptimizer()
-		s.StepSize = .5
-		return s
-	}()*/
-	//regr.Options.Epochs = int(4e6 / float64(nSamples))
+
 	// we allocate Coef here because we use it for loss and grad tests before Fit
 	regr.Coef = mat.NewDense(nFeatures, nOutputs, nil)
 
@@ -93,6 +81,10 @@ func TestLogReg(t *testing.T) {
 		//&optimize.NelderMead{},
 		//&optimize.Newton{}
 	}
+	printer := optimize.NewPrinter()
+	//printer.HeadingInterval = 1
+	//printer.ValueInterval = 0
+	unused(printer)
 
 	best := make(map[string]string)
 	bestLoss := math.Inf(1)
@@ -102,6 +94,7 @@ func TestLogReg(t *testing.T) {
 		testSetup := fmt.Sprintf("(%T)", method)
 		regr.Coef.SetCol(0, []float64{-24, 0.2, 0.2})
 		regr.Options.GOMethod = method
+		//regr.Options.Recorder = printer
 		start := time.Now()
 		regr.Fit(X, Ytrue)
 		elapsed := time.Since(start)
@@ -115,24 +108,49 @@ func TestLogReg(t *testing.T) {
 		}
 		if elapsed < bestTime {
 			bestTime = elapsed
-			best["best for time"] = testSetup + fmt.Sprintf("(%g)", J)
+			best["best for time"] = testSetup + fmt.Sprintf("(%s)", elapsed)
 		}
 	}
 
 	// test Fit with various base.Optimizer
 	var Optimizers = []string{
-		// "sgd",
-		// "adagrad",
-		// "rmsprop",
-		// "adadelta",
-		// "adam",
+	// "sgd",
+	// "adagrad",
+	// "rmsprop",
+	//"adadelta",
+	//"adam",
+	}
+
+	newOptimizer := func(name string) base.Optimizer {
+
+		switch name {
+		case "adadelta":
+			s := base.NewAdadeltaOptimizer()
+			s.StepSize = 0.05
+			return s
+		case "adam":
+			s := base.NewAdamOptimizer()
+			s.StepSize = .1
+			return s
+		default:
+			s := base.NewOptimizer(name)
+			return s
+		}
 	}
 
 	for _, optimizer := range Optimizers {
 		testSetup := optimizer
-		regr.Coef.SetCol(0, []float64{-24, 0.2, 0.2})
+		regr.Options.ThetaInitializer = func(Theta *mat.Dense) {
+			Theta.SetCol(0, []float64{-24, 0.2, 0.2})
+		}
 		regr.Options.GOMethod = nil
-		regr.Optimizer = base.NewOptimizer(optimizer)
+		//regr.Options.Recorder = printer
+		regr.Options.MiniBatchSize = nSamples
+		regr.Optimizer = newOptimizer(optimizer)
+		// if opti, ok := regr.Optimizer.(*base.SGDOptimizer); ok {
+		// 	opti.StepSize = 1e-5
+		// }
+		//regr.Options.Epochs = 1e5
 		start := time.Now()
 		regr.Fit(X, Ytrue)
 		elapsed := time.Since(start)
@@ -146,7 +164,7 @@ func TestLogReg(t *testing.T) {
 		}
 		if elapsed < bestTime {
 			bestTime = elapsed
-			best["best for time"] = testSetup + fmt.Sprintf("(%g)", J)
+			best["best for time"] = testSetup + fmt.Sprintf("(%s)", elapsed)
 		}
 	}
 	fmt.Println("LogisticRegression BEST SETUP:", best)
@@ -158,55 +176,180 @@ func TestLogReg(t *testing.T) {
 	// fmt.Println("ok")
 }
 
-// Test differents normalize setup for LinearRegression
-func _TestLogisticRegression(t *testing.T) {
-	nSamples, nFeatures, nOutputs := 200, 2, 2
-	p := NewRandomLinearProblem(nSamples, nFeatures, nOutputs)
-	activation := Sigmoid{}
-	p.Y.Apply(func(i int, o int, y float64) float64 {
-		y = activation.F(y)
-		if y >= .5 {
-			return 1.
+func TestLogRegMicrochipTest(t *testing.T) {
+	X, Ytrue := datasets.LoadMicroChipTest()
+	nSamples, nFeatures := X.Dims()
+
+	//Xp, _ := preprocessing.NewPolynomialFeatures(6).Fit(X, Ytrue).Transform(X, Ytrue)
+	// add poly features manually to have same order
+	Xp := mat.NewDense(nSamples, 28, nil)
+	c := 0
+	for i := 0; i <= 6; i++ {
+		for j := 0; j <= i; j++ {
+			for s := 0; s < nSamples; s++ {
+				Xp.Set(s, c, math.Pow(X.At(s, 0), float64(i-j))*math.Pow(X.At(s, 1), float64(j)))
+			}
+			c++
 		}
-		return 0.
-	}, p.Y)
+	}
 
-	bestErr := make(map[string]float)
-	bestTime := time.Second * 86400
-	bestSetup := make(map[string]string)
+	_, nFeatures = Xp.Dims()
+	_, nOutputs := Ytrue.Dims()
+	regr := NewLogisticRegression()
+	regr.FitIntercept = false // Fintintercept=false because we added polynomial features
 
-	for _, normalize := range []bool{false} {
-		for _, optimizer := range []base.Optimizer{ /*base.NewSGDOptimizer(), base.NewAdagradOptimizer(), base.NewRMSPropOptimizer(), base.NewAdadeltaOptimizer(),*/ base.NewAdamOptimizer()} {
-			testSetup := fmt.Sprintf("%s %v", optimizer, normalize)
-			regr := NewLogisticRegression()
-			regr.Normalize = normalize
-			regr.Optimizer = optimizer
-			regr.Alpha = 0.
-			start := time.Now()
-			regr.Fit(p.X, p.Y)
-			elapsed := time.Since(start)
-			//fmt.Println("XOffset", regr.XOffset, "Intercept", regr.Intercept, "Coef", regr.Coef)
-			Ypred := mat.NewDense(nSamples, nOutputs, nil)
-			regr.Predict(p.X, Ypred)
-			if elapsed < bestTime {
-				bestTime = elapsed
-				bestSetup["elapsed"] = testSetup + fmt.Sprintf("(%s)", elapsed)
-			}
-			accuracy := metrics.AccuracyScore(p.Y, Ypred, nil, "").At(0, 0)
-			fmt.Println("R2", metrics.R2Score(p.Y, Ypred, nil, "").At(0, 0))
-			fmt.Println("MAE", metrics.MeanAbsoluteError(p.Y, Ypred, nil, "").At(0, 0))
-			tmpScore, ok := bestErr["accuracy"]
-			if !ok || accuracy > tmpScore {
-				bestErr["accuracy"] = accuracy
-				bestSetup["accuracy"] = testSetup + fmt.Sprintf("(%g)", accuracy)
-			}
-			if accuracy < .99 {
-				t.Errorf("Test LogisticRegression %s normalize=%v accuracy=%g \n", optimizer, normalize, accuracy)
-				t.Fail()
-			} else {
-				//fmt.Printf("Test LogisticRegression %s ok normalize=%v accuracy=%g elapsed=%s\n", optimizer, normalize, accuracy, elapsed)
+	// we allocate Coef here because we use it for loss and grad tests before Fit
+	regr.Coef = mat.NewDense(nFeatures, nOutputs, nil)
+
+	// Alpha=1 here because following test values require no regularization
+	regr.Alpha = 1.
+	regr.L1Ratio = 0.
+
+	Ypred := mat.NewDense(nSamples, nOutputs, nil)
+	chkdims(".", Ypred, Xp, regr.Coef)
+	Ydiff := mat.NewDense(nSamples, nOutputs, nil)
+	grad := mat.NewDense(nFeatures, nOutputs, nil)
+
+	J := math.Inf(1)
+	loss := func() (J float64) {
+		J = regr.LossFunction(Ytrue, Xp, regr.Coef, Ypred, Ydiff, grad, regr.Alpha, regr.L1Ratio, nSamples, regr.ActivationFunction)
+		return
+	}
+	chkLoss := func(context string, expectedLoss float64) {
+		if math.Abs(J-expectedLoss) > 1e-3 {
+			t.Errorf("%s J=%g expected:%g", context, J, expectedLoss)
+		}
+	}
+	chkGrad := func(context string, expectedGradient []float64) {
+		actualGradient := grad.RawRowView(0)[0:len(expectedGradient)]
+
+		//fmt.Printf("%s grad=%v expected %v\n", context, actualGradient, expectedGradient)
+		for j := 0; j < len(expectedGradient); j++ {
+			if !floats.EqualWithinAbs(expectedGradient[j], actualGradient[j], 1e-4) {
+				t.Errorf("%s grad=%v expected %v", context, actualGradient, expectedGradient)
+				return
 			}
 		}
 	}
-	fmt.Printf("Test Logisticregression BEST SETUP:%v\n\n", bestSetup)
+
+	J = loss()
+	chkLoss("Microchip initial loss", 0.693)
+	chkGrad("Microchip initial gradient", []float64{0.0085, 0.0188, 0.0001, 0.0503, 0.0115})
+
+	regr.Coef.Apply(func(j, o int, _ float64) float64 { return 1. }, regr.Coef)
+	regr.Alpha = 10.
+
+	J = regr.LossFunction(Ytrue, Xp, regr.Coef, Ypred, Ydiff, grad, regr.Alpha, regr.L1Ratio, nSamples, regr.ActivationFunction)
+	chkLoss("At test theta", 3.164)
+	chkGrad("at test theta", []float64{0.3460, 0.1614, 0.1948, 0.2269, 0.0922})
+
+	// test Fit Microchip with various gonum/optimize Method
+
+	var GOMethods = []optimize.Method{
+		&optimize.BFGS{},
+		&optimize.CG{},
+		//&optimize.GradientDescent{},
+		&optimize.LBFGS{},
+		//&optimize.NelderMead{},
+		//&optimize.Newton{}
+	}
+	printer := optimize.NewPrinter()
+	//printer.HeadingInterval = 1
+	//printer.ValueInterval = 0
+	unused(printer)
+
+	best := make(map[string]string)
+	bestLoss := math.Inf(1)
+	bestTime := time.Second * 86400
+
+	for _, method := range GOMethods {
+		testSetup := fmt.Sprintf("(%T)", method)
+		regr.Options.GOMethod = method
+		regr.Options.ThetaInitializer = func(Theta *mat.Dense) {
+			Theta.Apply(func(j, o int, _ float64) float64 { return 0. }, Theta)
+		}
+		regr.Alpha = 1.
+
+		//regr.Options.Recorder = printer
+		start := time.Now()
+		regr.Fit(Xp, Ytrue)
+		elapsed := time.Since(start)
+		J = loss()
+		if J < bestLoss {
+			bestLoss = J
+			best["best for loss"] = testSetup + fmt.Sprintf("(%g)", J)
+		}
+		if elapsed < bestTime {
+			bestTime = elapsed
+			best["best for time"] = testSetup + fmt.Sprintf("(%s)", elapsed)
+		}
+		accuracy := metrics.AccuracyScore(Ytrue, Ypred, nil, "").At(0, 0)
+		expectedAccuracy := 0.83
+		if accuracy < expectedAccuracy {
+			t.Errorf("%T accuracy=%g expected:%g", method, accuracy, expectedAccuracy)
+		}
+	}
+
+	// test Fit with various base.Optimizer
+	var Optimizers = []string{
+		// "sgd",
+		// "adagrad",
+		// "rmsprop",
+		"adadelta",
+		"adam",
+	}
+
+	newOptimizer := func(name string) base.Optimizer {
+
+		switch name {
+		case "adadelta":
+			s := base.NewAdadeltaOptimizer()
+			s.StepSize = 0.05
+			return s
+		case "adam":
+			s := base.NewAdamOptimizer()
+			s.StepSize = .1
+			return s
+		default:
+			s := base.NewOptimizer(name)
+			return s
+		}
+	}
+
+	for _, optimizer := range Optimizers {
+		testSetup := optimizer
+		regr.Options.ThetaInitializer = func(Theta *mat.Dense) {
+			Theta.Apply(func(j, o int, _ float64) float64 { return 0. }, Theta)
+		}
+		regr.Options.GOMethod = nil
+		//regr.Options.Recorder = printer
+		regr.Options.MiniBatchSize = nSamples
+		regr.Optimizer = newOptimizer(optimizer)
+		// if opti, ok := regr.Optimizer.(*base.SGDOptimizer); ok {
+		// 	opti.StepSize = 1e-5
+		// }
+		//regr.Options.Epochs = 1e5
+		start := time.Now()
+		regr.Fit(Xp, Ytrue)
+		elapsed := time.Since(start)
+		J = loss()
+
+		if J < bestLoss {
+			bestLoss = J
+			best["best for loss"] = testSetup + fmt.Sprintf("(%g)", J)
+		}
+		if elapsed < bestTime {
+			bestTime = elapsed
+			best["best for time"] = testSetup + fmt.Sprintf("(%s)", elapsed)
+		}
+		accuracy := metrics.AccuracyScore(Ytrue, Ypred, nil, "").At(0, 0)
+		expectedAccuracy := 0.80
+		if accuracy < expectedAccuracy {
+			t.Errorf("%s accuracy=%g expected:%g", regr.Optimizer, accuracy, expectedAccuracy)
+		}
+	}
+	fmt.Println("LogisticRegression BEST SETUP:", best)
+
+	// fmt.Println("acc:", metrics.AccuracyScore(Ytrue, Ypred, nil, "uniform_average").At(0, 0))
+	// fmt.Println("ok")
 }

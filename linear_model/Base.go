@@ -1,7 +1,9 @@
 package linearModel
 
 import (
+	"errors"
 	"fmt"
+	"time"
 
 	"github.com/pa-m/sklearn/base"
 	"github.com/pa-m/sklearn/metrics"
@@ -261,18 +263,29 @@ type LinFitOptions struct {
 	// Alpha is regularization factor for Ridge,Lasso
 	Alpha float64
 	// L1Ratio is the part of L1 regularization 0 for ridge,1 for Lasso
-	L1Ratio    float64
-	Loss       Loss
-	Activation Activation
-	GOMethod   optimize.Method
+	L1Ratio          float64
+	Loss             Loss
+	Activation       Activation
+	GOMethod         optimize.Method
+	ThetaInitializer func(Theta *mat.Dense)
+	Recorder         optimize.Recorder
 }
 
 // LinFitResult is the result or LinFit
 type LinFitResult struct {
 	Converged bool
-	RMSE      float64
+	RMSE, J   float64
 	Epoch     int
 	Theta     *mat.Dense
+}
+
+func initRecorder(recorder optimize.Recorder) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+		}
+	}()
+	err = errors.New("no recorcder")
+	return recorder.Init()
 }
 
 // LinFit is an internal helper to fit linear regressions
@@ -283,18 +296,31 @@ func LinFit(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 	nSamples, nFeatures := X.Dims()
 	_, nOutputs := Ytrue.Dims()
 
-	Theta := mat.NewDense(nFeatures, nOutputs, nil)
-	Theta.Apply(func(i, j int, v float64) float64 {
-		return rand.NormFloat64()
-	}, Theta)
+	thetaSlice := make([]float64, nFeatures*nOutputs, nFeatures*nOutputs)
+	thetaSliceBest := make([]float64, nFeatures*nOutputs, nFeatures*nOutputs)
+
+	Theta := mat.NewDense(nFeatures, nOutputs, thetaSlice)
+	gradSlice := make([]float64, nFeatures*nOutputs, nFeatures*nOutputs)
+	grad := mat.NewDense(nFeatures, nOutputs, gradSlice)
+
+	if opts.ThetaInitializer != nil {
+		opts.ThetaInitializer(Theta)
+	} else {
+		Theta.Apply(func(i, j int, v float64) float64 {
+			return 0.01 * rand.Float64()
+		}, Theta)
+	}
+
 	var (
 		miniBatchStart = 0
 		miniBatchSize  = 200
 	)
 	if opts.MiniBatchSize > 0 {
 		miniBatchSize = opts.MiniBatchSize
+	} else {
+		miniBatchSize = int(math.Max(1., math.Min(100., math.Sqrt(float64(nSamples)))))
 	}
-	miniBatchSize = int(math.Max(1, math.Min(100., math.Sqrt(float64(nSamples)))))
+	miniBatchSize = int(math.Max(1., math.Min(float64(nSamples), float64(miniBatchSize))))
 	if opts.Loss == nil {
 		opts.Loss = SquareLoss
 	}
@@ -304,20 +330,28 @@ func LinFit(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 
 	YpredMini := mat.NewDense(miniBatchSize, nOutputs, nil)
 	YdiffMini := mat.NewDense(miniBatchSize, nOutputs, nil)
-	grad := mat.NewDense(nFeatures, nOutputs, nil)
 
 	Ypred := mat.NewDense(nSamples, nOutputs, nil)
+	Ydiff := mat.NewDense(nSamples, nOutputs, nil)
 
 	s := opts.Solver
 	s.SetTheta(Theta)
-	var timeStep uint64
-	rmse := math.Inf(1)
+	rmse := math.Inf(1.)
+	J := math.Inf(1.)
+	JBest := math.Inf(1.)
 	converged := false
+	start := time.Now()
 	if opts.Epochs <= 0 {
-		opts.Epochs = 4e6 / nSamples
+		opts.Epochs = 1e6 / nSamples
 	}
-	J := math.Inf(1)
 	var epoch int
+	var hasRecorder = initRecorder(opts.Recorder) == nil
+	if hasRecorder {
+		opts.Recorder.Record(
+			&optimize.Location{X: thetaSlice, F: J, Gradient: gradSlice},
+			optimize.InitIteration,
+			&optimize.Stats{MajorIterations: epoch, FuncEvaluations: epoch, GradEvaluations: epoch, Runtime: time.Since(start)})
+	}
 	for epoch = 1; epoch <= opts.Epochs && !converged; epoch++ {
 		base.DenseShuffle(X, Ytrue)
 		for miniBatch := 0; miniBatch*miniBatchSize < nSamples; miniBatch++ {
@@ -327,36 +361,43 @@ func LinFit(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 				miniBatchEnd = nSamples
 			}
 			miniBatchRows := miniBatchEnd - miniBatchStart
-			Xmini := (X.Slice(miniBatchStart, miniBatchEnd, 0, nFeatures))
-			YtrueMini := (Ytrue.Slice(miniBatchStart, miniBatchEnd, 0, nOutputs))
 
-			J = opts.Loss(YtrueMini, Xmini, Theta, YpredMini.Slice(0, miniBatchRows, 0, nOutputs).(*mat.Dense), YdiffMini.Slice(0, miniBatchRows, 0, nOutputs).(*mat.Dense), grad, opts.Alpha, opts.L1Ratio, miniBatchSize, opts.Activation)
-
+			J = opts.Loss(
+				Ytrue.Slice(miniBatchStart, miniBatchEnd, 0, nOutputs),
+				X.Slice(miniBatchStart, miniBatchEnd, 0, nFeatures),
+				Theta,
+				YpredMini.Slice(0, miniBatchRows, 0, nOutputs).(*mat.Dense),
+				YdiffMini.Slice(0, miniBatchRows, 0, nOutputs).(*mat.Dense),
+				grad,
+				opts.Alpha, opts.L1Ratio, nSamples, opts.Activation)
 			s.UpdateParams(grad)
-			unused(J)
-			// if epoch >= opts.Epochs {
-			// if miniBatch == 0 && epoch%10 == 0 {
-			// 	fmt.Printf("%d %d LinFit J=%g grad0:%v\n", epoch, miniBatch, J, grad.ColView(0))
-			// }
-
-			//}
 		}
-
-		//d := func(X mat.Matrix) string { r, c := X.Dims(); return fmt.Sprintf("%d,%d", r, c) }
-		Ypred.Mul(X, Theta)
-		switch opts.Activation.(type) {
-		case Identity:
-		default:
-			Ypred.Apply(func(j, o int, xtheta float64) float64 { return opts.Activation.F(xtheta) }, Ypred)
+		J = opts.Loss(
+			Ytrue,
+			X,
+			Theta,
+			Ypred,
+			Ydiff,
+			grad,
+			opts.Alpha, opts.L1Ratio, nSamples, opts.Activation)
+		if J < JBest {
+			JBest = J
+			copy(thetaSliceBest, thetaSlice)
 		}
 		rmse = math.Sqrt(metrics.MeanSquaredError(Ytrue, Ypred, nil, "").At(0, 0))
 
 		converged = math.Sqrt(rmse) < opts.Tol
-		timeStep = s.GetTimeStep()
-
+		//fmt.Println(epoch, J)
+		if hasRecorder {
+			opts.Recorder.Record(
+				&optimize.Location{X: thetaSlice, F: J, Gradient: gradSlice},
+				optimize.InitIteration,
+				&optimize.Stats{MajorIterations: epoch, FuncEvaluations: epoch, GradEvaluations: epoch, Runtime: time.Since(start)})
+		}
 	}
-	unused(timeStep, fmt.Println)
-	return &LinFitResult{Converged: converged, RMSE: rmse, Epoch: epoch, Theta: Theta}
+	J = JBest
+	Theta = mat.NewDense(nFeatures, nOutputs, thetaSliceBest)
+	return &LinFitResult{Converged: converged, RMSE: rmse, J: J, Epoch: epoch, Theta: Theta}
 }
 
 // LinFitGOM fits a regression with a gonum/optimizer Method
@@ -394,7 +435,7 @@ func LinFitGOM(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 		},
 	}
 	settings := optimize.DefaultSettings()
-	settings.Recorder = nil
+	settings.Recorder = opts.Recorder
 	settings.GradientThreshold = 1e-12
 	settings.FunctionConverge = nil
 	settings.FuncEvaluations = opts.Epochs

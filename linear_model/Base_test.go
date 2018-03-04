@@ -44,10 +44,12 @@ func TestLinearRegression(t *testing.T) {
 	bestTime := time.Second * 86400
 	bestSetup := make(map[string]string)
 
+	sgd := base.NewSGDOptimizer()
+	sgd.StepSize = .05
 	for _, normalize := range []bool{false} { //true
 
 		for _, optimizer := range []base.Optimizer{
-			base.NewSGDOptimizer(),
+			sgd,
 			//base.NewAdagradOptimizer(),
 			//base.NewRMSPropOptimizer(),
 			base.NewAdadeltaOptimizer(), base.NewAdamOptimizer()} {

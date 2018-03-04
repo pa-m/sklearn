@@ -66,11 +66,9 @@ func TestStandardScaler(t *testing.T) {
 }
 
 func TestPolynomialFeatures(t *testing.T) {
-	pf := NewPolynomialFeatures()
+	pf := NewPolynomialFeatures(3)
 	isTransformer := func(Transformer) {}
 	isTransformer(pf)
-	pf.Degree = 3
-	fmt.Println("TestPolynomialFeatures")
 	pf.IncludeBias = true
 	pf.InteractionOnly = false
 	X := mat.NewDense(1, 3, []float{1, 2, 3})
