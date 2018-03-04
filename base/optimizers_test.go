@@ -43,7 +43,7 @@ func TestSGDSolver(t *testing.T) {
 	p.MiniBatchSize = 100
 	s := NewSGDOptimizer()
 	s.StepSize = 1.
-	//s.Momentum = 0.9
+	s.Momentum = 0.98
 	//s.GradientClipping = 10.
 	testOptimizer(t, "SGDSolver", s, p)
 }

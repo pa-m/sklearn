@@ -114,11 +114,11 @@ func TestLogRegExamScore(t *testing.T) {
 
 	// test Fit with various base.Optimizer
 	var Optimizers = []string{
-	// "sgd",
-	// "adagrad",
-	// "rmsprop",
-	//"adadelta",
-	//"adam",
+		// "sgd",
+		// "adagrad",
+		// "rmsprop",
+		//"adadelta",
+		//"adam",
 	}
 
 	newOptimizer := func(name string) base.Optimizer {

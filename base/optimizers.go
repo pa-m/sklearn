@@ -122,23 +122,32 @@ func (s *SGDOptimizer) UpdateParams(grad mat.Matrix) {
 			m.Apply(func(i int, j int, v float64) float64 { return v0 }, m)
 			return m
 		}
-		s.GtNorm = mat.NewDense(NOutputs, 1, nil)
+		if s.GradientClipping > 0. {
+			s.GtNorm = mat.NewDense(NOutputs, 1, nil)
+		}
 		s.Update = mat.NewDense(NFeatures, NOutputs, nil)
 		s.PrevUpdate = mat.NewDense(NFeatures, NOutputs, nil)
-		s.AdagradG = init(mat.NewDense(NFeatures, NOutputs, nil), s.Epsilon)
-		s.AdadeltaU = init(mat.NewDense(NFeatures, NOutputs, nil), 1.)
-		s.Mt = mat.NewDense(NFeatures, NOutputs, nil)
-		s.Vt = mat.NewDense(NFeatures, NOutputs, nil)
-		s.Mtcap = mat.NewDense(NFeatures, NOutputs, nil)
-		s.Vtcap = mat.NewDense(NFeatures, NOutputs, nil)
-
+		if s.Adagrad || s.RMSProp || s.Adadelta {
+			s.AdagradG = init(mat.NewDense(NFeatures, NOutputs, nil), s.Epsilon)
+		}
+		if s.Adadelta {
+			s.AdadeltaU = init(mat.NewDense(NFeatures, NOutputs, nil), 1.)
+		}
+		if s.Adam {
+			s.Mt = mat.NewDense(NFeatures, NOutputs, nil)
+			s.Vt = mat.NewDense(NFeatures, NOutputs, nil)
+			s.Mtcap = mat.NewDense(NFeatures, NOutputs, nil)
+			s.Vtcap = mat.NewDense(NFeatures, NOutputs, nil)
+		}
 	}
 	s.TimeStep += 1.
 	// gt ← ∇θft(θt−1) (Get gradients w.r.t. stochastic objective at timestep t)
 
 	eta := s.StepSize * 100. / (100. + s.TimeStep)
-	for j := 0; j < NOutputs; j++ {
-		s.GtNorm.Set(j, 0, colNorm(grad, j))
+	if s.GradientClipping > 0. {
+		for j := 0; j < NOutputs; j++ {
+			s.GtNorm.Set(j, 0, colNorm(grad, j))
+		}
 	}
 	gradientClipped := func(j, o int) float64 {
 		gradjo := grad.At(j, o)
