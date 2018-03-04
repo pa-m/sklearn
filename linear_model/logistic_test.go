@@ -292,9 +292,9 @@ func TestLogRegMicrochipTest(t *testing.T) {
 
 	// test Fit with various base.Optimizer
 	var Optimizers = []string{
-		// "sgd",
-		// "adagrad",
-		// "rmsprop",
+		"sgd",
+		"adagrad",
+		//"rmsprop",
 		"adadelta",
 		"adam",
 	}
@@ -302,6 +302,16 @@ func TestLogRegMicrochipTest(t *testing.T) {
 	newOptimizer := func(name string) base.Optimizer {
 
 		switch name {
+		case "sgd":
+			s := base.NewSGDOptimizer()
+			s.StepSize = 0.95
+			s.Momentum = .98
+			return s
+		case "rmsprop":
+			s := base.NewRMSPropOptimizer()
+			s.StepSize = .95
+			s.RMSPropGamma = .5
+			return s
 		case "adadelta":
 			s := base.NewAdadeltaOptimizer()
 			s.StepSize = 0.05
