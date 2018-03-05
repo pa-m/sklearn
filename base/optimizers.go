@@ -5,10 +5,12 @@ import (
 	"math"
 
 	"gonum.org/v1/gonum/mat"
+	"gonum.org/v1/gonum/optimize"
 )
 
 // Optimizer has updateParams method to update theta from gradient
 type Optimizer interface {
+	GetUpdate(update *mat.Dense, grad mat.Matrix)
 	UpdateParams(grad mat.Matrix)
 	SetTheta(Theta *mat.Dense)
 	GetTheta() *mat.Dense
@@ -18,15 +20,25 @@ type Optimizer interface {
 
 // SGDOptimizer is struct for SGD solver v https://en.wikipedia.org/wiki/Stochastic_gradient_descent
 type SGDOptimizer struct {
-	// alpha, StepSize
-	StepSize, Momentum, GradientClipping float64
-	Adagrad, Adadelta, RMSProp, Adam     bool
-	// running Parameters
+	// StepSize is used for all variants
+	// Momentum can be used for all variants
+	// GradientClipping is used if >0 to limit gradient L2 norm
+	// RMSPropGamma is the momentum for rmsprop and adadelta
+	// Epsilon is used to avoid division by zero in adagrad,rmsprop,adadelta,adam
+	StepSize, Momentum, GradientClipping, RMSPropGamma, Epsilon float64
+	// Adagrad, Adadelta, RMSProp, Adam are variants. At most one should be true
+	Adagrad, Adadelta, RMSProp, Adam bool
+	// NFeature,NOutputs need only to be initialized wher SGDOptimizer is used as an optimize.Method
+	NFeatures, NOutputs int
+
+	// running Parameters (don't set them yourself)
 	GtNorm, Theta, PrevUpdate, Update, AdagradG, AdadeltaU *mat.Dense
-	TimeStep, RMSPropGamma, Epsilon                        float64
+	TimeStep                                               float64
 	// Adam specific
 	Beta1, Beta2         float64
 	Mt, Vt, Mtcap, Vtcap *mat.Dense
+	// lastOp is for Iterate when used as optimize.Method
+	lastOp optimize.Operation
 }
 
 // NewSGDOptimizer returns an initialized *SGDOptimizer with stepsize 1e-4 and momentum 0.9
@@ -105,7 +117,10 @@ func NewOptimizer(name string) Optimizer {
 }
 
 // SetTheta should be called before first call to UpdateParams to let the solver know the theta pointer
-func (s *SGDOptimizer) SetTheta(Theta *mat.Dense) { s.Theta = Theta }
+func (s *SGDOptimizer) SetTheta(Theta *mat.Dense) {
+	s.NFeatures, s.NOutputs = Theta.Dims()
+	s.Theta = Theta
+}
 
 // GetTheta can be called anytime after SetTheta to get read access to theta
 func (s *SGDOptimizer) GetTheta() *mat.Dense { return s.Theta }
@@ -115,8 +130,17 @@ func (s *SGDOptimizer) GetTimeStep() uint64 { return uint64(s.TimeStep) }
 
 // UpdateParams updates theta from gradient. first call allocates required temporary storage
 func (s *SGDOptimizer) UpdateParams(grad mat.Matrix) {
+	r, c := grad.Dims()
+	if s.Update == nil {
+		s.Update = mat.NewDense(r, c, nil)
+	}
+	s.GetUpdate(s.Update, grad)
+	s.Theta.Add(s.Theta, s.Update)
+}
 
-	NFeatures, NOutputs := s.Theta.Dims()
+// GetUpdate compute the update from grad
+func (s *SGDOptimizer) GetUpdate(update *mat.Dense, grad mat.Matrix) {
+	NFeatures, NOutputs := grad.Dims()
 	if s.TimeStep == 0. {
 		init := func(m *mat.Dense, v0 float64) *mat.Dense {
 			m.Apply(func(i int, j int, v float64) float64 { return v0 }, m)
@@ -125,7 +149,6 @@ func (s *SGDOptimizer) UpdateParams(grad mat.Matrix) {
 		if s.GradientClipping > 0. {
 			s.GtNorm = mat.NewDense(NOutputs, 1, nil)
 		}
-		s.Update = mat.NewDense(NFeatures, NOutputs, nil)
 		s.PrevUpdate = mat.NewDense(NFeatures, NOutputs, nil)
 		if s.Adagrad || s.RMSProp || s.Adadelta {
 			s.AdagradG = init(mat.NewDense(NFeatures, NOutputs, nil), s.Epsilon)
@@ -160,7 +183,7 @@ func (s *SGDOptimizer) UpdateParams(grad mat.Matrix) {
 	// Compute S.Update
 
 	if s.RMSProp {
-		s.Update.Apply(func(j, o int, v float64) float64 {
+		update.Apply(func(j, o int, v float64) float64 {
 			etajo := s.StepSize
 			if s.TimeStep > 1 && math.Abs(s.AdagradG.At(j, o)) > 1. {
 				etajo /= math.Sqrt(s.AdagradG.At(j, o) + s.Epsilon)
@@ -174,7 +197,7 @@ func (s *SGDOptimizer) UpdateParams(grad mat.Matrix) {
 			return v
 		}, s.AdagradG)
 	} else if s.Adagrad {
-		s.Update.Apply(func(j, o int, v float64) float64 {
+		update.Apply(func(j, o int, v float64) float64 {
 			etajo := s.StepSize
 			Gjo := s.AdagradG.At(j, o)
 			if s.TimeStep > 1 {
@@ -196,7 +219,7 @@ func (s *SGDOptimizer) UpdateParams(grad mat.Matrix) {
 			return s.RMSPropGamma*v + (1.-s.RMSPropGamma)*gradjo*gradjo
 		}, s.AdagradG)
 		// compute update
-		s.Update.Apply(func(j, o int, gradjo float64) float64 {
+		update.Apply(func(j, o int, gradjo float64) float64 {
 			etajo := eta
 			if s.TimeStep > 1 {
 				etajo = math.Sqrt(s.AdadeltaU.At(j, o)) / math.Sqrt(s.AdagradG.At(j, o)+s.Epsilon)
@@ -204,7 +227,7 @@ func (s *SGDOptimizer) UpdateParams(grad mat.Matrix) {
 			return -etajo * gradientClipped(j, o)
 		}, grad)
 		s.AdadeltaU.Apply(func(j, o int, v float64) float64 {
-			upd := s.Update.At(j, o)
+			upd := update.At(j, o)
 			return s.RMSPropGamma*v + (1.-s.RMSPropGamma)*upd*upd
 		}, s.AdadeltaU)
 	} else if s.Adam {
@@ -224,26 +247,22 @@ func (s *SGDOptimizer) UpdateParams(grad mat.Matrix) {
 		s.Vtcap.Scale(1./(1.-math.Pow(s.Beta2, s.TimeStep)), s.Vt)
 		// θt ← θt−1 − α · mb t/(√vbt + epsilon) (Update parameters)
 
-		s.Update.Apply(func(i, j int, Mtcapij float64) float64 {
+		update.Apply(func(i, j int, Mtcapij float64) float64 {
 			return -s.StepSize * Mtcapij / (math.Sqrt(s.Vtcap.At(i, j)) + s.Epsilon)
 		}, s.Mtcap)
 	} else {
 		// normal SGD with momentum
-		s.Update.Apply(func(j, o int, gradjo float64) float64 {
+		update.Apply(func(j, o int, gradjo float64) float64 {
 			return -eta * gradientClipped(j, o) / math.Sqrt(1.*s.TimeStep)
 		}, grad)
 	}
 	// Apply Momentum
 	if s.Momentum > 0 {
-		s.Update.Apply(func(j, o int, updjo float64) float64 {
+		update.Apply(func(j, o int, updjo float64) float64 {
 			return s.Momentum*s.PrevUpdate.At(j, o) + updjo
-		}, s.Update)
+		}, update)
 	}
-	s.Theta.Add(s.Theta, s.Update)
-	if math.IsNaN(s.Theta.At(0, 0)) {
-		panic("Nan")
-	}
-	s.PrevUpdate.Clone(s.Update)
+	s.PrevUpdate.Clone(update)
 }
 
 // colNorm returns the L2 norm of a matrix column
@@ -256,3 +275,74 @@ func colNorm(m mat.Matrix, o int) float64 {
 	}
 	return math.Sqrt(s)
 }
+
+// Init initializes the method based on the initial data in loc, updates it
+// and returns the first operation to be carried out by the caller.
+// The initial location must be valid as specified by Needs.
+func (s *SGDOptimizer) Init(loc *optimize.Location) (op optimize.Operation, err error) {
+	//fmt.Println("SGDOptimizer.Init called with len(loc.X)=", len(loc.X))
+	if s.NFeatures == 0 || s.NOutputs == 0 {
+		s.NFeatures = len(loc.X)
+		return
+	}
+	if len(loc.X) == s.NFeatures {
+		s.NOutputs = 1
+	}
+	if len(loc.X) != s.NFeatures*s.NOutputs {
+		err = fmt.Errorf("Size error. expected %d,%d got %d", s.NFeatures, s.NOutputs, len(loc.X))
+		return
+	}
+	s.Update = mat.NewDense(s.NFeatures, s.NOutputs, nil)
+	op = optimize.FuncEvaluation | optimize.GradEvaluation
+	return
+}
+
+// Iterate retrieves data from loc, performs one iteration of the method,
+// updates loc and returns the next operation.
+func (s *SGDOptimizer) Iterate(loc *optimize.Location) (op optimize.Operation, err error) {
+	theta := mat.NewDense(s.NFeatures, s.NOutputs, loc.X)
+
+	s.GetUpdate(s.Update, mat.NewDense(s.NFeatures, s.NOutputs, loc.Gradient))
+	theta.Add(theta, s.Update)
+	//op = optimize.FuncEvaluation | optimize.GradEvaluation
+	if s.lastOp == optimize.FuncEvaluation|optimize.GradEvaluation {
+		op = optimize.MajorIteration
+	} else {
+		op = optimize.FuncEvaluation | optimize.GradEvaluation
+	}
+	s.lastOp = op
+	return
+}
+
+// Needs is for when SGDOptimizer is used as an optimize.Method
+func (*SGDOptimizer) Needs() struct {
+	Gradient bool
+	Hessian  bool
+} {
+	return struct {
+		Gradient bool
+		Hessian  bool
+	}{
+		Gradient: true,
+		Hessian:  false,
+	}
+}
+
+type matDense struct {
+	*mat.Dense
+	data []float64
+}
+
+func matDenseNew(r, c int, data []float64) *matDense {
+	if data != nil && r*c != len(data) {
+		panic("ErrShape")
+	}
+	if data == nil {
+		data = make([]float64, r*c)
+	}
+	return &matDense{mat.NewDense(r, c, data), data}
+}
+func (m *matDense) Dims() (r, c int)        { r, c = m.Dense.Dims(); return }
+func (m *matDense) AT(i, j int) float64     { return m.Dense.At(i, j) }
+func (m *matDense) T() mat.Matrix           { return m.Dense.T() }
+func (m *matDense) Set(i, j int, v float64) { m.Dense.Set(i, j, v) }

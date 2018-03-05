@@ -292,12 +292,20 @@ func initRecorder(recorder optimize.Recorder) (err error) {
 
 // LinFit is an internal helper to fit linear regressions
 func LinFit(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
+	nSamples, nFeatures := X.Dims()
+	_, nOutputs := Ytrue.Dims()
+	if opts.GOMethod == nil && opts.Solver == nil {
+		opts.GOMethod = &optimize.LBFGS{}
+	}
+	// if _, isGOM := opts.Solver.(optimize.Method); isGOM && opts.GOMethod == nil && (opts.MiniBatchSize == 0 || opts.MiniBatchSize == nSamples) {
+	// 	fmt.Printf("USE %s as optimize.Method\n\n", opts.Solver)
+	// 	opts.GOMethod = opts.Solver.(optimize.Method)
+	// }
+
 	if opts.GOMethod != nil {
 		opts.PerOutputFit = true
 		return LinFitGOM(X, Ytrue, opts)
 	}
-	nSamples, nFeatures := X.Dims()
-	_, nOutputs := Ytrue.Dims()
 
 	thetaSlice := make([]float64, nFeatures*nOutputs, nFeatures*nOutputs)
 	thetaSliceBest := make([]float64, nFeatures*nOutputs, nFeatures*nOutputs)
@@ -445,6 +453,7 @@ func LinFitGOM(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 		type fitOutputRes struct {
 			o   int
 			ret optimize.Result
+			err error
 		}
 		chanret := make(chan fitOutputRes, nOutputs)
 
@@ -466,19 +475,17 @@ func LinFitGOM(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 				},
 			}
 			mat.Col(thetao, o, thetaM)
-
-			ret, err = optimize.Local(p, thetao, fSettings(), copyStruct(opts.GOMethod).(optimize.Method))
-			chanret <- fitOutputRes{o: o, ret: *ret}
+			method := copyStruct(opts.GOMethod).(optimize.Method)
+			ret, err = optimize.Local(p, thetao, fSettings(), method)
+			chanret <- fitOutputRes{o: o, ret: *ret, err: err}
 		}
 		for o := 0; o < nOutputs; o++ {
-			//fmt.Println("start output ", o)
 			go fitOutput(o, chanret)
 		}
 
 		for o1 := 0; o1 < nOutputs; o1++ {
 			foret := <-chanret
 			ret := foret.ret
-			//fmt.Println("received output ", foret.o, ret.F)
 			thetaM.SetCol(foret.o, ret.X)
 			rmse += ret.F
 			epoch += ret.FuncEvaluations

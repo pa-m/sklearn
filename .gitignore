@@ -1,4 +1,4 @@
 gochecks
 coverage.txt
 .idea
-.vscode
+.vscode*.bak
