@@ -3,6 +3,7 @@ package linearModel
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/pa-m/sklearn/base"
@@ -269,6 +270,7 @@ type LinFitOptions struct {
 	GOMethod         optimize.Method
 	ThetaInitializer func(Theta *mat.Dense)
 	Recorder         optimize.Recorder
+	PerOutputFit     bool
 }
 
 // LinFitResult is the result or LinFit
@@ -291,6 +293,7 @@ func initRecorder(recorder optimize.Recorder) (err error) {
 // LinFit is an internal helper to fit linear regressions
 func LinFit(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 	if opts.GOMethod != nil {
+		opts.PerOutputFit = true
 		return LinFitGOM(X, Ytrue, opts)
 	}
 	nSamples, nFeatures := X.Dims()
@@ -412,54 +415,119 @@ func LinFitGOM(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 		opts.Activation = Identity{}
 	}
 
-	gradslice := make([]float64, nFeatures*nOutputs, nFeatures*nOutputs)
-	grad := mat.NewDense(nFeatures, nOutputs, gradslice)
-
-	Ypred := mat.NewDense(nSamples, nOutputs, nil)
-	Ydiff := mat.NewDense(nSamples, nOutputs, nil)
-
-	rmse := math.Inf(1)
 	converged := false
 	if opts.Epochs <= 0 {
 		opts.Epochs = 4e6 / nSamples
 	}
-	p := optimize.Problem{
-		Func: func(theta []float64) float64 {
-
-			J := opts.Loss(Ytrue, X, mat.NewDense(nFeatures, nOutputs, theta), Ypred, Ydiff, grad, opts.Alpha, opts.L1Ratio, nSamples, opts.Activation)
-			return J
-		},
-		Grad: func(gradSlice, theta []float64) {
-			opts.Loss(Ytrue, X, mat.NewDense(nFeatures, nOutputs, theta), Ypred, Ydiff, grad, opts.Alpha, opts.L1Ratio, nSamples, opts.Activation)
-			copy(gradSlice, gradslice)
-		},
+	fSettings := func() *optimize.Settings {
+		settings := optimize.DefaultSettings()
+		settings.Recorder = opts.Recorder
+		settings.GradientThreshold = 1e-12
+		settings.FunctionConverge = nil
+		settings.FuncEvaluations = opts.Epochs
+		settings.FunctionThreshold = opts.Tol * opts.Tol
+		settings.Concurrent = runtime.NumCPU()
+		//settings.Recorder = optimize.NewPrinter()
+		return settings
 	}
-	settings := optimize.DefaultSettings()
-	settings.Recorder = opts.Recorder
-	settings.GradientThreshold = 1e-12
-	settings.FunctionConverge = nil
-	settings.FuncEvaluations = opts.Epochs
-	settings.FunctionThreshold = opts.Tol * opts.Tol
-	//settings.Recorder = optimize.NewPrinter()
+
 	theta := make([]float64, nFeatures*nOutputs, nFeatures*nOutputs)
+	thetaM := mat.NewDense(nFeatures, nOutputs, theta)
 	for j := 0; j < len(theta); j++ {
 		theta[j] = 0.01 * rand.NormFloat64()
 	}
-	ret, err := optimize.Local(p, theta, settings, opts.GOMethod)
+	var ret *optimize.Result
+	var err error
+	rmse := 0.
+	epoch := 0
+	converged = true
+	if opts.PerOutputFit {
+		type fitOutputRes struct {
+			o   int
+			ret optimize.Result
+		}
+		chanret := make(chan fitOutputRes, nOutputs)
 
-	//fmt.Printf("ret:%#v\nstatus:%s\n", ret, ret.Status)
-	copy(theta, ret.X)
-	Theta := mat.NewDense(nFeatures, nOutputs, theta)
-	converged = err == nil
-	Ypred.Mul(X, Theta)
-	switch opts.Activation.(type) {
-	case Identity:
-	default:
-		Ypred.Apply(func(j, o int, xtheta float64) float64 { return opts.Activation.F(xtheta) }, Ypred)
+		fitOutput := func(o int, chanret chan fitOutputRes) {
+			Ypred := mat.NewDense(nSamples, 1, nil)
+			Ydiff := mat.NewDense(nSamples, 1, nil)
+			thetao := make([]float64, nFeatures, nFeatures)
+			gradslice := make([]float64, nFeatures, nFeatures)
+			grado := mat.NewDense(nFeatures, 1, gradslice)
+
+			p := optimize.Problem{
+				Func: func(thetao []float64) float64 {
+					J := opts.Loss(Ytrue.ColView(o), X, mat.NewDense(nFeatures, 1, thetao), Ypred, Ydiff, grado, opts.Alpha, opts.L1Ratio, nSamples, opts.Activation)
+					return J
+				},
+				Grad: func(gradSlice, thetao []float64) {
+					opts.Loss(Ytrue.ColView(o), X, mat.NewDense(nFeatures, 1, thetao), Ypred, Ydiff, grado, opts.Alpha, opts.L1Ratio, nSamples, opts.Activation)
+					mat.Col(gradSlice, 0, grado)
+				},
+			}
+			mat.Col(thetao, o, thetaM)
+
+			ret, err = optimize.Local(p, thetao, fSettings(), copyStruct(opts.GOMethod).(optimize.Method))
+			chanret <- fitOutputRes{o: o, ret: *ret}
+		}
+		for o := 0; o < nOutputs; o++ {
+			//fmt.Println("start output ", o)
+			go fitOutput(o, chanret)
+		}
+
+		for o1 := 0; o1 < nOutputs; o1++ {
+			foret := <-chanret
+			ret := foret.ret
+			//fmt.Println("received output ", foret.o, ret.F)
+			thetaM.SetCol(foret.o, ret.X)
+			rmse += ret.F
+			epoch += ret.FuncEvaluations
+			converged = converged && ret.Status != optimize.Failure
+		}
+		rmse = math.Sqrt(rmse) / float64(nOutputs)
+
+	} else {
+		gradslice := make([]float64, nFeatures*nOutputs, nFeatures*nOutputs)
+		grad := mat.NewDense(nFeatures, nOutputs, gradslice)
+
+		Ypred := mat.NewDense(nSamples, nOutputs, nil)
+		Ydiff := mat.NewDense(nSamples, nOutputs, nil)
+		p := optimize.Problem{
+			Func: func(theta []float64) float64 {
+
+				J := opts.Loss(Ytrue, X, mat.NewDense(nFeatures, nOutputs, theta), Ypred, Ydiff, grad, opts.Alpha, opts.L1Ratio, nSamples, opts.Activation)
+				return J
+			},
+			Grad: func(gradSlice, theta []float64) {
+				opts.Loss(Ytrue, X, mat.NewDense(nFeatures, nOutputs, theta), Ypred, Ydiff, grad, opts.Alpha, opts.L1Ratio, nSamples, opts.Activation)
+				copy(gradSlice, gradslice)
+			},
+		}
+		ret, err = optimize.Local(p, theta, fSettings(), opts.GOMethod)
+		copy(theta, ret.X)
+		rmse = mat.Norm(Ydiff, 2) / float64(nOutputs)
+		epoch = ret.FuncEvaluations
+		converged = ret.Status != optimize.Failure
 	}
-	rmse = math.Sqrt(metrics.MeanSquaredError(Ytrue, Ypred, nil, "").At(0, 0))
-	epoch := ret.FuncEvaluations
-	return &LinFitResult{Converged: converged, RMSE: rmse, Epoch: epoch, Theta: Theta}
+	//fmt.Printf("ret:%#v\nstatus:%s\n", ret, ret.Status)
+	converged = err == nil
+	return &LinFitResult{Converged: converged, RMSE: rmse, Epoch: epoch, Theta: thetaM}
+}
+
+func copyStruct(m interface{}) interface{} {
+
+	mstruct := reflect.ValueOf(m)
+	if mstruct.Kind() == reflect.Ptr {
+		mstruct = mstruct.Elem()
+	}
+	m2 := reflect.New(mstruct.Type())
+	for i := 0; i < mstruct.NumField(); i++ {
+		c := m2.Elem().Type().Field(i).Name[0]
+		if m2.Elem().Field(i).CanSet() && c >= 'A' && c <= 'Z' {
+			m2.Elem().Field(i).Set(mstruct.Field(i))
+		}
+	}
+	return m2.Interface()
 }
 
 // SetIntercept
