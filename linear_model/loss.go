@@ -15,7 +15,7 @@ import (
 // Ytrue, X, Theta must be passed in
 // Ypred,Ydiff,Ytmp are temporary matrices passed in here to avoid reallocations. nothing to initialize for them except storage
 // Alpha and L1Ratio are for regularization
-type Loss func(Ytrue, X, Theta mat.Matrix, Ypred, Ydiff, grad *mat.Dense, Alpha, L1Ratio float, nSamples int, activation Activation) (J float64)
+type Loss func(Ytrue, X, Theta mat.Matrix, Ypred, Ydiff, grad *mat.Dense, Alpha, L1Ratio float64, nSamples int, activation Activation) (J float64)
 
 // LossFunctions is the list of implemented loss functions
 var LossFunctions = []Loss{SquareLoss, LogLoss, CrossEntropyLoss}
@@ -27,7 +27,7 @@ var LossFunctions = []Loss{SquareLoss, LogLoss, CrossEntropyLoss}
 // J: mat.Pow(h-y,2)/2
 // grad:  hprime*(h-y)
 //
-func SquareLoss(Ytrue, X, Theta mat.Matrix, Ypred, Ydiff, grad *mat.Dense, Alpha, L1Ratio float, nSamples int, activation Activation) (J float64) {
+func SquareLoss(Ytrue, X, Theta mat.Matrix, Ypred, Ydiff, grad *mat.Dense, Alpha, L1Ratio float64, nSamples int, activation Activation) (J float64) {
 	Ypred.Mul(X, Theta)
 	Ypred.Apply(func(i, o int, xtheta float64) float64 { return activation.F(xtheta) }, Ypred)
 	Ydiff.Sub(Ypred, Ytrue)
@@ -73,7 +73,7 @@ func SquareLoss(Ytrue, X, Theta mat.Matrix, Ypred, Ydiff, grad *mat.Dense, Alpha
 }
 
 // LogLoss for one versus rest classifiers
-func LogLoss(Ytrue, X, Theta mat.Matrix, Ypred, Ydiff, grad *mat.Dense, Alpha, L1Ratio float, nSamples int, activation Activation) (J float64) {
+func LogLoss(Ytrue, X, Theta mat.Matrix, Ypred, Ydiff, grad *mat.Dense, Alpha, L1Ratio float64, nSamples int, activation Activation) (J float64) {
 	Ypred.Mul(X, Theta)
 	Ypred.Apply(func(i, o int, xtheta float64) float64 { return activation.F(xtheta) }, Ypred)
 	Ydiff.Sub(Ypred, Ytrue)
@@ -133,7 +133,7 @@ func LogLoss(Ytrue, X, Theta mat.Matrix, Ypred, Ydiff, grad *mat.Dense, Alpha, L
 // J: -y*math.Log(h)-(1.-y)*log(1.-h)
 // grad:  hprime*(-y/h + (1-y)/(1-h))
 //
-func CrossEntropyLoss(Ytrue, X, Theta mat.Matrix, Ypred, Ydiff, grad *mat.Dense, Alpha, L1Ratio float, nSamples int, activation Activation) (J float64) {
+func CrossEntropyLoss(Ytrue, X, Theta mat.Matrix, Ypred, Ydiff, grad *mat.Dense, Alpha, L1Ratio float64, nSamples int, activation Activation) (J float64) {
 	Ypred.Mul(X, Theta)
 	Ypred.Apply(func(i, o int, xtheta float64) float64 { return activation.F(xtheta) }, Ypred)
 	Ydiff.Sub(Ypred, Ytrue)

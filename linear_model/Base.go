@@ -3,7 +3,6 @@ package linearModel
 import (
 	"errors"
 	"fmt"
-	"reflect"
 	"time"
 
 	"github.com/pa-m/sklearn/base"
@@ -521,6 +520,9 @@ func LinFitGOM(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 	return &LinFitResult{Converged: converged, RMSE: rmse, Epoch: epoch, Theta: thetaM}
 }
 
+var copyStruct = base.CopyStruct
+
+/*
 func copyStruct(m interface{}) interface{} {
 
 	mstruct := reflect.ValueOf(m)
@@ -536,7 +538,7 @@ func copyStruct(m interface{}) interface{} {
 	}
 	return m2.Interface()
 }
-
+*/
 // SetIntercept
 // def _set_intercept(self, X_offset, y_offset, X_scale):
 // 		"""Set the intercept_
