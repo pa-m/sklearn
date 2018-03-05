@@ -114,8 +114,9 @@ func (regr *LinearRegressionGorgonia) Fit(X0, y0 *mat.Dense) Regressor {
 }
 
 // Predict return predicted Ys for a list or Xs
-func (regr *LinearRegressionGorgonia) Predict(X, Y *mat.Dense) {
+func (regr *LinearRegressionGorgonia) Predict(X, Y *mat.Dense) Regressor {
 	regr.DecisionFunction(X, Y)
+	return regr
 }
 
 // --------

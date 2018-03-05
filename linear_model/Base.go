@@ -29,7 +29,7 @@ type LinearModel struct {
 // Regressor is the common interface for all regressors
 type Regressor interface {
 	Fit(X, Y *mat.Dense) Regressor
-	Predict(X, Y *mat.Dense)
+	Predict(X, Y *mat.Dense) Regressor
 	Score(X, T *mat.Dense) float64
 }
 
@@ -94,9 +94,9 @@ func (regr *LinearRegression) Fit(X0, Y0 *mat.Dense) Regressor {
 }
 
 // Predict predicts y for X using Coef
-func (regr *LinearRegression) Predict(X, Y *mat.Dense) {
+func (regr *LinearRegression) Predict(X, Y *mat.Dense) Regressor {
 	regr.DecisionFunction(X, Y)
-
+	return regr
 }
 
 // NewRidge creates a *Ridge with defaults
@@ -249,9 +249,9 @@ func (regr *SGDRegressor) Fit(X0, y0 *mat.Dense) Regressor {
 }
 
 // Predict predicts y from X using Coef
-func (regr *SGDRegressor) Predict(X, Y *mat.Dense) {
+func (regr *SGDRegressor) Predict(X, Y *mat.Dense) Regressor {
 	regr.DecisionFunction(X, Y)
-	return
+	return regr
 }
 
 func unused(...interface{}) {}
