@@ -343,6 +343,7 @@ func TestLogRegMicrochipTest(t *testing.T) {
 		regr.Fit(Xp, Ytrue)
 		elapsed := time.Since(start)
 		J = loss()
+		fmt.Println(testSetup, "elapsed time", elapsed, "loss", J)
 
 		if J < bestLoss {
 			bestLoss = J

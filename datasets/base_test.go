@@ -18,8 +18,9 @@ func TestLoadIris(t *testing.T) {
 
 var matstr = base.MatStr
 
-func ExampleIrisGetMatrices() {
-	X, Y := IrisGetMatrices(LoadIris())
+func ExampleLoadIris() {
+	ds := LoadIris()
+	X, Y := ds.X, ds.Y
 	xr, xc := X.Dims()
 	yr, yc := Y.Dims()
 	fmt.Printf("X %d,%d Y %d,%d\n", xr, xc, yr, yc)
@@ -29,6 +30,48 @@ func ExampleIrisGetMatrices() {
 	// 5.1	3.5	1.4	0.2	0
 	// 4.9	3	1.4	0.2	0
 	// 4.7	3.2	1.3	0.2	0
+}
+
+func ExampleLoadBreastCancer() {
+	ds := LoadBreastCancer()
+	X, Y := ds.X, ds.Y
+	xr, xc := X.Dims()
+	yr, yc := Y.Dims()
+	fmt.Printf("X %d,%d Y %d,%d\n", xr, xc, yr, yc)
+	fmt.Println(matstr(X.Slice(0, 3, 0, 4), Y.Slice(0, 3, 0, 1)))
+	// Output:
+	// X 569,30 Y 569,1
+	// 17.99	10.38	122.8	1001	0
+	// 20.57	17.77	132.9	1326	0
+	// 19.69	21.25	130	1203	0
+}
+
+func ExampleLoadDiabetes() {
+	ds := LoadDiabetes()
+	X, Y := ds.X, ds.Y
+
+	xr, xc := X.Dims()
+	yr, yc := Y.Dims()
+	fmt.Printf("X %d,%d Y %d,%d\n", xr, xc, yr, yc)
+	fmt.Println(matstr(X.Slice(0, 3, 0, 4), Y.Slice(0, 3, 0, 1)))
+	// Output:
+	// X 442,10 Y 442,1
+	// 0.0380759064334241	0.0506801187398187	0.0616962065186885	0.0218723549949558	151
+	// -0.00188201652779104	-0.044641636506989	-0.0514740612388061	-0.0263278347173518	75
+	// 0.0852989062966783	0.0506801187398187	0.0444512133365941	-0.00567061055493425	141
+}
+
+func ExampleLoadBoston() {
+	X, Y := LoadBoston().GetXY()
+	xr, xc := X.Dims()
+	yr, yc := Y.Dims()
+	fmt.Printf("X %d,%d Y %d,%d\n", xr, xc, yr, yc)
+	fmt.Println(matstr(X.Slice(0, 3, 0, 4), Y.Slice(0, 3, 0, 1)))
+	// Output:
+	// X 506,13 Y 506,1
+	// 0.00632	18	2.31	0	24
+	// 0.02731	0	7.07	0	21.6
+	// 0.02729	0	7.07	0	34.7
 }
 
 func ExampleLoadExamScore() {

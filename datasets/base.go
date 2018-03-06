@@ -10,28 +10,49 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
-// IrisData structure returned by LoadIris
-type IrisData struct {
+// MLDataset structure returned by LoadIris,LoadBreastCancer,LoadDiabetes,LoadBoston
+type MLDataset struct {
 	Data         [][]float64 `json:"data,omitempty"`
 	Target       []float64   `json:"target,omitempty"`
 	TargetNames  []string    `json:"target_names,omitempty"`
 	DESCR        string      `json:"DESCR,omitempty"`
 	FeatureNames []string    `json:"feature_names,omitempty"`
+	X, Y         *mat.Dense
 }
 
 // LoadIris load the iris dataset
-func LoadIris() (ds *IrisData) {
-	filepath := os.Getenv("GOPATH") + "/src/github.com/pa-m/sklearn/datasets/data/iris.json"
+func loadJSON(filepath string) (ds *MLDataset) {
 	dat, err := ioutil.ReadFile(filepath)
 	chk(err)
-	ds = &IrisData{}
+	ds = &MLDataset{}
 	err = json.Unmarshal(dat, &ds)
 	chk(err)
+	ds.X, ds.Y = ds.GetXY()
 	return
 }
 
-// IrisGetMatrices returns X,Y matrices for iris dataset
-func IrisGetMatrices(ds *IrisData) (X, Y *mat.Dense) {
+// LoadIris load the iris dataset
+func LoadIris() (ds *MLDataset) {
+	return loadJSON(os.Getenv("GOPATH") + "/src/github.com/pa-m/sklearn/datasets/data/iris.json")
+}
+
+// LoadBreastCancer load the breat cancer dataset
+func LoadBreastCancer() (ds *MLDataset) {
+	return loadJSON(os.Getenv("GOPATH") + "/src/github.com/pa-m/sklearn/datasets/data/cancer.json")
+}
+
+// LoadDiabetes load the diabetes dataset
+func LoadDiabetes() (ds *MLDataset) {
+	return loadJSON(os.Getenv("GOPATH") + "/src/github.com/pa-m/sklearn/datasets/data/diabetes.json")
+}
+
+// LoadBoston load the boston housing dataset
+func LoadBoston() (ds *MLDataset) {
+	return loadJSON(os.Getenv("GOPATH") + "/src/github.com/pa-m/sklearn/datasets/data/boston.json")
+}
+
+// GetXY returns X,Y matrices for iris dataset
+func (ds *MLDataset) GetXY() (X, Y *mat.Dense) {
 	nSamples, nFeatures, nOutputs := len(ds.Data), len(ds.FeatureNames), 1
 	X = mat.NewDense(nSamples, nFeatures, nil)
 	X.Apply(func(i, j int, _ float64) float64 {

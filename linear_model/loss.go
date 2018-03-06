@@ -17,8 +17,8 @@ import (
 // Alpha and L1Ratio are for regularization
 type Loss func(Ytrue, X, Theta mat.Matrix, Ypred, Ydiff, grad *mat.Dense, Alpha, L1Ratio float64, nSamples int, activation Activation) (J float64)
 
-// LossFunctions is the list of implemented loss functions
-var LossFunctions = []Loss{SquareLoss, LogLoss, CrossEntropyLoss}
+// LossFunctions is the map of implemented loss functions
+var LossFunctions = map[string]Loss{"square": SquareLoss, "log": LogLoss, "cross-entropy": CrossEntropyLoss}
 
 // SquareLoss Quadratic Loss, for regressions
 // Ytrue, X, Theta must be passed in
@@ -140,13 +140,13 @@ func CrossEntropyLoss(Ytrue, X, Theta mat.Matrix, Ypred, Ydiff, grad *mat.Dense,
 	J = 0.
 	Ypred.Apply(func(i int, o int, hpred float64) float64 {
 		eps := 1e-10
-		y := Ytrue.At(i, o)
 		h := hpred
-		if hpred == 0. {
-			h += eps
-		} else if h == 1. {
-			h -= eps
+		if h <= 0. {
+			h = eps
+		} else if h >= 1. {
+			h = 1. - eps
 		}
+		y := Ytrue.At(i, o)
 		J += -y*math.Log(h) - (1.-y)*math.Log(1.-h)
 		if math.IsNaN(J) {
 			panic(fmt.Errorf("J Nan after -y*math.Log(h) - (1.-y)*math.Log(1.-h). y=%g h=%g", y, h))
@@ -164,7 +164,7 @@ func CrossEntropyLoss(Ytrue, X, Theta mat.Matrix, Ypred, Ydiff, grad *mat.Dense,
 			g := 0.
 			for i := 0; i < nSamples; i++ {
 				h := Ypred.At(i, o)
-				y := Ytrue.At(i, j)
+				y := Ytrue.At(i, o)
 				hprime := activation.Fprime(h)
 				g += -y*hprime/h + (1.-y)*hprime/(1.-h)
 
