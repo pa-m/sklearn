@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/pa-m/sklearn/base"
 	"gonum.org/v1/gonum/mat"
 )
 
@@ -19,9 +20,9 @@ type squareLoss struct{ lossBaseStruct }
 func (squareLoss) Loss(Ytrue, Ypred mat.Matrix, Grad *mat.Dense) float64 {
 	nSamples, _ := Ytrue.Dims()
 	// J:=(h-y)^2/2
-	Ydiff := matSub{Ypred, Ytrue}
+	Ydiff := matSub{A: Ypred, B: Ytrue}
 	square := func(yd float64) float64 { return yd * yd }
-	J := mat.Sum(matApply{Ydiff, square}) / float64(nSamples)
+	J := mat.Sum(matApply{Matrix: Ydiff, Func: square}) / float64(nSamples)
 	// Grad:=(h-y)
 	if Grad != nil {
 		Grad.Scale(1./float64(nSamples), Ydiff)
@@ -34,11 +35,11 @@ type logLoss struct{ lossBaseStruct }
 func (logLoss) Loss(Ytrue, Ypred mat.Matrix, Grad *mat.Dense) float64 {
 	nSamples, _ := Ytrue.Dims()
 	// J:=-y log(h)
-	J := -mat.Sum(matMulElem{Ytrue, matApply{Ypred, math.Log}}) / float64(nSamples)
+	J := -mat.Sum(matMulElem{A: Ytrue, B: base.MatApply1{Matrix: Ypred, Func: math.Log}}) / float64(nSamples)
 	// Grad:=-y/h
 	if Grad != nil {
 		Gfun := func(y, h float64) float64 { return -y / h }
-		Grad.Scale(1./float64(nSamples), matApply2{Ytrue, Ypred, Gfun})
+		Grad.Scale(1./float64(nSamples), matApply2{A: Ytrue, B: Ypred, Func: Gfun})
 	}
 	return J
 }
@@ -57,7 +58,7 @@ func (crossEntropyLoss) Loss(Ytrue, Ypred mat.Matrix, Grad *mat.Dense) float64 {
 		}
 		return -y*math.Log(h) - (1.-y)*math.Log(1.-h)
 	}
-	J := mat.Sum(matApply2{Ytrue, Ypred, Jfun}) / float64(nSamples)
+	J := mat.Sum(matApply2{A: Ytrue, B: Ypred, Func: Jfun}) / float64(nSamples)
 	if Grad != nil {
 		// Grad:=-y/h+(1-y)/(1-h)
 		Gfun := func(y, h float64) float64 {
@@ -69,7 +70,7 @@ func (crossEntropyLoss) Loss(Ytrue, Ypred mat.Matrix, Grad *mat.Dense) float64 {
 			}
 			return -y/h + (1-y)/(1-h)
 		}
-		Grad.Scale(1./float64(nSamples), matApply2{Ytrue, Ypred, Gfun})
+		Grad.Scale(1./float64(nSamples), matApply2{A: Ytrue, B: Ypred, Func: Gfun})
 	}
 	return J
 }
@@ -101,34 +102,34 @@ type identityActivation struct{ activationStruct }
 
 func (identityActivation) Func(z mat.Matrix, h *mat.Dense) { h.Copy(z) }
 func (identityActivation) Grad(z, h mat.Matrix, grad *mat.Dense) {
-	grad.Copy(matApply{h, func(h float64) float64 { return 1. }})
+	grad.Copy(matApply{Matrix: h, Func: func(h float64) float64 { return 1. }})
 }
 
 type logisticActivation struct{ activationStruct }
 
 func (logisticActivation) Func(z mat.Matrix, h *mat.Dense) {
-	h.Copy(matApply{z, func(z float64) float64 { return 1. / (1. + math.Exp(-z)) }})
+	h.Copy(matApply{Matrix: z, Func: func(z float64) float64 { return 1. / (1. + math.Exp(-z)) }})
 }
 func (logisticActivation) Grad(z, h mat.Matrix, grad *mat.Dense) {
-	grad.Copy(matApply{h, func(h float64) float64 { return h * (1. - h) }})
+	grad.Copy(matApply{Matrix: h, Func: func(h float64) float64 { return h * (1. - h) }})
 }
 
 type tanhActivation struct{ activationStruct }
 
 func (tanhActivation) Func(z mat.Matrix, h *mat.Dense) {
-	h.Copy(matApply{z, math.Tanh})
+	h.Copy(matApply{Matrix: z, Func: math.Tanh})
 }
 func (tanhActivation) Grad(z, h mat.Matrix, grad *mat.Dense) {
-	grad.Copy(matApply{h, func(h float64) float64 { return 1. - h*h }})
+	grad.Copy(matApply{Matrix: h, Func: func(h float64) float64 { return 1. - h*h }})
 }
 
 type reluActivation struct{ activationStruct }
 
 func (reluActivation) Func(z mat.Matrix, h *mat.Dense) {
-	h.Copy(matApply{z, func(z float64) float64 { return math.Max(0, z) }})
+	h.Copy(matApply{Matrix: z, Func: func(z float64) float64 { return math.Max(0, z) }})
 }
 func (reluActivation) Grad(z, h mat.Matrix, grad *mat.Dense) {
-	grad.Copy(matApply{h, func(h float64) float64 {
+	grad.Copy(matApply{Matrix: h, Func: func(h float64) float64 {
 		if h <= 0 {
 			return 0.
 		}
@@ -136,6 +137,7 @@ func (reluActivation) Grad(z, h mat.Matrix, grad *mat.Dense) {
 	}})
 }
 
+// SupportedActivations is a map[Sing]ActivationFunctions for the supproted activation functions (identity,logistic,tanh,relu)
 var SupportedActivations = map[string]ActivationFunctions{
 	"identity": identityActivation{},
 	"logistic": logisticActivation{},

@@ -244,7 +244,7 @@ func (s *SGDOptimizer) GetUpdate(update *mat.Dense, grad mat.Matrix) {
 		}, s.AdadeltaU)
 	} else if s.Adam {
 		// mt ← β1 · mt−1 + (1 − β1) · gt (Update biased first moment estimate)
-		chkdims("+", s.Mt, s.Mt, grad)
+		MatDimsCheck("+", s.Mt, s.Mt, grad)
 		s.Mt.Apply(func(j, o int, gradjo float64) float64 {
 			return s.Beta1*s.Mt.At(j, o) + (1.-s.Beta1)*gradientClipped(j, o)
 		}, grad)

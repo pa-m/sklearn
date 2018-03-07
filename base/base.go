@@ -13,27 +13,6 @@ import (
 
 type float = float64
 
-func v2dense(v []float) *mat.Dense {
-	if v == nil {
-		return nil
-	}
-	return mat.NewDense(len(v), 1, v)
-}
-func v2vecdense(v []float) *mat.VecDense {
-	if v == nil {
-		return nil
-	}
-	return mat.NewVecDense(len(v), v)
-}
-func m2dense(X [][]float) *mat.Dense {
-	r, c := len(X), len(X[0])
-	m := mat.NewDense(r, c, nil)
-	m.Apply(func(i int, j int, v float64) float64 {
-		return X[i][j]
-	}, m)
-	return m
-}
-
 // DenseShuffle shuffles the rows of X and Y matrices
 func DenseShuffle(X, Y *mat.Dense) {
 	nSamples, nFeatures := X.Dims()
@@ -103,31 +82,6 @@ func MatRowStr(X mat.Matrix, i int) string {
 	var t = make([]float64, nFeatures)
 	mat.Row(t, i, X)
 	return fmt.Sprint(t)
-}
-
-func dims(mats ...mat.Matrix) string {
-	s := ""
-	for _, m := range mats {
-		r, c := m.Dims()
-		s = fmt.Sprintf("%s %d,%d", s, r, c)
-	}
-	return s
-}
-
-func chkdims(op string, R, X, Y mat.Matrix) {
-	rx, cx := X.Dims()
-	ry, cy := Y.Dims()
-	rr, cr := R.Dims()
-	switch op {
-	case "+", "-", "*", "/":
-		if rx != ry || cx != cy || rr != rx || cr != cx {
-			panic(fmt.Errorf("%s %s", op, dims(R, X, Y)))
-		}
-	case ".":
-		if cx != ry || rr != rx || cr != cy {
-			panic(fmt.Errorf("%s %s", op, dims(R, X, Y)))
-		}
-	}
 }
 
 // CopyStruct create an new *struct with copied fields using reflection. it's not a deep copy.

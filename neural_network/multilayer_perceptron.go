@@ -173,8 +173,8 @@ func (regr *MLPRegressor) backprop(X, Y mat.Matrix) (J float64) {
 			// compute ydiff and ytrue for non-terminal layer
 			//delta2 = (delta3 * Theta2) .* [1 a2(t,:)] .* (1-[1 a2(t,:)])
 			nextLayer := &regr.Layers[l+1]
-
-			L.Ydiff.Mul(nextLayer.Ydiff, firstColumnRemovedMat{nextLayer.Theta.T()})
+			//base.MatDimsCheck(".", L.Ydiff, nextLayer.Ydiff, base.MatFirstColumnRemoved{Matrix: nextLayer.Theta.T()})
+			L.Ydiff.Mul(nextLayer.Ydiff, MatFirstColumnRemoved{Matrix: nextLayer.Theta.T()})
 			//L.Ydiff.Apply(func(_, _ int, v float64) float64 { return panicIfNaN(v) }, L.Ydiff)
 			L.Ydiff.MulElem(L.Ydiff, L.Hgrad)
 			//L.Ydiff.Apply(func(_, _ int, v float64) float64 { return panicIfNaN(v) }, L.Ydiff)
@@ -191,7 +191,7 @@ func (regr *MLPRegressor) backprop(X, Y mat.Matrix) (J float64) {
 		// =>L.Hgrad is derivative of activation vs Z
 
 		L.Ydiff.MulElem(L.Ydiff, L.Hgrad)
-		L.Grad.Mul(onesAddedMat{Xl}.T(), L.Ydiff)
+		L.Grad.Mul(onesAddedMat{Matrix: Xl}.T(), L.Ydiff)
 
 		if l == outputLayer {
 			J = Jl
@@ -241,7 +241,7 @@ func (regr *MLPRegressor) predictZH(X mat.Matrix, Z, Y *mat.Dense, fitting bool)
 		}
 
 		// compute activation.F([1 X] dot theta)
-		L.Z.Mul(onesAddedMat{Xl}, L.Theta)
+		L.Z.Mul(onesAddedMat{Matrix: Xl}, L.Theta)
 		if l == outputLayer && Z != nil {
 			Z.Copy(L.Z)
 		}
