@@ -15,6 +15,7 @@ import (
 // Ytrue, X, Theta must be passed in
 // Ypred,Ydiff,Ytmp are temporary matrices passed in here to avoid reallocations. nothing to initialize for them except storage
 // Alpha and L1Ratio are for regularization
+// Loss derivative is dJWrtTheta=dJWrth*dhWrtz*X
 type Loss func(Ytrue, X, Theta mat.Matrix, Ypred, Ydiff, grad *mat.Dense, Alpha, L1Ratio float64, nSamples int, activation Activation) (J float64)
 
 // LossFunctions is the map of implemented loss functions
