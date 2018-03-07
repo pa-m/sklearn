@@ -2,12 +2,12 @@ package neuralNetwork
 
 import (
 	"fmt"
+	"math"
 	"math/rand"
 	"testing"
 	"time"
 
 	"github.com/gonum/floats"
-	"github.com/pa-m/sklearn/base"
 	lm "github.com/pa-m/sklearn/linear_model"
 
 	"gonum.org/v1/gonum/mat"
@@ -30,7 +30,11 @@ func NewRandomProblem(nSamples, nFeatures, nOutputs int, activation Activation, 
 	Ytrue := mat.NewDense(nSamples, nOutputs, nil)
 	Ytrue.Product(X, TrueTheta)
 	Ytrue.Apply(func(i, o int, xtheta float64) float64 {
-		return activation.F(xtheta)
+		ytrue := activation.F(xtheta)
+		if math.IsNaN(ytrue) {
+			panic(fmt.Errorf("%T ytrue is NaN", activation))
+		}
+		return ytrue
 	}, Ytrue)
 	if loss == "cross-entropy" {
 		for sample := 0; sample < nSamples; sample++ {
@@ -48,38 +52,40 @@ func NewRandomProblem(nSamples, nFeatures, nOutputs int, activation Activation, 
 }
 
 func TestMLPRegressorIdentitySquareLoss(t *testing.T) {
-	testMLPRegressor(t, lm.Identity{}, "square", func() base.Optimizer { return base.NewAdamOptimizer() }, 4)
+	testMLPRegressor(t, "identity", "square", "adam", 4)
 }
 
 func TestMLPRegressorLogisticLogLoss(t *testing.T) {
-	testMLPRegressor(t, lm.Logistic{}, "log", func() base.Optimizer { return base.NewAdamOptimizer() }, 2)
+	testMLPRegressor(t, "logistic", "log", "adam", 2)
 }
 
 func TestMLPRegressorLogisticCrossEntropyLoss(t *testing.T) {
-	testMLPRegressor(t, lm.Logistic{}, "cross-entropy", func() base.Optimizer { return base.NewAdamOptimizer() }, 2)
+	testMLPRegressor(t, "logistic", "cross-entropy", "adam", 2)
 }
 
-// Does it make sense ???
-// func TestMLPRegressorTanhCrossEntropyLoss(t *testing.T) {
-// 	testMLPRegressor(t, lm.Tanh{}, "cross-entropy", func() base.Optimizer { return base.NewAdamOptimizer() }, 2)
-// }
+func TestMLPRegressorTanhCrossEntropyLoss(t *testing.T) {
+	testMLPRegressor(t, "tanh", "cross-entropy", "adam", 2)
+}
 
-// Does it make sense ???
-// func TestMLPRegressorReLUCrossEntropyLoss(t *testing.T) {
-// 	testMLPRegressor(t, lm.ReLU{}, "cross-entropy", func() base.Optimizer { return base.NewAdamOptimizer() }, 2)
-// }
+func TestMLPRegressorReLUCrossEntropyLoss(t *testing.T) {
+	testMLPRegressor(t, "relu", "cross-entropy", "adam", 2)
+}
 
-func testMLPRegressor(t *testing.T, activation lm.Activation, lossName string, OptimCreator func() base.Optimizer, maxLayers int) {
+func testMLPRegressor(t *testing.T, activationName string, lossName string, solver string, maxLayers int) {
 	var nSamples, nFeatures, nOutputs = 2000, 3, 2
+	activation := lm.Activations[activationName]
 	var p = NewRandomProblem(nSamples, nFeatures, nOutputs, activation, lossName)
 	var HiddenLayerSizes []int
+
 	for l := 0; l < maxLayers; l++ {
-		regr := NewMLPRegressor(HiddenLayerSizes, activation, nil)
-		regr.Loss = lm.LossFunctions[lossName]
-		regr.SetOptimizer(OptimCreator, true)
+		Alpha := 0.
+		regr := NewMLPRegressor(HiddenLayerSizes, activationName, solver, Alpha)
+		//regr.SetOptimizer(OptimCreator, true)
 		regr.Epochs = 200
-		testSetup := fmt.Sprintf("%T %T %s layers %v", regr, activation, lossName, HiddenLayerSizes)
+		testSetup := fmt.Sprintf("%T %T %s loss layers %v", regr, activation, lossName, HiddenLayerSizes)
 		//Ypred := mat.NewDense(nSamples, nOutputs, nil)
+
+		regr.Loss = lossName
 		start := time.Now()
 		regr.Fit(p.X, p.Y)
 		elapsed := time.Since(start)

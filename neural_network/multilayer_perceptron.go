@@ -48,33 +48,43 @@ var Regressors = []lm.Regressor{&MLPRegressor{}}
 
 // MLPRegressor is a multilayer perceptron regressor
 type MLPRegressor struct {
-	Optimizer func() base.Optimizer
-	lm.Loss
+	Optimizer base.OptimCreator
+	LossName  string
+	Activation
+	HiddenLayerSizes []int
+
 	Layers                []Layer
 	Alpha, L1Ratio        float64
 	Epochs, MiniBatchSize int
+
+	Loss string
+	// run values
 	// Loss value after Fit
 	JFirst, J float64
 }
 
 // OptimCreator is an Optimizer creator function
-type OptimCreator func() Optimizer
+type OptimCreator = base.OptimCreator
 
 // NewMLPRegressor returns a *MLPRegressor with defaults
-func NewMLPRegressor(hiddenLayerSizes []int, activation lm.Activation, Optimiser OptimCreator) MLPRegressor {
-	if Optimiser == nil {
-		Optimiser = func() Optimizer { return base.NewAdamOptimizer() }
+// activation is on of lm.Identity{} lm.Logistic{} lm.Tanh{} lm.ReLU{} defaults to "relu"
+// solver is on of agd,adagrad,rmsprop,adadelta,adam (one of the keys of base.Solvers) defaults to "adam"
+// Alpha is the regularization parameter
+// lossName is one of square,log,cross-entropy (one of the keys of lm.LossFunctions)
+func NewMLPRegressor(hiddenLayerSizes []int, activation string, solver string, Alpha float64) MLPRegressor {
+	if activation == "" {
+		activation = "relu"
+	}
+	if solver == "" {
+		solver = "adam"
 	}
 	regr := MLPRegressor{
-		Optimizer: Optimiser,
-		Loss:      lm.SquareLoss,
+		Optimizer:        base.Solvers[solver],
+		HiddenLayerSizes: hiddenLayerSizes,
+		Loss:             "square",
+		Activation:       lm.Activations[activation],
+		Alpha:            Alpha,
 	}
-	prevOutputs := 1
-	for _, outputs := range hiddenLayerSizes {
-		regr.Layers = append(regr.Layers, NewLayer(1+prevOutputs, outputs, activation, regr.Optimizer()))
-		prevOutputs = outputs
-	}
-	regr.Layers = append(regr.Layers, NewLayer(1+prevOutputs, 1, activation, regr.Optimizer()))
 	return regr
 }
 
@@ -91,6 +101,23 @@ func (regr *MLPRegressor) SetOptimizer(creator OptimCreator, changeLayers bool) 
 // Fit fits an MLPRegressor
 func (regr *MLPRegressor) Fit(X, Y *mat.Dense) lm.Regressor {
 	nSamples, nFeatures := X.Dims()
+	_, nOutputs := Y.Dims()
+	// create layers
+	regr.Layers = make([]Layer, 0)
+	prevOutputs := nFeatures
+	for _, outputs := range regr.HiddenLayerSizes {
+
+		regr.Layers = append(regr.Layers, NewLayer(1+prevOutputs, outputs, regr.Activation, regr.Optimizer()))
+		prevOutputs = outputs
+	}
+	var lastActivation Activation
+	if regr.LossName == "cross-entropy" || regr.LossName == "log" {
+		lastActivation = lm.Logistic{}
+	} else {
+		lastActivation = regr.Activation
+	}
+	regr.Layers = append(regr.Layers, NewLayer(1+prevOutputs, nOutputs, lastActivation, regr.Optimizer()))
+
 	outputLayer := len(regr.Layers) - 1
 	r, c := regr.Layers[0].Theta.Dims()
 
@@ -104,6 +131,7 @@ func (regr *MLPRegressor) Fit(X, Y *mat.Dense) lm.Regressor {
 	if c != c2 {
 		regr.Layers[outputLayer] = NewLayer(r2, c, regr.Layers[0].Activation, regr.Optimizer())
 	}
+	lossFunc := lm.LossFunctions[regr.Loss]
 	// J is the loss value
 	J := math.Inf(1)
 	if regr.Epochs <= 0 {
@@ -131,11 +159,15 @@ func (regr *MLPRegressor) Fit(X, Y *mat.Dense) lm.Regressor {
 				nextLayer := &regr.Layers[l+1]
 
 				L.Ydiff.Mul(nextLayer.Ydiff, firstColumnRemovedMat{nextLayer.Theta.T()})
+				//L.Ydiff.Apply(func(_, _ int, v float64) float64 { return panicIfNaN(v) }, L.Ydiff)
 				L.Ydiff.MulElem(L.Ydiff, appliedMat{L.Ypred, L.Activation.Fprime})
+				//L.Ydiff.Apply(func(_, _ int, v float64) float64 { return panicIfNaN(v) }, L.Ydiff)
 				L.Ytrue.Sub(L.Ypred, L.Ydiff)
+				//L.Ytrue.Apply(func(_, _ int, v float64) float64 { return panicIfNaN(v) }, L.Ytrue)
 			}
+
 			// compute loss J and Grad
-			J = regr.Loss(L.Ytrue, onesAddedMat{Xl}, L.Theta, L.Ypred, L.Ydiff, L.Grad, regr.Alpha, regr.L1Ratio, nSamples, L.Activation)
+			J = lossFunc(L.Ytrue, onesAddedMat{Xl}, L.Theta, L.Ypred, L.Ydiff, L.Grad, regr.Alpha, regr.L1Ratio, nSamples, L.Activation)
 			//compute theeta Update from Grad
 			L.Optimizer.GetUpdate(L.Update, L.Grad)
 			// if l == outputLayer && epoch%10 == 0 {
@@ -179,6 +211,7 @@ func (regr *MLPRegressor) Predict(X, Y *mat.Dense) lm.Regressor {
 		// compute activation.F([1 X] dot theta)
 		L.Ypred.Mul(onesAddedMat{Xl}, L.Theta)
 		L.Ypred.Clone(appliedMat{L.Ypred, L.Activation.F})
+		L.Ypred.Apply(func(_, _ int, v float64) float64 { return panicIfNaN(v) }, L.Ypred)
 	}
 	if Y != nil {
 		Y.Clone(regr.Layers[len(regr.Layers)-1].Ypred)
@@ -190,4 +223,11 @@ func (regr *MLPRegressor) Predict(X, Y *mat.Dense) lm.Regressor {
 func (regr *MLPRegressor) Score(X, Y *mat.Dense) float64 {
 	score := 0.
 	return score
+}
+
+func panicIfNaN(v float64) float64 {
+	if math.IsNaN(v) {
+		panic("NaN")
+	}
+	return v
 }

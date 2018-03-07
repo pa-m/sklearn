@@ -135,9 +135,10 @@ func LogLoss(Ytrue, X, Theta mat.Matrix, Ypred, Ydiff, grad *mat.Dense, Alpha, L
 //
 func CrossEntropyLoss(Ytrue, X, Theta mat.Matrix, Ypred, Ydiff, grad *mat.Dense, Alpha, L1Ratio float64, nSamples int, activation Activation) (J float64) {
 	Ypred.Mul(X, Theta)
-	Ypred.Apply(func(i, o int, xtheta float64) float64 { return activation.F(xtheta) }, Ypred)
+	Ypred.Apply(func(i, o int, xtheta float64) float64 { return panicIfNaN(activation.F(xtheta)) }, Ypred)
 	Ydiff.Sub(Ypred, Ytrue)
 	J = 0.
+	// compute J = Sum -y*math.Log(h) - (1.-y)*math.Log(1.-h)
 	Ypred.Apply(func(i int, o int, hpred float64) float64 {
 		eps := 1e-10
 		h := hpred
@@ -166,8 +167,16 @@ func CrossEntropyLoss(Ytrue, X, Theta mat.Matrix, Ypred, Ydiff, grad *mat.Dense,
 				h := Ypred.At(i, o)
 				y := Ytrue.At(i, o)
 				hprime := activation.Fprime(h)
-				g += -y*hprime/h + (1.-y)*hprime/(1.-h)
-
+				if y == 1. {
+					g += -y * hprime / h
+				} else if y == 0. {
+					g += (1. - y) * hprime / (1. - h)
+				} else {
+					g += -y*hprime/h + (1.-y)*hprime/(1.-h)
+				}
+				if math.IsNaN(g) {
+					panic(fmt.Errorf("g is NaN h=%g y=%g ", h, y))
+				}
 			}
 			return g
 		}, Theta)
@@ -192,9 +201,6 @@ func CrossEntropyLoss(Ytrue, X, Theta mat.Matrix, Ypred, Ydiff, grad *mat.Dense,
 	J /= float64(nSamples)
 	//fmt.Printf("/%d =>%g\n", nSamples, J)
 	grad.Scale(1./float64(nSamples), grad)
-	if math.IsNaN(J) {
-		panic("J Nan")
-	}
 	return
 }
 
@@ -218,6 +224,8 @@ func CrossEntropyLoss(Ytrue, X, Theta mat.Matrix, Ypred, Ydiff, grad *mat.Dense,
 //                 ⎝    1 + ℯ    ⎠
 //
 
+// TODO Hinge,HingeSmoothed,Huber, v https://en.wikipedia.org/wiki/Hinge_loss
+
 func sgn(c float64) float64 {
 	if c < 0. {
 		return -1.
@@ -226,4 +234,11 @@ func sgn(c float64) float64 {
 		return 1.
 	}
 	return 0.
+}
+
+func panicIfNaN(v float64) float64 {
+	if math.IsNaN(v) {
+		panic("NaN")
+	}
+	return v
 }

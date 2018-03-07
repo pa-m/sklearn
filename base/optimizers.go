@@ -18,6 +18,18 @@ type Optimizer interface {
 	String() string
 }
 
+// OptimCreator is the type for functions returning an Optimizer
+type OptimCreator func() Optimizer
+
+// Solvers is the map for common Optimizer creators agd,adagrad,rmsprop,adadelta,adam
+var Solvers = map[string]OptimCreator{
+	"sgd":      func() Optimizer { return NewSGDOptimizer() },
+	"adagrad":  func() Optimizer { return NewAdagradOptimizer() },
+	"rmsprop":  func() Optimizer { return NewRMSPropOptimizer() },
+	"adadelta": func() Optimizer { return NewAdadeltaOptimizer() },
+	"adam":     func() Optimizer { return NewAdamOptimizer() },
+}
+
 // SGDOptimizer is struct for SGD solver v https://en.wikipedia.org/wiki/Stochastic_gradient_descent
 type SGDOptimizer struct {
 	// StepSize is used for all variants

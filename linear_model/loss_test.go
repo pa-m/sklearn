@@ -11,6 +11,25 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
+func TestSquareLoss(t *testing.T) {
+	for _, activationFunction := range []Activation{Identity{}, Logistic{}, Tanh{}, ReLU{}} {
+		testLossDerivatives(t, SquareLoss, activationFunction)
+	}
+}
+
+func TestLogLoss(t *testing.T) {
+	for _, activationFunction := range []Activation{Identity{}, Logistic{}, Tanh{}, ReLU{}} {
+		testLossDerivatives(t, LogLoss, activationFunction)
+	}
+}
+
+func TestCrossEntropyLoss(t *testing.T) {
+	// TODO tanh
+	for _, activationFunction := range []Activation{Identity{}, Logistic{}, Tanh{}, ReLU{}} {
+		testLossDerivatives(t, CrossEntropyLoss, activationFunction)
+	}
+}
+
 func testLossDerivatives(t *testing.T, lossFunc Loss, activation Activation) {
 	nSamples := 100
 	unused(fd.Gradient, floats.Sum, fmt.Println)
@@ -46,28 +65,9 @@ func testLossDerivatives(t *testing.T, lossFunc Loss, activation Activation) {
 			dJ := (J1 - J0) / 2. / eps
 			//fmt.Printf("%t %g %g\n", activation, grad.At(0, 0), dJ)
 			if math.Abs(dJ-grad.At(0, 0)) > 1e-2 {
-				fmt.Printf("%t %g %g\n", activation, grad.At(0, 0), dJ)
+				fmt.Printf("%T %g %g\n", activation, grad.At(0, 0), dJ)
 				t.Fail()
 			}
 		}
-	}
-}
-
-func TestSquareLoss(t *testing.T) {
-	for _, activationFunction := range []Activation{Identity{}, Logistic{}, Tanh{}, ReLU{}} {
-		testLossDerivatives(t, SquareLoss, activationFunction)
-	}
-}
-
-func TestLogLoss(t *testing.T) {
-	for _, activationFunction := range []Activation{Identity{}, Logistic{}, Tanh{}, ReLU{}} {
-		testLossDerivatives(t, LogLoss, activationFunction)
-	}
-}
-
-func TestCrossEntropyLoss(t *testing.T) {
-	// TODO tanh
-	for _, activationFunction := range []Activation{Identity{}, Logistic{}, Tanh{}, ReLU{}} {
-		testLossDerivatives(t, CrossEntropyLoss, activationFunction)
 	}
 }

@@ -5,14 +5,14 @@ import (
 	"math"
 )
 
-// Activation ...
+// Activation is the inteface for an activation function
 type Activation interface {
 	F(x float64) float64
 	Fprime(y float64) float64
 }
 
-// Activations is the list of implemented activation functions
-var Activations = []Activation{Identity{}, Logistic{}, ReLU{}, Tanh{}}
+// Activations is the map of implemented activation functions
+var Activations = map[string]Activation{"identity": Identity{}, "logistic": Logistic{}, "relu": ReLU{}, "tanh": Tanh{}}
 
 // see https://en.wikipedia.org/wiki/Activation_function
 
