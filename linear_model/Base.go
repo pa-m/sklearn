@@ -363,7 +363,7 @@ func LinFit(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 			&optimize.Stats{MajorIterations: epoch, FuncEvaluations: epoch, GradEvaluations: epoch, Runtime: time.Since(start)})
 	}
 	for epoch = 1; epoch <= opts.Epochs && !converged; epoch++ {
-		base.DenseShuffle(X, Ytrue)
+		base.MatShuffle(X, Ytrue)
 		for miniBatch := 0; miniBatch*miniBatchSize < nSamples; miniBatch++ {
 			miniBatchStart = miniBatch * miniBatchSize
 			miniBatchEnd := miniBatchStart + miniBatchSize

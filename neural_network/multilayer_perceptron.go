@@ -147,7 +147,7 @@ func (regr *MLPRegressor) Fit(X, Y *mat.Dense) lm.Regressor {
 func (regr *MLPRegressor) fitEpoch(Xfull, Yfull *mat.Dense, epoch int) {
 	nSamples, nFeatures := Xfull.Dims()
 	_, nOutputs := Yfull.Dims()
-	base.DenseShuffle(Xfull, Yfull)
+	base.MatShuffle(Xfull, Yfull)
 	miniBatchStart, miniBatchEnd, miniBatchLen := 0, nSamples, nSamples
 	Jsum := 0.
 	for miniBatchStart < nSamples {
