@@ -2,7 +2,6 @@ package neuralNetwork
 
 import (
 	"fmt"
-	"math"
 	"math/rand"
 	"testing"
 	"time"
@@ -18,7 +17,7 @@ type Problem struct {
 	MiniBatchSize int
 }
 
-func NewRandomProblem(nSamples, nFeatures, nOutputs int, activation Activation, loss string) *Problem {
+func NewRandomProblem(nSamples, nFeatures, nOutputs int, activation string, loss string) *Problem {
 	X := mat.NewDense(nSamples, nFeatures, nil)
 	X.Apply(func(i, j int, v float64) float64 {
 		return rand.Float64()
@@ -27,15 +26,10 @@ func NewRandomProblem(nSamples, nFeatures, nOutputs int, activation Activation, 
 	TrueTheta.Apply(func(i, j int, v float64) float64 {
 		return rand.Float64()
 	}, TrueTheta)
+	Z := mat.NewDense(nSamples, nOutputs, nil)
 	Ytrue := mat.NewDense(nSamples, nOutputs, nil)
-	Ytrue.Product(X, TrueTheta)
-	Ytrue.Apply(func(i, o int, xtheta float64) float64 {
-		ytrue := activation.F(xtheta)
-		if math.IsNaN(ytrue) {
-			panic(fmt.Errorf("%T ytrue is NaN", activation))
-		}
-		return ytrue
-	}, Ytrue)
+	Z.Mul(X, TrueTheta)
+	NewActivation(activation).Func(Z, Ytrue)
 	if loss == "cross-entropy" {
 		for sample := 0; sample < nSamples; sample++ {
 			oTrue := floats.MaxIdx(Ytrue.RawRowView(sample))
@@ -74,7 +68,7 @@ func TestMLPRegressorReLUCrossEntropyLoss(t *testing.T) {
 func testMLPRegressor(t *testing.T, activationName string, lossName string, solver string, maxLayers int) {
 	var nSamples, nFeatures, nOutputs = 2000, 3, 2
 	activation := lm.Activations[activationName]
-	var p = NewRandomProblem(nSamples, nFeatures, nOutputs, activation, lossName)
+	var p = NewRandomProblem(nSamples, nFeatures, nOutputs, activationName, lossName)
 	var HiddenLayerSizes []int
 
 	for l := 0; l < maxLayers; l++ {

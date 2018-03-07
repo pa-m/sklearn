@@ -27,7 +27,7 @@ func TestCrossEntropyLoss(t *testing.T) {
 func testLossDerivatives(t *testing.T, loss string) {
 	nSamples, nOutputs := 100, 2
 	unused(fd.Gradient, floats.Sum, fmt.Println)
-	losser := LossWrtPred[loss]
+	losser := NewLoss(loss)
 
 	Ytrue := mat.NewDense(nSamples, nOutputs, nil)
 	YpredSlice := make([]float64, nSamples*nOutputs, nSamples*nOutputs)
@@ -77,11 +77,11 @@ func TestReLU(t *testing.T) {
 
 func testActivationDerivatives(t *testing.T, activation string) {
 	nSamples, nOutputs := 1, 1
-	if _, ok := matActivations[activation]; !ok {
+	if _, ok := SupportedActivations[activation]; !ok {
 		t.Errorf("activation %s not in matActivations", activation)
 		return
 	}
-	a, _ := matActivations[activation]
+	a, _ := SupportedActivations[activation]
 	zSlice := make([]float64, nSamples*nOutputs)
 	hSlice := make([]float64, nSamples*nOutputs)
 	gradSlice := make([]float64, nSamples*nOutputs)

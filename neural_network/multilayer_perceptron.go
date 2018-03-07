@@ -10,24 +10,18 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
-// Activation comes from linear_model
-type Activation = lm.Activation
-
 // Optimizer comes from base
 type Optimizer = base.Optimizer
 
-//Loss commes from linear_model
-type Loss = lm.Loss
-
 // Layer represents a layer in a neural network. its mainly an Activation and a Theta
 type Layer struct {
-	Activation
-	Theta, Ytrue, Ypred, Ydiff, Grad, Update *mat.Dense
-	Optimizer                                Optimizer
+	Activation                                         string
+	Theta, Ytrue, Z, Ypred, Ydiff, Hgrad, Grad, Update *mat.Dense
+	Optimizer                                          Optimizer
 }
 
 // NewLayer creates a randomly initialized layer
-func NewLayer(inputs, outputs int, activation lm.Activation, optimizer Optimizer, thetaSlice []float64) Layer {
+func NewLayer(inputs, outputs int, activation string, optimizer Optimizer, thetaSlice []float64) Layer {
 
 	Theta := mat.NewDense(inputs, outputs, thetaSlice)
 	Theta.Apply(func(feature, output int, _ float64) float64 { return 0.01 * rand.Float64() }, Theta)
@@ -37,6 +31,8 @@ func NewLayer(inputs, outputs int, activation lm.Activation, optimizer Optimizer
 // Init allocate matrices for layer
 func (L *Layer) Init(samples, inputs int) {
 	_, outputs := L.Theta.Dims()
+	L.Z = mat.NewDense(samples, outputs, nil)
+	L.Hgrad = mat.NewDense(samples, outputs, nil)
 	L.Ypred = mat.NewDense(samples, outputs, nil)
 	L.Ytrue = mat.NewDense(samples, outputs, nil)
 	L.Ydiff = mat.NewDense(samples, outputs, nil)
@@ -49,9 +45,9 @@ var Regressors = []lm.Regressor{&MLPRegressor{}}
 
 // MLPRegressor is a multilayer perceptron regressor
 type MLPRegressor struct {
-	Optimizer base.OptimCreator
-	LossName  string
-	Activation
+	Optimizer        base.OptimCreator
+	LossName         string
+	Activation       string
 	HiddenLayerSizes []int
 
 	Layers                           []Layer
@@ -84,7 +80,7 @@ func NewMLPRegressor(hiddenLayerSizes []int, activation string, solver string, A
 		Optimizer:        base.Solvers[solver],
 		HiddenLayerSizes: hiddenLayerSizes,
 		Loss:             "square",
-		Activation:       lm.Activations[activation],
+		Activation:       activation,
 		Alpha:            Alpha,
 	}
 	return regr
@@ -127,9 +123,9 @@ func (regr *MLPRegressor) Fit(X, Y *mat.Dense) lm.Regressor {
 		thetaOffset += thetaLen1
 		prevOutputs = outputs
 	}
-	var lastActivation Activation
+	var lastActivation string
 	if regr.LossName == "cross-entropy" || regr.LossName == "log" {
-		lastActivation = lm.Logistic{}
+		lastActivation = "logistic"
 	} else {
 		lastActivation = regr.Activation
 	}
@@ -144,7 +140,7 @@ func (regr *MLPRegressor) Fit(X, Y *mat.Dense) lm.Regressor {
 	}
 	for epoch := 0; epoch < regr.Epochs; epoch++ {
 		base.DenseShuffle(X, Y)
-		regr.Predict(X, nil)
+		regr.predictZH(X, nil, nil, true)
 		J = regr.backprop(X, Y)
 		regr.J = J
 		if epoch == 1 {
@@ -155,12 +151,13 @@ func (regr *MLPRegressor) Fit(X, Y *mat.Dense) lm.Regressor {
 }
 
 func (regr *MLPRegressor) backprop(X, Y mat.Matrix) (J float64) {
-	nSamples, _ := X.Dims()
+	//nSamples, _ := X.Dims()
 	outputLayer := len(regr.Layers) - 1
-	lossFunc := lm.LossFunctions[regr.Loss]
+	//lossFunc := lm.LossFunctions[regr.Loss]
 
 	for l := outputLayer; l >= 0; l-- {
 		L := &regr.Layers[l]
+
 		var Xl mat.Matrix
 		if l == 0 {
 			Xl = X
@@ -179,15 +176,22 @@ func (regr *MLPRegressor) backprop(X, Y mat.Matrix) (J float64) {
 
 			L.Ydiff.Mul(nextLayer.Ydiff, firstColumnRemovedMat{nextLayer.Theta.T()})
 			//L.Ydiff.Apply(func(_, _ int, v float64) float64 { return panicIfNaN(v) }, L.Ydiff)
-			L.Ydiff.MulElem(L.Ydiff, matApply{L.Ypred, L.Activation.Fprime})
+			L.Ydiff.MulElem(L.Ydiff, L.Hgrad)
 			//L.Ydiff.Apply(func(_, _ int, v float64) float64 { return panicIfNaN(v) }, L.Ydiff)
 			L.Ytrue.Sub(L.Ypred, L.Ydiff)
 			//L.Ytrue.Apply(func(_, _ int, v float64) float64 { return panicIfNaN(v) }, L.Ytrue)
 		}
 
 		// compute loss J and Grad
-		Jl := lossFunc(L.Ytrue, onesAddedMat{Xl}, L.Theta, L.Ypred, L.Ydiff, L.Grad, regr.Alpha, regr.L1Ratio, nSamples, L.Activation)
-		//Jl:=Losser[regr.Loss].Loss(L.YTrue,L.Ypred,L.Ydiff)
+		//Jl := lossFunc(L.Ytrue, onesAddedMat{Xl}, L.Theta, L.Ypred, L.Ydiff, L.Grad, regr.Alpha, regr.L1Ratio, nSamples, L.Activation)
+		lossfuncs := NewLoss(regr.Loss)
+		Jl := lossfuncs.Loss(L.Ytrue, L.Ypred, L.Ydiff)
+		// Ydiff is dJ/dH
+		NewActivation(L.Activation).Grad(L.Z, L.Ypred, L.Hgrad)
+		// =>L.Hgrad is derivative of activation vs Z
+
+		L.Ydiff.MulElem(L.Ydiff, L.Hgrad)
+		L.Grad.Mul(onesAddedMat{Xl}.T(), L.Ydiff)
 
 		if l == outputLayer {
 			J = Jl
@@ -212,6 +216,11 @@ func unused(...interface{}) {}
 
 // Predict return the forward result
 func (regr *MLPRegressor) Predict(X, Y *mat.Dense) lm.Regressor {
+	regr.predictZH(X, nil, Y, false)
+	return regr
+}
+func (regr *MLPRegressor) predictZH(X mat.Matrix, Z, Y *mat.Dense, fitting bool) lm.Regressor {
+	outputLayer := len(regr.Layers) - 1
 	for l := 0; l < len(regr.Layers); l++ {
 		L := &regr.Layers[l]
 		var Xl mat.Matrix
@@ -232,10 +241,14 @@ func (regr *MLPRegressor) Predict(X, Y *mat.Dense) lm.Regressor {
 		}
 
 		// compute activation.F([1 X] dot theta)
-		L.Ypred.Mul(onesAddedMat{Xl}, L.Theta)
-		L.Ypred.Copy(matApply{L.Ypred, L.Activation.F})
+		L.Z.Mul(onesAddedMat{Xl}, L.Theta)
+		if l == outputLayer && Z != nil {
+			Z.Copy(L.Z)
+		}
+		NewActivation(L.Activation).Func(L.Z, L.Ypred)
 		L.Ypred.Apply(func(_, _ int, v float64) float64 { return panicIfNaN(v) }, L.Ypred)
 	}
+
 	if Y != nil {
 		Y.Copy(regr.Layers[len(regr.Layers)-1].Ypred)
 	}

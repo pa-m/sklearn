@@ -1,48 +1,52 @@
 package neuralNetwork
 
 import (
+	"fmt"
 	"math"
 
 	"gonum.org/v1/gonum/mat"
 )
 
-type matLoss struct{}
+type lossBaseStruct struct{}
 
-// Losser is the interface for matLoss (matSquareLoss,...)
-type Losser interface {
+// LossFunctions is the interface for matLoss (matSquareLoss,...)
+type LossFunctions interface {
 	Loss(Ytrue, Ypred mat.Matrix, Grad *mat.Dense) float64
 }
 
-type matSquareLoss struct{ matLoss }
+type squareLoss struct{ lossBaseStruct }
 
-func (matSquareLoss) Loss(Ytrue, Ypred mat.Matrix, Grad *mat.Dense) float64 {
+func (squareLoss) Loss(Ytrue, Ypred mat.Matrix, Grad *mat.Dense) float64 {
+	nSamples, _ := Ytrue.Dims()
 	// J:=(h-y)^2/2
 	Ydiff := matSub{Ypred, Ytrue}
 	square := func(yd float64) float64 { return yd * yd }
-	J := mat.Sum(matApply{Ydiff, square})
+	J := mat.Sum(matApply{Ydiff, square}) / float64(nSamples)
 	// Grad:=(h-y)
 	if Grad != nil {
-		Grad.Copy(Ydiff)
+		Grad.Scale(1./float64(nSamples), Ydiff)
 	}
 	return J
 }
 
-type matLogLoss struct{ matLoss }
+type logLoss struct{ lossBaseStruct }
 
-func (matLogLoss) Loss(Ytrue, Ypred mat.Matrix, Grad *mat.Dense) float64 {
+func (logLoss) Loss(Ytrue, Ypred mat.Matrix, Grad *mat.Dense) float64 {
+	nSamples, _ := Ytrue.Dims()
 	// J:=-y log(h)
-	J := -mat.Sum(matMulElem{Ytrue, matApply{Ypred, math.Log}})
+	J := -mat.Sum(matMulElem{Ytrue, matApply{Ypred, math.Log}}) / float64(nSamples)
 	// Grad:=-y/h
 	if Grad != nil {
 		Gfun := func(y, h float64) float64 { return -y / h }
-		Grad.Copy(matApply2{Ytrue, Ypred, Gfun})
+		Grad.Scale(1./float64(nSamples), matApply2{Ytrue, Ypred, Gfun})
 	}
 	return J
 }
 
-type matCrossEntropyLoss struct{ matLoss }
+type crossEntropyLoss struct{ lossBaseStruct }
 
-func (matCrossEntropyLoss) Loss(Ytrue, Ypred mat.Matrix, Grad *mat.Dense) float64 {
+func (crossEntropyLoss) Loss(Ytrue, Ypred mat.Matrix, Grad *mat.Dense) float64 {
+	nSamples, _ := Ytrue.Dims()
 	// J:=-y log(h)-(1-y) log(1-h)
 	Jfun := func(y, h float64) float64 {
 		eps := 1e-12
@@ -53,7 +57,7 @@ func (matCrossEntropyLoss) Loss(Ytrue, Ypred mat.Matrix, Grad *mat.Dense) float6
 		}
 		return -y*math.Log(h) - (1.-y)*math.Log(1.-h)
 	}
-	J := mat.Sum(matApply2{Ytrue, Ypred, Jfun})
+	J := mat.Sum(matApply2{Ytrue, Ypred, Jfun}) / float64(nSamples)
 	if Grad != nil {
 		// Grad:=-y/h+(1-y)/(1-h)
 		Gfun := func(y, h float64) float64 {
@@ -65,56 +69,65 @@ func (matCrossEntropyLoss) Loss(Ytrue, Ypred mat.Matrix, Grad *mat.Dense) float6
 			}
 			return -y/h + (1-y)/(1-h)
 		}
-		Grad.Copy(matApply2{Ytrue, Ypred, Gfun})
+		Grad.Scale(1./float64(nSamples), matApply2{Ytrue, Ypred, Gfun})
 	}
 	return J
 }
 
-// LossWrtPred are the map[string]Losser of available matrix loss function providers
-var LossWrtPred = map[string]Losser{
-	"square":        matSquareLoss{},
-	"log":           matLogLoss{},
-	"cross-entropy": matCrossEntropyLoss{},
+// SupportedLoss are the map[string]Losser of available matrix loss function providers
+var SupportedLoss = map[string]LossFunctions{
+	"square":        squareLoss{},
+	"log":           logLoss{},
+	"cross-entropy": crossEntropyLoss{},
 }
 
-type activation2 struct{}
+// NewLoss creates a LossFunctions by its name
+func NewLoss(name string) LossFunctions {
+	loss, ok := SupportedLoss[name]
+	if !ok {
+		panic(fmt.Errorf("loss %s is unknown", name))
+	}
+	return loss
+}
 
-// Activation2Grader WIP
-type Activation2Grader interface {
+type activationStruct struct{}
+
+// ActivationFunctions WIP
+type ActivationFunctions interface {
 	Func(z mat.Matrix, h *mat.Dense)
 	Grad(z, h mat.Matrix, grad *mat.Dense)
 }
-type actIdentity struct{ activation2 }
+type identityActivation struct{ activationStruct }
 
-func (actIdentity) Func(z mat.Matrix, h *mat.Dense) { h.Copy(z) }
-func (actIdentity) Grad(z, h mat.Matrix, grad *mat.Dense) {
+func (identityActivation) Func(z mat.Matrix, h *mat.Dense) { h.Copy(z) }
+func (identityActivation) Grad(z, h mat.Matrix, grad *mat.Dense) {
 	grad.Copy(matApply{h, func(h float64) float64 { return 1. }})
 }
 
-type actLogistic struct{ activation2 }
+type logisticActivation struct{ activationStruct }
 
-func (actLogistic) Func(z mat.Matrix, h *mat.Dense) {
+func (logisticActivation) Func(z mat.Matrix, h *mat.Dense) {
 	h.Copy(matApply{z, func(z float64) float64 { return 1. / (1. + math.Exp(-z)) }})
 }
-func (actLogistic) Grad(z, h mat.Matrix, grad *mat.Dense) {
+func (logisticActivation) Grad(z, h mat.Matrix, grad *mat.Dense) {
 	grad.Copy(matApply{h, func(h float64) float64 { return h * (1. - h) }})
 }
 
-type actTanh struct{ activation2 }
+type tanhActivation struct{ activationStruct }
 
-func (actTanh) Func(z mat.Matrix, h *mat.Dense) {
+func (tanhActivation) Func(z mat.Matrix, h *mat.Dense) {
 	h.Copy(matApply{z, math.Tanh})
 }
-func (actTanh) Grad(z, h mat.Matrix, grad *mat.Dense) {
+func (tanhActivation) Grad(z, h mat.Matrix, grad *mat.Dense) {
 	grad.Copy(matApply{h, func(h float64) float64 { return 1. - h*h }})
 }
 
-type actReLU struct{ activation2 }
+type reluActivation struct{ activationStruct }
 
-func (actReLU) Func(z mat.Matrix, h *mat.Dense) {
+func (reluActivation) Func(z mat.Matrix, h *mat.Dense) {
 	h.Copy(matApply{z, func(z float64) float64 { return math.Max(0, z) }})
 }
-func (actReLU) Grad(z, h mat.Matrix, grad *mat.Dense) {
+func (reluActivation) Grad(z, h mat.Matrix, grad *mat.Dense) {
 	grad.Copy(matApply{h, func(h float64) float64 {
 		if h <= 0 {
 			return 0.
@@ -123,9 +136,18 @@ func (actReLU) Grad(z, h mat.Matrix, grad *mat.Dense) {
 	}})
 }
 
-var matActivations = map[string]Activation2Grader{
-	"identity": actIdentity{},
-	"logistic": actLogistic{},
-	"tanh":     actTanh{},
-	"relu":     actReLU{},
+var SupportedActivations = map[string]ActivationFunctions{
+	"identity": identityActivation{},
+	"logistic": logisticActivation{},
+	"tanh":     tanhActivation{},
+	"relu":     reluActivation{},
+}
+
+// NewActivation return ActivationFunctions (Func and Grad) from its name (identity,logistic,tanh,relu)
+func NewActivation(name string) ActivationFunctions {
+	activation, ok := SupportedActivations[name]
+	if !ok {
+		panic(fmt.Errorf("unknown activation %s", name))
+	}
+	return activation
 }
