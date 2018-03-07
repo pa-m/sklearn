@@ -2,8 +2,9 @@ package metrics
 
 import (
 	//	"fmt"
-	"gonum.org/v1/gonum/mat"
 	"math"
+
+	"gonum.org/v1/gonum/mat"
 )
 
 type float = float64

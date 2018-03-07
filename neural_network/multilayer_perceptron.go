@@ -134,22 +134,39 @@ func (regr *MLPRegressor) Fit(X, Y *mat.Dense) lm.Regressor {
 	regr.Layers = append(regr.Layers, NewLayer(1+prevOutputs, nOutputs, lastActivation, regr.Optimizer(), regr.thetaSlice[thetaOffset:thetaOffset+thetaLen1]))
 
 	// J is the loss value
-	J := math.Inf(1)
+	regr.J = math.Inf(1)
 	if regr.Epochs <= 0 {
 		regr.Epochs = 100 // 1e6 / nSamples
 	}
 	for epoch := 0; epoch < regr.Epochs; epoch++ {
-		base.DenseShuffle(X, Y)
-		regr.predictZH(X, nil, nil, true)
-		J = regr.backprop(X, Y)
-		regr.J = J
-		if epoch == 1 {
-			regr.JFirst = J
-		}
+		regr.fitEpoch(X, Y, epoch)
 	}
 	return regr
 }
 
+func (regr *MLPRegressor) fitEpoch(Xfull, Yfull *mat.Dense, epoch int) {
+	nSamples, nFeatures := Xfull.Dims()
+	_, nOutputs := Yfull.Dims()
+	base.DenseShuffle(Xfull, Yfull)
+	miniBatchStart, miniBatchEnd, miniBatchLen := 0, nSamples, nSamples
+	Jsum := 0.
+	for miniBatchStart < nSamples {
+		X := Xfull.Slice(miniBatchStart, miniBatchEnd, 0, nFeatures).(*mat.Dense)
+		Y := Yfull.Slice(miniBatchStart, miniBatchEnd, 0, nOutputs).(*mat.Dense)
+		Jmini := regr.fitMiniBatch(X, Y, epoch)
+		Jsum += Jmini * float64(miniBatchLen)
+		miniBatchStart, miniBatchEnd = miniBatchStart+miniBatchLen, miniBatchEnd+miniBatchLen
+	}
+	regr.J = Jsum / float64(nSamples)
+	if epoch == 1 {
+		regr.JFirst = Jsum / float64(nSamples)
+	}
+}
+
+func (regr *MLPRegressor) fitMiniBatch(X, Y *mat.Dense, epoch int) float64 {
+	regr.predictZH(X, nil, nil, true)
+	return regr.backprop(X, Y)
+}
 func (regr *MLPRegressor) backprop(X, Y mat.Matrix) (J float64) {
 	//nSamples, _ := X.Dims()
 	outputLayer := len(regr.Layers) - 1

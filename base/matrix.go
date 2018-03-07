@@ -17,6 +17,15 @@ func (m MatTranspose) At(i, j int) float64 {
 	return m.Matrix.At(j, i)
 }
 
+// Set for MatTranspose
+func (m MatTranspose) Set(i, j int, v float64) {
+	if Mutable, ok := m.Matrix.(mat.Mutable); ok {
+		Mutable.Set(j, i, v)
+	} else {
+		panic("underling Matrix is not Mutable")
+	}
+}
+
 // T for MatTranspose
 func (m MatTranspose) T() mat.Matrix { return m.Matrix }
 
@@ -34,6 +43,15 @@ func (m MatOnesPrepended) At(i, j int) float64 {
 	return m.Matrix.At(i, j-1)
 }
 
+// Set for MatOnesPrepended
+func (m MatOnesPrepended) Set(i, j int, v float64) {
+	if Mutable, ok := m.Matrix.(mat.Mutable); ok {
+		Mutable.Set(i, j-1, v)
+	} else {
+		panic("underling Matrix is not Mutable")
+	}
+}
+
 // T for MatOnesPrepended not implemented
 func (m MatOnesPrepended) T() mat.Matrix { return MatTranspose{m} }
 
@@ -48,8 +66,43 @@ func (m MatFirstColumnRemoved) At(i, j int) float64 {
 	return m.Matrix.At(i, j+1)
 }
 
-// T for MatFirstColumnRemoved not implemented
-func (m MatFirstColumnRemoved) T() mat.Matrix { panic("MatFirstColumnRemoved T not implemented") }
+// Set for MatFirstColumnRemoved
+func (m MatFirstColumnRemoved) Set(i, j int, v float64) {
+	if Mutable, ok := m.Matrix.(mat.Mutable); ok {
+		Mutable.Set(i, j+1, v)
+	} else {
+		panic("underling Matrix is not Mutable")
+	}
+}
+
+// T for MatFirstColumnRemoved
+func (m MatFirstColumnRemoved) T() mat.Matrix { return MatTranspose{m} }
+
+// MatRowSlice is a matrix row chunk
+type MatRowSlice struct {
+	mat.Matrix
+	Start, End int
+}
+
+// Dims for MatRowSlice
+func (m MatRowSlice) Dims() (int, int) { _, c := m.Matrix.Dims(); return m.End - m.Start, c - 1 }
+
+// At for MatRowSlice
+func (m MatRowSlice) At(i, j int) float64 {
+	return m.Matrix.At(i-m.Start, j)
+}
+
+// Set for MatRowSlice
+func (m MatRowSlice) Set(i, j int, v float64) {
+	if Mutable, ok := m.Matrix.(mat.Mutable); ok {
+		Mutable.Set(i-m.Start, j, v)
+	} else {
+		panic("underling Matrix is not Mutable")
+	}
+}
+
+// T for MatRowSlice
+func (m MatRowSlice) T() mat.Matrix { return MatTranspose{m} }
 
 // MatApply0 is a mat.Matrix override where At returns a func-generated value
 type MatApply0 struct {
