@@ -88,6 +88,17 @@ func NewMLPRegressor(hiddenLayerSizes []int, activation string, solver string, A
 	return regr
 }
 
+// NewMLPClassifier returns a *MLPRegressor with defaults
+// activation is on of lm.Identity{} lm.Logistic{} lm.Tanh{} lm.ReLU{} defaults to "relu"
+// solver is on of agd,adagrad,rmsprop,adadelta,adam (one of the keys of base.Solvers) defaults to "adam"
+// Alpha is the regularization parameter
+// lossName is one of square,log,cross-entropy (one of the keys of lm.LossFunctions) defaults to "log"
+func NewMLPClassifier(hiddenLayerSizes []int, activation string, solver string, Alpha float64) MLPRegressor {
+	regr := NewMLPRegressor(hiddenLayerSizes, activation, solver, Alpha)
+	regr.Loss = "log"
+	return regr
+}
+
 // SetOptimizer changes Optimizer
 func (regr *MLPRegressor) SetOptimizer(creator OptimCreator, changeLayers bool) {
 	regr.Optimizer = creator
