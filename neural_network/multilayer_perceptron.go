@@ -26,7 +26,7 @@ type Layer struct {
 func NewLayer(inputs, outputs int, activation string, optimizer Optimizer, thetaSlice []float64) Layer {
 
 	Theta := mat.NewDense(inputs, outputs, thetaSlice)
-	Theta.Apply(func(feature, output int, _ float64) float64 { return 0.01 * rand.Float64() }, Theta)
+	Theta.Apply(func(feature, output int, _ float64) float64 { return rand.NormFloat64() }, Theta)
 	return Layer{Activation: activation, Theta: Theta, Optimizer: optimizer}
 }
 
@@ -186,7 +186,7 @@ func (regr *MLPRegressor) backprop(X, Y mat.Matrix) (J float64) {
 	//nSamples, _ := X.Dims()
 	outputLayer := len(regr.Layers) - 1
 	//lossFunc := lm.LossFunctions[regr.Loss]
-
+	J = 0
 	for l := outputLayer; l >= 0; l-- {
 		L := &regr.Layers[l]
 
@@ -215,9 +215,11 @@ func (regr *MLPRegressor) backprop(X, Y mat.Matrix) (J float64) {
 		}
 
 		// compute loss J and Grad
-		//Jl := lossFunc(L.Ytrue, onesAddedMat{Xl}, L.Theta, L.Ypred, L.Ydiff, L.Grad, regr.Alpha, regr.L1Ratio, nSamples, L.Activation)
-		lossfuncs := NewLoss(regr.Loss)
-		Jl := lossfuncs.Loss(L.Ytrue, L.Ypred, L.Ydiff)
+		if l == outputLayer {
+			J = NewLoss(regr.Loss).Loss(L.Ytrue, L.Ypred, L.Ydiff)
+		} else {
+			NewLoss("square").Loss(L.Ytrue, L.Ypred, L.Ydiff)
+		}
 		// Ydiff is dJ/dH
 		NewActivation(L.Activation).Grad(L.Z, L.Ypred, L.Hgrad)
 		// =>L.Hgrad is derivative of activation vs Z
@@ -225,17 +227,30 @@ func (regr *MLPRegressor) backprop(X, Y mat.Matrix) (J float64) {
 		L.Ydiff.MulElem(L.Ydiff, L.Hgrad)
 		L.Grad.Mul(onesAddedMat{Matrix: Xl}.T(), L.Ydiff)
 
-		if l == outputLayer {
-			J = Jl
+		Alpha := regr.Alpha
+		// Add regularization to cost and grad
+		if Alpha > 0. {
+			L1Ratio := regr.L1Ratio
+			nSamples, _ := Xl.Dims()
+			if L1Ratio > 0. {
+				// add L1 regularization
+				J += Alpha * L1Ratio / float64(nSamples) * mat.Sum(matApply{Matrix: L.Theta, Func: math.Abs})
+				L.Grad.Add(L.Grad, matScale{Matrix: matApply{Matrix: L.Theta, Func: sgn}, Scale: 1. / float64(nSamples)})
+			}
+			if L1Ratio < 1. {
+				// add L2 regularization
+				J += Alpha * (1. - L1Ratio) / 2. / float64(nSamples) * mat.Sum(matMulElem{A: L.Theta, B: L.Theta})
+				L.Grad.Add(L.Grad, matScale{Matrix: L.Theta, Scale: 1. / float64(nSamples)})
+			}
 		}
 
 		if regr.GradientClipping > 0 {
-			GNorm := mat.Norm(L.Grad, 2)
+			GNorm := mat.Norm(L.Grad, 2.)
 			if GNorm > regr.GradientClipping {
 				L.Grad.Scale(regr.GradientClipping/GNorm, L.Grad)
 			}
 		}
-		//compute theeta Update from Grad
+		//compute theta Update from Grad
 		L.Optimizer.GetUpdate(L.Update, L.Grad)
 		// if l == outputLayer && epoch%10 == 0 {
 		// 	fmt.Printf("epoch %d layer %d  J %g yt:%g yp:%g grad:%g upd:%g\n", epoch, l, J, L.Ytrue.At(0, 0), L.Ypred.At(0, 0), L.Grad.At(0, 0), L.Update.At(0, 0))
@@ -244,6 +259,7 @@ func (regr *MLPRegressor) backprop(X, Y mat.Matrix) (J float64) {
 	}
 	return J
 }
+
 func unused(...interface{}) {}
 
 // Predict return the forward result
@@ -301,4 +317,14 @@ func panicIfNaN(v float64) float64 {
 		panic("NaN")
 	}
 	return v
+}
+
+func sgn(x float64) float64 {
+	if x > 0. {
+		return 1.
+	}
+	if x < 0. {
+		return -1.
+	}
+	return 0.
 }

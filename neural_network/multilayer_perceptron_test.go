@@ -53,9 +53,9 @@ func TestMLPRegressorLogisticLogLoss(t *testing.T) {
 	testMLPRegressor(t, "logistic", "log", "adam", 2)
 }
 
-func TestMLPRegressorLogisticCrossEntropyLoss(t *testing.T) {
-	testMLPRegressor(t, "logistic", "cross-entropy", "adam", 2)
-}
+// func TestMLPRegressorLogisticCrossEntropyLoss(t *testing.T) {
+// 	testMLPRegressor(t, "logistic", "cross-entropy", "adam", 2)
+// }
 
 // func TestMLPRegressorTanhCrossEntropyLoss(t *testing.T) {
 // 	testMLPRegressor(t, "tanh", "cross-entropy", "adam", 2)
@@ -72,7 +72,7 @@ func testMLPRegressor(t *testing.T, activationName string, lossName string, solv
 	var HiddenLayerSizes []int
 
 	for l := 0; l < maxLayers; l++ {
-		Alpha := 1e-4
+		Alpha := 1e-14
 		regr := NewMLPRegressor(HiddenLayerSizes, activationName, solver, Alpha)
 		// regr.SetOptimizer(func() Optimizer {
 		// 	optimizer := base.NewAdamOptimizer()

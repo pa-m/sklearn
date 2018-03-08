@@ -180,14 +180,14 @@ func (m MatMulElem) T() mat.Matrix { return MatTranspose{m} }
 // MatScaled  is a mat.Matrix override returning scaled value from its initializer
 type MatScaled struct {
 	mat.Matrix
-	float64
+	Scale float64
 }
 
 // Dims for MatScaled
 func (m MatScaled) Dims() (int, int) { return m.Matrix.Dims() }
 
 // At for MatScaled
-func (m MatScaled) At(i, j int) float64 { return m.Matrix.At(i, j) * m.float64 }
+func (m MatScaled) At(i, j int) float64 { return m.Matrix.At(i, j) * m.Scale }
 
 // T for MatScaled
 func (m MatScaled) T() mat.Matrix { return MatTranspose{m} }
