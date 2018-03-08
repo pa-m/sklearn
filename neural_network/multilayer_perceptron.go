@@ -15,9 +15,11 @@ type Optimizer = base.Optimizer
 
 // Layer represents a layer in a neural network. its mainly an Activation and a Theta
 type Layer struct {
-	Activation                                         string
-	Theta, Ytrue, Z, Ypred, Ydiff, Hgrad, Grad, Update *mat.Dense
-	Optimizer                                          Optimizer
+	Activation                    string
+	Ytrue, Z, Ypred, Ydiff, Hgrad *mat.Dense
+	slices                        struct{ Ytrue, Z, Ypred, Ydiff, Hgrad []float64 }
+	Theta, Grad, Update           *mat.Dense
+	Optimizer                     Optimizer
 }
 
 // NewLayer creates a randomly initialized layer
@@ -29,15 +31,28 @@ func NewLayer(inputs, outputs int, activation string, optimizer Optimizer, theta
 }
 
 // Init allocate matrices for layer
-func (L *Layer) Init(samples, inputs int) {
-	_, outputs := L.Theta.Dims()
-	L.Z = mat.NewDense(samples, outputs, nil)
-	L.Hgrad = mat.NewDense(samples, outputs, nil)
-	L.Ypred = mat.NewDense(samples, outputs, nil)
-	L.Ytrue = mat.NewDense(samples, outputs, nil)
-	L.Ydiff = mat.NewDense(samples, outputs, nil)
-	L.Grad = mat.NewDense(1+inputs, outputs, nil)
-	L.Update = mat.NewDense(1+inputs, outputs, nil)
+func (L *Layer) Init(nSamples, nInputs int) {
+	_, nOutputs := L.Theta.Dims()
+	L.Grad = mat.NewDense(1+nInputs, nOutputs, nil)
+	L.Update = mat.NewDense(1+nInputs, nOutputs, nil)
+}
+
+func (L *Layer) initOutputs(nSamples, nOutputs int) {
+	s := &L.slices
+	size := nSamples * nOutputs
+	mk := func(s *[]float64, m **mat.Dense) {
+		if *s == nil || cap(*s) < size {
+			*s = make([]float64, size)
+		} else {
+			*s = (*s)[0:size]
+		}
+		*m = mat.NewDense(nSamples, nOutputs, *s)
+	}
+	mk(&s.Z, &L.Z)
+	mk(&s.Hgrad, &L.Hgrad)
+	mk(&s.Ypred, &L.Ypred)
+	mk(&s.Ytrue, &L.Ytrue)
+	mk(&s.Ydiff, &L.Ydiff)
 }
 
 // Regressors is the list of regressors in this package
@@ -237,6 +252,7 @@ func (regr *MLPRegressor) Predict(X, Y *mat.Dense) lm.Regressor {
 	return regr
 }
 func (regr *MLPRegressor) predictZH(X mat.Matrix, Z, Y *mat.Dense, fitting bool) lm.Regressor {
+	nSamples, _ := X.Dims()
 	outputLayer := len(regr.Layers) - 1
 	for l := 0; l < len(regr.Layers); l++ {
 		L := &regr.Layers[l]
@@ -250,6 +266,8 @@ func (regr *MLPRegressor) predictZH(X mat.Matrix, Z, Y *mat.Dense, fitting bool)
 			samples, inputs := Xl.Dims()
 			L.Init(samples, inputs)
 		}
+		_, nOutputs := L.Theta.Dims()
+		L.initOutputs(nSamples, nOutputs)
 		if L.Ypred == nil {
 			panic("L.Ypred == nil")
 		}
