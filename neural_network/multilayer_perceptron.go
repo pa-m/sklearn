@@ -1,6 +1,7 @@
 package neuralNetwork
 
 import (
+	"fmt"
 	"math"
 	"math/rand"
 
@@ -23,10 +24,10 @@ type Layer struct {
 }
 
 // NewLayer creates a randomly initialized layer
-func NewLayer(inputs, outputs int, activation string, optimizer Optimizer, thetaSlice []float64) Layer {
+func NewLayer(inputs, outputs int, activation string, optimizer Optimizer, thetaSlice []float64, rnd func() float64) Layer {
 
 	Theta := mat.NewDense(inputs, outputs, thetaSlice)
-	Theta.Apply(func(feature, output int, _ float64) float64 { return rand.NormFloat64() }, Theta)
+	Theta.Apply(func(feature, output int, _ float64) float64 { return rnd() }, Theta)
 	return Layer{Activation: activation, Theta: Theta, Optimizer: optimizer}
 }
 
@@ -98,16 +99,23 @@ func NewMLPRegressor(hiddenLayerSizes []int, activation string, solver string, A
 		Activation:       activation,
 		Alpha:            Alpha,
 	}
+	if activation != "identity" {
+		regr.Loss = "log"
+	}
 	return regr
 }
+
+type MLPClassifier struct{ MLPRegressor }
 
 // NewMLPClassifier returns a *MLPRegressor with defaults
 // activation is on of lm.Identity{} lm.Logistic{} lm.Tanh{} lm.ReLU{} defaults to "relu"
 // solver is on of agd,adagrad,rmsprop,adadelta,adam (one of the keys of base.Solvers) defaults to "adam"
 // Alpha is the regularization parameter
 // lossName is one of square,log,cross-entropy (one of the keys of lm.LossFunctions) defaults to "log"
-func NewMLPClassifier(hiddenLayerSizes []int, activation string, solver string, Alpha float64) MLPRegressor {
-	regr := NewMLPRegressor(hiddenLayerSizes, activation, solver, Alpha)
+func NewMLPClassifier(hiddenLayerSizes []int, activation string, solver string, Alpha float64) MLPClassifier {
+	regr := MLPClassifier{
+		MLPRegressor: NewMLPRegressor(hiddenLayerSizes, activation, solver, Alpha),
+	}
 	regr.Loss = "log"
 	return regr
 }
@@ -117,14 +125,10 @@ func (regr *MLPRegressor) SetOptimizer(creator OptimCreator) {
 	regr.Optimizer = creator
 }
 
-// Fit fits an MLPRegressor
-func (regr *MLPRegressor) Fit(X, Y *mat.Dense) lm.Regressor {
-	_, nFeatures := X.Dims()
-	_, nOutputs := Y.Dims()
-	// create layers
+func (regr *MLPRegressor) allocLayers(nFeatures, nOutputs int, rnd func() float64) {
+	var thetaLen, thetaOffset, thetaLen1 int
 	regr.Layers = make([]Layer, 0)
 	prevOutputs := nFeatures
-	var thetaLen, thetaOffset, thetaLen1 int
 	for _, outputs := range regr.HiddenLayerSizes {
 		thetaLen += (1 + prevOutputs) * outputs
 		prevOutputs = outputs
@@ -134,7 +138,7 @@ func (regr *MLPRegressor) Fit(X, Y *mat.Dense) lm.Regressor {
 	prevOutputs = nFeatures
 	for _, outputs := range regr.HiddenLayerSizes {
 		thetaLen1 = (1 + prevOutputs) * outputs
-		regr.Layers = append(regr.Layers, NewLayer(1+prevOutputs, outputs, regr.Activation, regr.Optimizer(), regr.thetaSlice[thetaOffset:thetaOffset+thetaLen1]))
+		regr.Layers = append(regr.Layers, NewLayer(1+prevOutputs, outputs, regr.Activation, regr.Optimizer(), regr.thetaSlice[thetaOffset:thetaOffset+thetaLen1], rnd))
 		thetaOffset += thetaLen1
 		prevOutputs = outputs
 	}
@@ -146,12 +150,20 @@ func (regr *MLPRegressor) Fit(X, Y *mat.Dense) lm.Regressor {
 	}
 	// add output layer
 	thetaLen1 = (1 + prevOutputs) * nOutputs
-	regr.Layers = append(regr.Layers, NewLayer(1+prevOutputs, nOutputs, lastActivation, regr.Optimizer(), regr.thetaSlice[thetaOffset:thetaOffset+thetaLen1]))
+	regr.Layers = append(regr.Layers, NewLayer(1+prevOutputs, nOutputs, lastActivation, regr.Optimizer(), regr.thetaSlice[thetaOffset:thetaOffset+thetaLen1], rnd))
 
+}
+
+// Fit fits an MLPRegressor
+func (regr *MLPRegressor) Fit(X, Y *mat.Dense) lm.Regressor {
+	nSamples, nFeatures := X.Dims()
+	_, nOutputs := Y.Dims()
+	// create layers
+	regr.allocLayers(nFeatures, nOutputs, rand.NormFloat64)
 	// J is the loss value
 	regr.J = math.Inf(1)
 	if regr.Epochs <= 0 {
-		regr.Epochs = 100 // 1e6 / nSamples
+		regr.Epochs = 1e6 / nSamples
 	}
 	for epoch := 0; epoch < regr.Epochs; epoch++ {
 		regr.fitEpoch(X, Y, epoch)
@@ -159,6 +171,7 @@ func (regr *MLPRegressor) Fit(X, Y *mat.Dense) lm.Regressor {
 	return regr
 }
 
+// firEpoch fits one epoch
 func (regr *MLPRegressor) fitEpoch(Xfull, Yfull *mat.Dense, epoch int) {
 	nSamples, nFeatures := Xfull.Dims()
 	_, nOutputs := Yfull.Dims()
@@ -173,17 +186,25 @@ func (regr *MLPRegressor) fitEpoch(Xfull, Yfull *mat.Dense, epoch int) {
 		miniBatchStart, miniBatchEnd = miniBatchStart+miniBatchLen, miniBatchEnd+miniBatchLen
 	}
 	regr.J = Jsum / float64(nSamples)
+	if epoch%100 == 0 {
+		fmt.Println(epoch, regr.J)
+
+	}
 	if epoch == 1 {
 		regr.JFirst = Jsum / float64(nSamples)
 	}
 }
 
+// fitMiniBatch fit one minibatch
 func (regr *MLPRegressor) fitMiniBatch(X, Y *mat.Dense, epoch int) float64 {
 	regr.predictZH(X, nil, nil, true)
 	return regr.backprop(X, Y)
 }
+
+// backprop corrects weights
 func (regr *MLPRegressor) backprop(X, Y mat.Matrix) (J float64) {
 	//nSamples, _ := X.Dims()
+	_, nOutputs := Y.Dims()
 	outputLayer := len(regr.Layers) - 1
 	//lossFunc := lm.LossFunctions[regr.Loss]
 	J = 0
@@ -216,7 +237,11 @@ func (regr *MLPRegressor) backprop(X, Y mat.Matrix) (J float64) {
 
 		// compute loss J and Grad
 		if l == outputLayer {
-			J = NewLoss(regr.Loss).Loss(L.Ytrue, L.Ypred, L.Ydiff)
+			lastLoss := regr.Loss
+			if lastLoss == "log" && nOutputs == 1 {
+				lastLoss = "cross-entropy"
+			}
+			J = NewLoss(lastLoss).Loss(L.Ytrue, L.Ypred, L.Ydiff)
 		} else {
 			NewLoss("square").Loss(L.Ytrue, L.Ypred, L.Ydiff)
 		}
@@ -232,19 +257,23 @@ func (regr *MLPRegressor) backprop(X, Y mat.Matrix) (J float64) {
 		if Alpha > 0. {
 			L1Ratio := regr.L1Ratio
 			nSamples, _ := Xl.Dims()
+			R := 0.
+			ThetaReg := base.MatFirstRowZeroed{Matrix: L.Theta}
 			if L1Ratio > 0. {
 				// add L1 regularization
-				J += Alpha * L1Ratio / float64(nSamples) * mat.Sum(matApply{Matrix: L.Theta, Func: math.Abs})
-				L.Grad.Add(L.Grad, matScale{Matrix: matApply{Matrix: L.Theta, Func: sgn}, Scale: 1. / float64(nSamples)})
+				R += Alpha * L1Ratio / float64(nSamples) * mat.Sum(matApply{Matrix: ThetaReg, Func: math.Abs})
+				L.Grad.Add(L.Grad, matScale{Matrix: matApply{Matrix: ThetaReg, Func: sgn}, Scale: Alpha / float64(nSamples)})
 			}
 			if L1Ratio < 1. {
 				// add L2 regularization
-				J += Alpha * (1. - L1Ratio) / 2. / float64(nSamples) * mat.Sum(matMulElem{A: L.Theta, B: L.Theta})
-				L.Grad.Add(L.Grad, matScale{Matrix: L.Theta, Scale: 1. / float64(nSamples)})
+				R += Alpha * (1. - L1Ratio) / 2. / float64(nSamples) * mat.Sum(matMulElem{A: ThetaReg, B: ThetaReg})
+				L.Grad.Add(L.Grad, matScale{Matrix: ThetaReg, Scale: Alpha / float64(nSamples)})
 			}
+			//fmt.Println("J", J, "R", R, fmt.Sprintf(" %g*%g/%d*%g", Alpha, 1.-L1Ratio, 2*nSamples, mat.Sum(matMulElem{A: ThetaReg, B: ThetaReg})))
+			J += R
 		}
 
-		if regr.GradientClipping > 0 {
+		if regr.GradientClipping > 0. {
 			GNorm := mat.Norm(L.Grad, 2.)
 			if GNorm > regr.GradientClipping {
 				L.Grad.Scale(regr.GradientClipping/GNorm, L.Grad)
@@ -292,6 +321,7 @@ func (regr *MLPRegressor) predictZH(X mat.Matrix, Z, Y *mat.Dense, fitting bool)
 		}
 
 		// compute activation.F([1 X] dot theta)
+		base.MatDimsCheck(".", L.Z, onesAddedMat{Matrix: Xl}, L.Theta)
 		L.Z.Mul(onesAddedMat{Matrix: Xl}, L.Theta)
 		if l == outputLayer && Z != nil {
 			Z.Copy(L.Z)

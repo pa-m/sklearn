@@ -82,6 +82,32 @@ func (m MatFirstColumnRemoved) Set(i, j int, v float64) {
 // T for MatFirstColumnRemoved
 func (m MatFirstColumnRemoved) T() mat.Matrix { return MatTranspose{m} }
 
+// MatFirstRowZeroed is a matrix whose an initial Row has been set to zeros respective to its initializer
+type MatFirstRowZeroed struct{ mat.Matrix }
+
+// Dims for MatFirstRowZeroed
+func (m MatFirstRowZeroed) Dims() (int, int) { return m.Matrix.Dims() }
+
+// At for MatFirstRowZeroed
+func (m MatFirstRowZeroed) At(i, j int) float64 {
+	if i == 0 {
+		return 0.
+	}
+	return m.Matrix.At(i, j)
+}
+
+// Set for MatFirstRowZeroed
+func (m MatFirstRowZeroed) Set(i, j int, v float64) {
+	if Mutable, ok := m.Matrix.(mat.Mutable); ok {
+		Mutable.Set(i, j, v)
+	} else {
+		panic("underling Matrix is not Mutable")
+	}
+}
+
+// T for MatFirstRowZeroed
+func (m MatFirstRowZeroed) T() mat.Matrix { return MatTranspose{m} }
+
 // MatRowSlice is a matrix row chunk
 type MatRowSlice struct {
 	mat.Matrix
