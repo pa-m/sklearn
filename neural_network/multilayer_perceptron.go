@@ -1,7 +1,6 @@
 package neuralNetwork
 
 import (
-	"fmt"
 	"math"
 	"math/rand"
 
@@ -81,10 +80,10 @@ type MLPRegressor struct {
 type OptimCreator = base.OptimCreator
 
 // NewMLPRegressor returns a *MLPRegressor with defaults
-// activation is on of lm.Identity{} lm.Logistic{} lm.Tanh{} lm.ReLU{} defaults to "relu"
+// activation is one of identity,logistic,tanh,relu
 // solver is on of agd,adagrad,rmsprop,adadelta,adam (one of the keys of base.Solvers) defaults to "adam"
 // Alpha is the regularization parameter
-// lossName is one of square,log,cross-entropy (one of the keys of lm.LossFunctions)
+// Loss is one of square,log,cross-entropy defaults: square for identity, log for logistic,tanh,relu
 func NewMLPRegressor(hiddenLayerSizes []int, activation string, solver string, Alpha float64) MLPRegressor {
 	if activation == "" {
 		activation = "relu"
@@ -102,21 +101,6 @@ func NewMLPRegressor(hiddenLayerSizes []int, activation string, solver string, A
 	if activation != "identity" {
 		regr.Loss = "log"
 	}
-	return regr
-}
-
-type MLPClassifier struct{ MLPRegressor }
-
-// NewMLPClassifier returns a *MLPRegressor with defaults
-// activation is on of lm.Identity{} lm.Logistic{} lm.Tanh{} lm.ReLU{} defaults to "relu"
-// solver is on of agd,adagrad,rmsprop,adadelta,adam (one of the keys of base.Solvers) defaults to "adam"
-// Alpha is the regularization parameter
-// lossName is one of square,log,cross-entropy (one of the keys of lm.LossFunctions) defaults to "log"
-func NewMLPClassifier(hiddenLayerSizes []int, activation string, solver string, Alpha float64) MLPClassifier {
-	regr := MLPClassifier{
-		MLPRegressor: NewMLPRegressor(hiddenLayerSizes, activation, solver, Alpha),
-	}
-	regr.Loss = "log"
 	return regr
 }
 
@@ -186,10 +170,6 @@ func (regr *MLPRegressor) fitEpoch(Xfull, Yfull *mat.Dense, epoch int) {
 		miniBatchStart, miniBatchEnd = miniBatchStart+miniBatchLen, miniBatchEnd+miniBatchLen
 	}
 	regr.J = Jsum / float64(nSamples)
-	if epoch%100 == 0 {
-		fmt.Println(epoch, regr.J)
-
-	}
 	if epoch == 1 {
 		regr.JFirst = Jsum / float64(nSamples)
 	}
@@ -340,6 +320,36 @@ func (regr *MLPRegressor) predictZH(X mat.Matrix, Z, Y *mat.Dense, fitting bool)
 func (regr *MLPRegressor) Score(X, Y *mat.Dense) float64 {
 	score := 0.
 	return score
+}
+
+// MLPClassifier ...
+type MLPClassifier struct{ MLPRegressor }
+
+// NewMLPClassifier returns a *MLPClassifier with defaults
+// activation is one of logistic,tanh,relu
+// solver is on of agd,adagrad,rmsprop,adadelta,adam (one of the keys of base.Solvers) defaults to "adam"
+// Alpha is the regularization parameter
+// lossName is one of square,log,cross-entropy (one of the keys of lm.LossFunctions) defaults to "log"
+func NewMLPClassifier(hiddenLayerSizes []int, activation string, solver string, Alpha float64) MLPClassifier {
+	regr := MLPClassifier{
+		MLPRegressor: NewMLPRegressor(hiddenLayerSizes, activation, solver, Alpha),
+	}
+	regr.Loss = "log"
+	return regr
+}
+
+// Predict return the forward result for MLPClassifier
+func (regr *MLPClassifier) Predict(X, Y *mat.Dense) lm.Regressor {
+	regr.predictZH(X, nil, Y, false)
+	Y.Apply(func(i, o int, y float64) float64 {
+		if y >= .5 {
+			y = 1.
+		} else {
+			y = 0.
+		}
+		return y
+	}, Y)
+	return regr
 }
 
 func panicIfNaN(v float64) float64 {

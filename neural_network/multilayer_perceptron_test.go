@@ -105,7 +105,7 @@ func testMLPRegressor(t *testing.T, activationName string, lossName string, solv
 	}
 }
 
-func TestLogRegMicrochipTest(t *testing.T) {
+func TestMLPClassifierMicrochip(t *testing.T) {
 	X, Ytrue := datasets.LoadMicroChipTest()
 	nSamples, nFeatures := X.Dims()
 
@@ -214,14 +214,15 @@ func TestLogRegMicrochipTest(t *testing.T) {
 			bestTime = elapsed
 			best["best for time"] = testSetup + fmt.Sprintf("(%s)", elapsed)
 		}
-		Ypred.Apply(func(sample, output int, v float64) float64 {
-			if v >= .5 {
-				v = 1
-			} else {
-				v = 0
-			}
-			return v
-		}, Ypred)
+		// Ypred.Apply(func(sample, output int, v float64) float64 {
+		// 	if v >= .5 {
+		// 		v = 1
+		// 	} else {
+		// 		v = 0
+		// 	}
+		// 	return v
+		// }, Ypred)
+		regr.Predict(Xp, Ypred)
 		accuracy := metrics.AccuracyScore(Ytrue, Ypred, nil, "").At(0, 0)
 		expectedAccuracy := 0.83
 		if accuracy < expectedAccuracy {
