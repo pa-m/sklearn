@@ -24,18 +24,15 @@ type Layer struct {
 }
 
 // NewLayer creates a randomly initialized layer
-func NewLayer(inputs, outputs int, activation string, optimizer Optimizer, thetaSlice []float64, rnd func() float64) Layer {
+func NewLayer(inputs, outputs int, activation string, optimizer Optimizer, thetaSlice, gradSlice, updateSlice []float64, rnd func() float64) Layer {
 
 	Theta := mat.NewDense(inputs, outputs, thetaSlice)
 	Theta.Apply(func(feature, output int, _ float64) float64 { return rnd() }, Theta)
-	return Layer{Activation: activation, Theta: Theta, Optimizer: optimizer}
-}
-
-// Init allocate matrices for layer
-func (L *Layer) Init(nSamples, nInputs int) {
-	_, nOutputs := L.Theta.Dims()
-	L.Grad = mat.NewDense(1+nInputs, nOutputs, nil)
-	L.Update = mat.NewDense(1+nInputs, nOutputs, nil)
+	return Layer{Activation: activation,
+		Theta:     Theta,
+		Grad:      mat.NewDense(inputs, outputs, gradSlice),
+		Update:    mat.NewDense(inputs, outputs, updateSlice),
+		Optimizer: optimizer}
 }
 
 func (L *Layer) initOutputs(nSamples, nOutputs int) {
@@ -72,7 +69,7 @@ type MLPRegressor struct {
 
 	Loss string
 	// run values
-	thetaSlice []float64
+	thetaSlice, gradSlice, updateSlice []float64
 	// Loss value after Fit
 	JFirst, J float64
 }
@@ -120,10 +117,16 @@ func (regr *MLPRegressor) allocLayers(nFeatures, nOutputs int, rnd func() float6
 	}
 	thetaLen += (1 + prevOutputs) * nOutputs
 	regr.thetaSlice = make([]float64, thetaLen, thetaLen)
+	regr.gradSlice = make([]float64, thetaLen, thetaLen)
+	regr.updateSlice = make([]float64, thetaLen, thetaLen)
 	prevOutputs = nFeatures
 	for _, outputs := range regr.HiddenLayerSizes {
 		thetaLen1 = (1 + prevOutputs) * outputs
-		regr.Layers = append(regr.Layers, NewLayer(1+prevOutputs, outputs, regr.Activation, regr.Optimizer(), regr.thetaSlice[thetaOffset:thetaOffset+thetaLen1], rnd))
+		regr.Layers = append(regr.Layers, NewLayer(1+prevOutputs, outputs, regr.Activation, regr.Optimizer(),
+			regr.thetaSlice[thetaOffset:thetaOffset+thetaLen1],
+			regr.gradSlice[thetaOffset:thetaOffset+thetaLen1],
+			regr.updateSlice[thetaOffset:thetaOffset+thetaLen1],
+			rnd))
 		thetaOffset += thetaLen1
 		prevOutputs = outputs
 	}
@@ -135,7 +138,11 @@ func (regr *MLPRegressor) allocLayers(nFeatures, nOutputs int, rnd func() float6
 	}
 	// add output layer
 	thetaLen1 = (1 + prevOutputs) * nOutputs
-	regr.Layers = append(regr.Layers, NewLayer(1+prevOutputs, nOutputs, lastActivation, regr.Optimizer(), regr.thetaSlice[thetaOffset:thetaOffset+thetaLen1], rnd))
+	regr.Layers = append(regr.Layers, NewLayer(1+prevOutputs, nOutputs, lastActivation, regr.Optimizer(),
+		regr.thetaSlice[thetaOffset:thetaOffset+thetaLen1],
+		regr.gradSlice[thetaOffset:thetaOffset+thetaLen1],
+		regr.updateSlice[thetaOffset:thetaOffset+thetaLen1],
+		rnd))
 
 }
 
@@ -309,10 +316,6 @@ func (regr *MLPRegressor) predictZH(X mat.Matrix, Z, Y *mat.Dense, fitting bool)
 			Xl = X
 		} else {
 			Xl = regr.Layers[l-1].Ypred
-		}
-		if L.Ypred == nil {
-			samples, inputs := Xl.Dims()
-			L.Init(samples, inputs)
 		}
 		_, nOutputs := L.Theta.Dims()
 		L.initOutputs(nSamples, nOutputs)
