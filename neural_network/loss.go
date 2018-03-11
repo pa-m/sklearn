@@ -5,6 +5,7 @@ import (
 	"math"
 
 	"github.com/pa-m/sklearn/base"
+	"github.com/pa-m/sklearn/metrics"
 	"gonum.org/v1/gonum/mat"
 )
 
@@ -19,10 +20,9 @@ type squareLoss struct{ lossBaseStruct }
 
 func (squareLoss) Loss(Ytrue, Ypred mat.Matrix, Grad *mat.Dense) float64 {
 	nSamples, _ := Ytrue.Dims()
-	// J:=(h-y)^2/2
 	Ydiff := matSub{A: Ypred, B: Ytrue}
-	square := func(yd float64) float64 { return yd * yd }
-	J := mat.Sum(matApply{Matrix: Ydiff, Func: square}) / float64(nSamples)
+	// J:=(h-y)^2/2
+	J := metrics.MeanSquaredError(Ytrue, Ypred, nil, "").At(0, 0)
 	// Grad:=(h-y)
 	if Grad != nil {
 		Grad.Scale(1./float64(nSamples), Ydiff)

@@ -134,7 +134,7 @@ func TestMLPClassifierMicrochip(t *testing.T) {
 	var J float64
 	loss := func() float64 {
 		regr.predictZH(Xp, nil, Ypred, false)
-		return regr.backprop(Xp, Ytrue)
+		return regr.fitEpoch(Xp, Ytrue, 1)
 	}
 	chkLoss := func(context string, expectedLoss float64) {
 		if math.Abs(J-expectedLoss) > 1e-3 {
@@ -170,10 +170,10 @@ func TestMLPClassifierMicrochip(t *testing.T) {
 
 	// // test Fit with various base.Optimizer
 	var Optimizers = []string{
-		// "sgd",
-		// "adagrad",
-		// //"rmsprop",
-		// "adadelta",
+		"sgd",
+		"adagrad",
+		"rmsprop",
+		"adadelta",
 		"adam",
 	}
 	newOptimizer := func(name string) base.Optimizer {
@@ -181,30 +181,32 @@ func TestMLPClassifierMicrochip(t *testing.T) {
 		switch name {
 		case "adadelta":
 			s := base.NewAdadeltaOptimizer()
-			s.StepSize = 0.05
+			//s.StepSize = 0.1
 			return s
 		case "adam":
 			s := base.NewAdamOptimizer()
-			s.StepSize = .1
+			//s.StepSize = 2
 			return s
 		default:
 			s := base.NewOptimizer(name)
 			return s
 		}
 	}
+	//panic(fmt.Errorf("nSamples=%d", nSamples))
 	for _, optimizer := range Optimizers {
 		regr.Layers[0].Theta.Apply(func(feature, output int, _ float64) float64 { return 0. }, regr.Layers[0].Theta)
 
 		testSetup := optimizer
 		start := time.Now()
 		regr.Alpha = 1.
-		regr.Epochs = 100
+		regr.Epochs = 50
+		regr.MiniBatchSize = 118 //1,2,59,118
 		regr.Layers[0].Optimizer = newOptimizer(optimizer)
 
 		regr.Fit(Xp, Ytrue)
 		elapsed := time.Since(start)
 		J = loss()
-		fmt.Println(testSetup, "elapsed time", elapsed, "loss", J)
+		//fmt.Println(testSetup, "elapsed time", elapsed, "loss", J)
 
 		if J < bestLoss {
 			bestLoss = J
@@ -214,14 +216,6 @@ func TestMLPClassifierMicrochip(t *testing.T) {
 			bestTime = elapsed
 			best["best for time"] = testSetup + fmt.Sprintf("(%s)", elapsed)
 		}
-		// Ypred.Apply(func(sample, output int, v float64) float64 {
-		// 	if v >= .5 {
-		// 		v = 1
-		// 	} else {
-		// 		v = 0
-		// 	}
-		// 	return v
-		// }, Ypred)
 		regr.Predict(Xp, Ypred)
 		accuracy := metrics.AccuracyScore(Ytrue, Ypred, nil, "").At(0, 0)
 		expectedAccuracy := 0.83
@@ -229,7 +223,7 @@ func TestMLPClassifierMicrochip(t *testing.T) {
 			t.Errorf("%s accuracy=%g expected:%g", optimizer, accuracy, expectedAccuracy)
 		}
 	}
-	// fmt.Println("LogisticRegression BEST SETUP:", best)
+	fmt.Println("MLPClassifier BEST SETUP:", best)
 
 	// // fmt.Println("acc:", metrics.AccuracyScore(Ytrue, Ypred, nil, "uniform_average").At(0, 0))
 	// fmt.Println("ok")

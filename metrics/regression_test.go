@@ -36,6 +36,23 @@ func TestR2Score(t *testing.T) {
 	}
 }
 
+func TestExplainedVarianceScore(t *testing.T) {
+	//1st example of sklearn metrics r2score
+	// yTrue := mat.NewDense(4, 1, []float64{3, -0.5, 2, 7})
+	// yPred := mat.NewDense(4, 1, []float64{2.5, 0.0, 2, 8})
+	// Score := ExplainedVariancescore(yTrue, yPred, nil, "")
+	// eps := 1e-3
+	// if math.Abs(0.957-Score.At(0, 0)) > eps {
+	// 	t.Error("expected 0.957")
+	// }
+	// yTrue = mat.NewDense(3, 2, []float64{0.5, 1, -1, 1, 7, -6})
+	// yPred = mat.NewDense(3, 2, []float64{0, 2, -1, 2, 8, -5})
+	// Score = ExplainedVariancescore(yTrue, yPred, nil, "").At(0, 0)
+	// if math.Abs(0.983-Score) >= 1e-3 {
+	// 	t.Errorf("%g expected 0.983", Score)
+	// }
+}
+
 // >>> from sklearn.metrics import mean_squared_error
 //     >>> y_true = [3, -0.5, 2, 7]
 //     >>> y_pred = [2.5, 0.0, 2, 8]

@@ -37,7 +37,7 @@ type SGDOptimizer struct {
 	// GradientClipping is used if >0 to limit gradient L2 norm
 	// RMSPropGamma is the momentum for rmsprop and adadelta
 	// Epsilon is used to avoid division by zero in adagrad,rmsprop,adadelta,adam
-	StepSize, Momentum, GradientClipping, RMSPropGamma, Epsilon float64
+	StepSize, Momentum, GradientClipping, RMSPropGamma, Epsilon, BatchPart float64
 	// Adagrad, Adadelta, RMSProp, Adam are variants. At most one should be true
 	Adagrad, Adadelta, RMSProp, Adam bool
 	// NFeature,NOutputs need only to be initialized wher SGDOptimizer is used as an optimize.Method
@@ -47,15 +47,15 @@ type SGDOptimizer struct {
 	GtNorm, Theta, PrevUpdate, Update, AdagradG, AdadeltaU *mat.Dense
 	TimeStep                                               float64
 	// Adam specific
-	Beta1, Beta2         float64
-	Mt, Vt, Mtcap, Vtcap *mat.Dense
+	Beta1, Beta2 float64
+	Mt, Vt       *mat.Dense
 	// lastOp is for Iterate when used as optimize.Method
 	lastOp optimize.Operation
 }
 
 // NewSGDOptimizer returns an initialized *SGDOptimizer with stepsize 1e-4 and momentum 0.9
 func NewSGDOptimizer() *SGDOptimizer {
-	s := &SGDOptimizer{StepSize: 1e-4, Momentum: .9, RMSPropGamma: .9, Epsilon: 1e-8}
+	s := &SGDOptimizer{StepSize: 1e-4, Momentum: .9, RMSPropGamma: .9, Epsilon: 1e-8, BatchPart: 1.0}
 
 	return s
 }
@@ -171,8 +171,6 @@ func (s *SGDOptimizer) GetUpdate(update *mat.Dense, grad mat.Matrix) {
 		if s.Adam {
 			s.Mt = mat.NewDense(NFeatures, NOutputs, nil)
 			s.Vt = mat.NewDense(NFeatures, NOutputs, nil)
-			s.Mtcap = mat.NewDense(NFeatures, NOutputs, nil)
-			s.Vtcap = mat.NewDense(NFeatures, NOutputs, nil)
 		}
 	}
 	s.TimeStep += 1.
@@ -244,7 +242,7 @@ func (s *SGDOptimizer) GetUpdate(update *mat.Dense, grad mat.Matrix) {
 		}, s.AdadeltaU)
 	} else if s.Adam {
 		// mt ← β1 · mt−1 + (1 − β1) · gt (Update biased first moment estimate)
-		MatDimsCheck("+", s.Mt, s.Mt, grad)
+		//MatDimsCheck("+", s.Mt, s.Mt, grad)
 		s.Mt.Apply(func(j, o int, gradjo float64) float64 {
 			return s.Beta1*s.Mt.At(j, o) + (1.-s.Beta1)*gradientClipped(j, o)
 		}, grad)
@@ -254,14 +252,15 @@ func (s *SGDOptimizer) GetUpdate(update *mat.Dense, grad mat.Matrix) {
 			return s.Beta2*s.Vt.At(j, o) + (1.-s.Beta2)*gradjo*gradjo
 		}, grad)
 		// mb t ← mt/(1 − β1^t) (Compute bias-corrected first moment estimate)
-		s.Mtcap.Scale(1./(1.-math.Pow(s.Beta1, s.TimeStep)), s.Mt)
+		//s.Mtcap.Scale(1./(1.-math.Pow(s.Beta1, s.TimeStep)), s.Mt)
 		// vbt ← vt/(1 − β2^t) (Compute bias-corrected second raw moment estimate)
-		s.Vtcap.Scale(1./(1.-math.Pow(s.Beta2, s.TimeStep)), s.Vt)
+		//s.Vtcap.Scale(1./(1.-math.Pow(s.Beta2, s.TimeStep)), s.Vt)
 		// θt ← θt−1 − α · mb t/(√vbt + epsilon) (Update parameters)
-
-		update.Apply(func(i, j int, Mtcapij float64) float64 {
-			return -s.StepSize * Mtcapij / (math.Sqrt(s.Vtcap.At(i, j)) + s.Epsilon)
-		}, s.Mtcap)
+		MtDen := 1. - math.Pow(s.Beta1, s.TimeStep)
+		VtDen := 1. - math.Pow(s.Beta2, s.TimeStep)
+		update.Apply(func(i, j int, Mtij float64) float64 {
+			return -s.StepSize * Mtij / MtDen / (math.Sqrt(s.Vt.At(i, j)/VtDen) + s.Epsilon)
+		}, s.Mt)
 	} else {
 		// normal SGD with momentum
 		update.Apply(func(j, o int, gradjo float64) float64 {

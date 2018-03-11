@@ -3,6 +3,7 @@ package neuralNetwork
 import (
 	"math"
 	"math/rand"
+	"pa-m/sklearn/metrics"
 
 	"github.com/pa-m/sklearn/base"
 
@@ -156,34 +157,53 @@ func (regr *MLPRegressor) Fit(X, Y *mat.Dense) lm.Regressor {
 }
 
 // firEpoch fits one epoch
-func (regr *MLPRegressor) fitEpoch(Xfull, Yfull *mat.Dense, epoch int) {
+func (regr *MLPRegressor) fitEpoch(Xfull, Yfull *mat.Dense, epoch int) float64 {
 	nSamples, nFeatures := Xfull.Dims()
 	_, nOutputs := Yfull.Dims()
 	base.MatShuffle(Xfull, Yfull)
-	miniBatchStart, miniBatchEnd, miniBatchLen := 0, nSamples, nSamples
+	var miniBatchSize int
+	switch {
+	case regr.MiniBatchSize > 0 && regr.MiniBatchSize < nSamples:
+		miniBatchSize = regr.MiniBatchSize
+	case regr.MiniBatchSize > nSamples:
+		miniBatchSize = nSamples
+	default:
+		miniBatchSize = nSamples
+		if miniBatchSize > 200 {
+			miniBatchSize = 200
+		}
+	}
+	miniBatchStart, miniBatchEnd := 0, miniBatchSize
 	Jsum := 0.
 	for miniBatchStart < nSamples {
+		miniBatchLen := miniBatchEnd - miniBatchStart
+		//fmt.Printf("miniBatchStart %d, miniBatchEnd %d\n", miniBatchStart, miniBatchEnd)
 		X := Xfull.Slice(miniBatchStart, miniBatchEnd, 0, nFeatures).(*mat.Dense)
 		Y := Yfull.Slice(miniBatchStart, miniBatchEnd, 0, nOutputs).(*mat.Dense)
-		Jmini := regr.fitMiniBatch(X, Y, epoch)
-		Jsum += Jmini * float64(miniBatchLen)
+		Jmini := regr.fitMiniBatch(X, Y, epoch, miniBatchSize, nSamples)
+		Jsum += Jmini
 		miniBatchStart, miniBatchEnd = miniBatchStart+miniBatchLen, miniBatchEnd+miniBatchLen
+		if miniBatchEnd > nSamples {
+			miniBatchEnd = nSamples
+		}
 	}
-	regr.J = Jsum / float64(nSamples)
+	regr.J = Jsum
 	if epoch == 1 {
-		regr.JFirst = Jsum / float64(nSamples)
+		regr.JFirst = Jsum
 	}
+	return Jsum
 }
 
 // fitMiniBatch fit one minibatch
-func (regr *MLPRegressor) fitMiniBatch(X, Y *mat.Dense, epoch int) float64 {
+func (regr *MLPRegressor) fitMiniBatch(X, Y *mat.Dense, epoch, miniBatchSize, nSamples int) float64 {
 	regr.predictZH(X, nil, nil, true)
-	return regr.backprop(X, Y)
+	return regr.backprop(X, Y, epoch, miniBatchSize, nSamples)
 }
 
 // backprop corrects weights
-func (regr *MLPRegressor) backprop(X, Y mat.Matrix) (J float64) {
+func (regr *MLPRegressor) backprop(X, Y mat.Matrix, epoch, miniBatchSize, nSamples int) (J float64) {
 	//nSamples, _ := X.Dims()
+	miniBatchPart := float64(miniBatchSize) / float64(nSamples)
 	_, nOutputs := Y.Dims()
 	outputLayer := len(regr.Layers) - 1
 	//lossFunc := lm.LossFunctions[regr.Loss]
@@ -221,7 +241,7 @@ func (regr *MLPRegressor) backprop(X, Y mat.Matrix) (J float64) {
 			if lastLoss == "log" && nOutputs == 1 {
 				lastLoss = "cross-entropy"
 			}
-			J = NewLoss(lastLoss).Loss(L.Ytrue, L.Ypred, L.Ydiff)
+			J = NewLoss(lastLoss).Loss(L.Ytrue, L.Ypred, L.Ydiff) * miniBatchPart
 		} else {
 			NewLoss("square").Loss(L.Ytrue, L.Ypred, L.Ydiff)
 		}
@@ -231,12 +251,12 @@ func (regr *MLPRegressor) backprop(X, Y mat.Matrix) (J float64) {
 
 		L.Ydiff.MulElem(L.Ydiff, L.Hgrad)
 		L.Grad.Mul(onesAddedMat{Matrix: Xl}.T(), L.Ydiff)
+		// L.Grad.Scale(miniBatchPart, L.Grad)
 
 		Alpha := regr.Alpha
 		// Add regularization to cost and grad
 		if Alpha > 0. {
 			L1Ratio := regr.L1Ratio
-			nSamples, _ := Xl.Dims()
 			R := 0.
 			ThetaReg := base.MatFirstRowZeroed{Matrix: L.Theta}
 			if L1Ratio > 0. {
@@ -276,6 +296,9 @@ func (regr *MLPRegressor) Predict(X, Y *mat.Dense) lm.Regressor {
 	regr.predictZH(X, nil, Y, false)
 	return regr
 }
+
+// put X dot Theta in Z and activation(X dot Theta) in Y
+// Z and Y can be nil
 func (regr *MLPRegressor) predictZH(X mat.Matrix, Z, Y *mat.Dense, fitting bool) lm.Regressor {
 	nSamples, _ := X.Dims()
 	outputLayer := len(regr.Layers) - 1
@@ -318,8 +341,14 @@ func (regr *MLPRegressor) predictZH(X mat.Matrix, Z, Y *mat.Dense, fitting bool)
 
 // Score returns accuracy. see metrics package for other scores
 func (regr *MLPRegressor) Score(X, Y *mat.Dense) float64 {
-	score := 0.
-	return score
+	nSamples, _ := Y.Dims()
+	_, nOutputs := Y.Dims()
+	Ypred := mat.NewDense(nSamples, nOutputs, nil)
+	regr.Predict(X, Y)
+	if regr.Loss == "square" {
+		return metrics.R2Score(Y, Ypred, nil, "").At(0, 0)
+	}
+	return metrics.AccuracyScore(Y, Ypred, nil, "").At(0, 0)
 }
 
 // MLPClassifier ...
