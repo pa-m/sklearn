@@ -372,17 +372,20 @@ func MatDenseFirstColumnRemoved(src *mat.Dense) *mat.Dense {
 	return MatDenseSlice(src, 0, nSamples, 1, nOutputs)
 }
 
-// MatDenseSlice returns a *mat.Dense with the same underlaying data as M but rows and columns removed
+// MatDenseSlice returns a *mat.Dense with the same underlaying data as src but rows and columns removed
 func MatDenseSlice(src mat.RawMatrixer, i, k, j, l int) *mat.Dense {
 	M := src.RawMatrix()
 	m := &mat.Dense{}
-	m.SetRawMatrix(
-		blas64.General{
-			Rows:   k - i,
-			Cols:   l - j,
-			Stride: M.Stride,
-			Data:   M.Data[i*M.Stride+j : (k-1)*M.Stride+l],
-		},
-	)
+	m.SetRawMatrix(MatGeneralSlice(M, i, k, j, l))
 	return m
+}
+
+// MatGeneralSlice returns a blas64.General with the same underlaying data as M but rows and columns removed
+func MatGeneralSlice(M blas64.General, i, k, j, l int) blas64.General {
+	return blas64.General{
+		Rows:   k - i,
+		Cols:   l - j,
+		Stride: M.Stride,
+		Data:   M.Data[i*M.Stride+j : (k-1)*M.Stride+l],
+	}
 }
