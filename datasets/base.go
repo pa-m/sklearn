@@ -23,10 +23,10 @@ type MLDataset struct {
 // LoadIris load the iris dataset
 func loadJSON(filepath string) (ds *MLDataset) {
 	dat, err := ioutil.ReadFile(filepath)
-	chk(err)
+	check(err)
 	ds = &MLDataset{}
 	err = json.Unmarshal(dat, &ds)
-	chk(err)
+	check(err)
 	ds.X, ds.Y = ds.GetXY()
 	return
 }
@@ -76,29 +76,41 @@ func LoadMicroChipTest() (X, Y *mat.Dense) {
 	return loadCsv(os.Getenv("GOPATH")+"/src/github.com/pa-m/sklearn/datasets/data/ex2data2.txt", nil, 1)
 }
 
+// LoadMnist loads mnist data 5000x400,5000x1
+func LoadMnist() (X, Y *mat.Dense) {
+	mats := LoadOctaveBin(os.Getenv("GOPATH") + "/src/github.com/pa-m/sklearn/datasets/data/ex4data1.dat.gz")
+	return mats["X"], mats["y"]
+}
+
+// LoadMnistWeights loads mnist weights
+func LoadMnistWeights() (Theta1, Theta2 *mat.Dense) {
+	mats := LoadOctaveBin(os.Getenv("GOPATH") + "/src/github.com/pa-m/sklearn/datasets/data/ex4weights.dat.gz")
+	return mats["Theta1"], mats["Theta2"]
+}
+
 func loadCsv(filepath string, setupReader func(*csv.Reader), nOutputs int) (X, Y *mat.Dense) {
 	f, err := os.Open(filepath)
-	chk(err)
+	check(err)
 	defer f.Close()
 	r := csv.NewReader(f)
 	if setupReader != nil {
 		setupReader(r)
 	}
 	cells, err := r.ReadAll()
-	chk(err)
+	check(err)
 	nSamples, nFeatures := len(cells), len(cells[0])-nOutputs
 	X = mat.NewDense(nSamples, nFeatures, nil)
-	X.Apply(func(i, j int, _ float64) float64 { x, err := strconv.ParseFloat(cells[i][j], 64); chk(err); return x }, X)
+	X.Apply(func(i, j int, _ float64) float64 { x, err := strconv.ParseFloat(cells[i][j], 64); check(err); return x }, X)
 	Y = mat.NewDense(nSamples, nOutputs, nil)
 	Y.Apply(func(i, o int, _ float64) float64 {
 		y, err := strconv.ParseFloat(cells[i][nFeatures], 64)
-		chk(err)
+		check(err)
 		return y
 	}, Y)
 	return
 }
 
-func chk(err error) {
+func check(err error) {
 	if err != nil {
 		panic(err)
 	}

@@ -50,7 +50,7 @@ func (crossEntropyLoss) Loss(Ytrue, Ypred mat.Matrix, Grad *mat.Dense) float64 {
 	nSamples, _ := Ytrue.Dims()
 	// J:=-y log(h)-(1-y) log(1-h)
 	Jfun := func(y, h float64) float64 {
-		eps := 1e-12
+		eps := 1e-15
 		if h <= 0 {
 			h = eps
 		} else if h >= 1. {
@@ -58,6 +58,7 @@ func (crossEntropyLoss) Loss(Ytrue, Ypred mat.Matrix, Grad *mat.Dense) float64 {
 		}
 		return -y*math.Log(h) - (1.-y)*math.Log(1.-h)
 	}
+	//fmt.Printf("h11=%f J11=%f\n", Ypred.At(0, 0), Jfun(Ytrue.At(0, 0), Ypred.At(0, 0))/float64(nSamples))
 	J := mat.Sum(matApply2{A: Ytrue, B: Ypred, Func: Jfun}) / float64(nSamples)
 	if Grad != nil {
 		// Grad:=-y/h+(1-y)/(1-h)

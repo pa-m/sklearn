@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"pa-m/sklearn/base"
 	"testing"
+
+	"gonum.org/v1/gonum/mat"
 )
 
 func TestLoadIris(t *testing.T) {
@@ -99,4 +101,26 @@ func ExampleLoadMicroChipTest() {
 	// 0.051267	0.69956	1
 	// -0.092742	0.68494	1
 	// -0.21371	0.69225	1
+}
+
+func ExampleLoadMnist() {
+	X, Y := LoadMnist()
+	xr, xc := X.Dims()
+	yr, yc := Y.Dims()
+	fmt.Printf("X %d,%d Y %d,%d\n", xr, xc, yr, yc)
+	fmt.Printf("%.6f %.6f\n", mat.Sum(X), mat.Sum(Y))
+	// Output:
+	// X 5000,400 Y 5000,1
+	// 262678.260160 27500.000000
+}
+
+func ExampleLoadMnistWeights() {
+	Theta1, Theta2 := LoadMnistWeights()
+	xr, xc := Theta1.Dims()
+	yr, yc := Theta2.Dims()
+	fmt.Printf("Theta1 %d,%d Theta2 %d,%d\n", xr, xc, yr, yc)
+	fmt.Printf("%.6f %.6f\n", mat.Sum(Theta1), mat.Sum(Theta2))
+	// Output:
+	// Theta1 25,401 Theta2 10,26
+	// 9.242644 -100.083444
 }

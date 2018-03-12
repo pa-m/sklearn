@@ -110,3 +110,16 @@ func ExampleInsertOnes() {
 	// X [1 2 3 4 5 6]
 	// X [1 7 8 9 10 11]
 }
+
+func TestOneHotEncoder(t *testing.T) {
+	Y := mat.NewDense(2, 1, []float64{1, 10})
+	ohe := NewOneHotEncoder()
+	ohe.Fit(nil, Y)
+	//fmt.Printf("%#v\n", ohe)
+	if ohe.Min[0] != 1 {
+		t.Fail()
+	}
+	if ohe.NumClasses[0] != 10 {
+		t.Fail()
+	}
+}

@@ -3,6 +3,7 @@ package preprocessing
 import (
 	"math"
 
+	"github.com/gonum/floats"
 	"gonum.org/v1/gonum/mat"
 )
 
@@ -418,4 +419,75 @@ func InsertOnes(X *mat.Dense) {
 		return X.At(i, j-1)
 	}, X1)
 	X.Clone(X1)
+}
+
+// OneHotEncoder ...
+type OneHotEncoder struct{ NumClasses, Min []int }
+
+// NewOneHotEncoder creates a *OneHotEncoder
+func NewOneHotEncoder() *OneHotEncoder {
+	return &OneHotEncoder{}
+}
+
+// Fit ...
+func (m *OneHotEncoder) Fit(X, Y *mat.Dense) Transformer {
+	nSamples, nOutputs := Y.Dims()
+	m.NumClasses = make([]int, nOutputs)
+	m.Min = make([]int, nOutputs)
+	for output := 0; output < nOutputs; output++ {
+		for sample := 0; sample < nSamples; sample++ {
+			yint := int(Y.At(sample, output))
+			if sample == 0 || yint < m.Min[output] {
+				m.Min[output] = yint
+			}
+		}
+		for sample := 0; sample < nSamples; sample++ {
+			yint := int(Y.At(sample, output))
+			if sample == 0 || yint-m.Min[output]+1 >= m.NumClasses[output] {
+				m.NumClasses[output] = yint - m.Min[output] + 1
+			}
+		}
+	}
+	return m
+}
+
+// Transform transform Y labels to one hot encoded format
+func (m *OneHotEncoder) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	nSamples, nOutputs := Y.Dims()
+	Xout = X
+	columns := 0
+	for output := 0; output < nOutputs; output++ {
+		columns += m.NumClasses[output]
+	}
+	Yout = mat.NewDense(nSamples, columns, nil)
+	baseColumn := 0
+	for output := 0; output < nOutputs; output++ {
+
+		for sample := 0; sample < nSamples; sample++ {
+			yint := int(Y.At(sample, output)) - m.Min[output]
+			//fmt.Printf("sample %d output %d baseColumn %d nClasses %d y %g min:%d yint %d\n", sample, output, baseColumn, m.NumClasses[output], Y.At(sample, output), m.Min[output], yint)
+			Yout.Set(sample, baseColumn+yint, 1.)
+		}
+		baseColumn += m.NumClasses[output]
+	}
+	return
+}
+
+// InverseTransform compute Yout classes from one hot encoded format
+func (m *OneHotEncoder) InverseTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	nSamples, _ := Y.Dims()
+	nOutputs := len(m.NumClasses)
+	Xout = X
+	Yout = mat.NewDense(nSamples, nOutputs, nil)
+	baseColumn := 0
+	for output := 0; output < nOutputs; output++ {
+
+		for sample := 0; sample < nSamples; sample++ {
+			yint := floats.MaxIdx(Y.RawRowView(sample)[baseColumn:baseColumn+m.NumClasses[output]]) + m.Min[output]
+			Yout.Set(sample, output, float64(yint))
+		}
+		baseColumn += m.NumClasses[output]
+	}
+	return
+
 }

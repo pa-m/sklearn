@@ -12,6 +12,7 @@ import (
 	"github.com/gonum/floats"
 	"github.com/pa-m/sklearn/base"
 	lm "github.com/pa-m/sklearn/linear_model"
+	"github.com/pa-m/sklearn/preprocessing"
 
 	"gonum.org/v1/gonum/mat"
 )
@@ -227,4 +228,40 @@ func TestMLPClassifierMicrochip(t *testing.T) {
 
 	// // fmt.Println("acc:", metrics.AccuracyScore(Ytrue, Ypred, nil, "uniform_average").At(0, 0))
 	// fmt.Println("ok")
+}
+
+func TestMnist(t *testing.T) {
+	X, Y := datasets.LoadMnist()
+
+	X, Yohe := preprocessing.NewOneHotEncoder().Fit(X, Y).Transform(X, Y)
+	//fmt.Println(base.MatDimsString(Yohe))
+	Theta1, Theta2 := datasets.LoadMnistWeights()
+	mlp := NewMLPClassifier([]int{25}, "logistic", "adam", 0.)
+	mlp.Loss = "cross-entropy"
+	mlp.MiniBatchSize = 5000
+	mlp.Shuffle = false
+	mlp.allocLayers(400, 10, func() float64 { return 0. })
+	mlp.Layers[0].Theta.Copy(Theta1.T())
+	mlp.Layers[1].Theta.Copy(Theta2.T())
+	//fmt.Println("sum 1st X ", mat.Sum(X.Slice(0, 1, 0, 400)))
+	// fmt.Println("sum Theta1 ", mat.Sum(Theta1))
+	// fmt.Println("sum Theta1 ", mat.Sum(mlp.Layers[0].Theta))
+	// fmt.Println("sum Theta2 ", mat.Sum(Theta2))
+	// fmt.Println("sum Theta2 ", mat.Sum(mlp.Layers[1].Theta))
+	J := mlp.fitEpoch(X, Yohe, 0)
+
+	//fmt.Println("at test thetas J:=", J)
+	// check cost at loaded theta is 0.287629
+	if !floats.EqualWithinAbs(0.287629, J, 1e-6) {
+		t.Errorf("Expected cost: %g, got %g", 0.287629, J)
+	}
+
+	mlp.Alpha = 1.
+	mlp.Layers[0].Theta.Copy(Theta1.T())
+	mlp.Layers[1].Theta.Copy(Theta2.T())
+	J = mlp.fitEpoch(X, Yohe, 0)
+	if !floats.EqualWithinAbs(0.383770, J, 1e-6) {
+		t.Errorf("Expected cost: %g, got %g", 0.383770, J)
+	}
+
 }
