@@ -337,12 +337,13 @@ func MatSigmoid(dst *mat.Dense, X mat.Matrix) *mat.Dense {
 }
 
 // MatParallelMul use goroutines to parallize on rows slice of A
-func MatParallelMul(dst, A *mat.Dense, B mat.Matrix) {
-	MatDimsCheck(".", dst, A, B)
+func MatParallelMul(dst, A mat.RawMatrixer, B mat.Matrix) {
+	//MatDimsCheck(".", dst, A, B)
 	// dst.Mul(A, B)
 	// return
 	// FIXME mul on slices dont work
-	nSamples, _ := A.Dims()
+	Araw := A.RawMatrix()
+	nSamples, Acols := Araw.Rows, Araw.Cols
 	_, nOutputs := B.Dims()
 	nJobs := runtime.NumCPU()
 	sliceRows := (nSamples + nJobs - 1) / nJobs
@@ -350,7 +351,6 @@ func MatParallelMul(dst, A *mat.Dense, B mat.Matrix) {
 	start := 0
 	fn := func(job, start, end int, wg *sync.WaitGroup) {
 		//MatDimsCheck(".", dst.Slice(start, end, 0, nOutputs), MatRowSlice{Matrix: A, Start: start, End: end}, B)
-		_, Acols := A.Dims()
 		MatDenseSlice(dst, start, end, 0, nOutputs).Mul(MatDenseSlice(A, start, end, 0, Acols), B)
 		wg.Done()
 	}

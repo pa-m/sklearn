@@ -6,8 +6,10 @@ import (
 	"pa-m/sklearn/metrics"
 
 	"github.com/pa-m/sklearn/base"
+	"gonum.org/v1/gonum/blas"
 
 	lm "github.com/pa-m/sklearn/linear_model"
+	"gonum.org/v1/gonum/blas/blas64"
 	"gonum.org/v1/gonum/mat"
 )
 
@@ -36,7 +38,7 @@ func NewLayer(inputs, outputs int, activation string, optimizer Optimizer, theta
 		Optimizer: optimizer}
 }
 
-func (L *Layer) initOutputs(nSamples, nOutputs int, prevLayer *Layer) {
+func (L *Layer) allocOutputs(nSamples, nOutputs int) {
 	s := &L.slices
 	mk := func(s *[]float64, m **mat.Dense, nSamples, nOutputs int) {
 		size := nSamples * nOutputs
@@ -59,9 +61,7 @@ func (L *Layer) initOutputs(nSamples, nOutputs int, prevLayer *Layer) {
 		L.NextX1.Set(sample, 0, 1.)
 	}
 	L.Ypred = base.MatDenseFirstColumnRemoved(L.NextX1)
-	if prevLayer != nil {
-		L.X1 = prevLayer.NextX1
-	}
+
 }
 
 // Regressors is the list of regressors in this package
@@ -69,7 +69,7 @@ var Regressors = []lm.Regressor{&MLPRegressor{}}
 
 // MLPRegressor is a multilayer perceptron regressor
 type MLPRegressor struct {
-	Shuffle          bool
+	Shuffle, UseBlas bool
 	Optimizer        base.OptimCreator
 	LossName         string
 	Activation       string
@@ -103,6 +103,7 @@ func NewMLPRegressor(hiddenLayerSizes []int, activation string, solver string, A
 	}
 	regr := MLPRegressor{
 		Shuffle:          true,
+		UseBlas:          true,
 		Optimizer:        base.Solvers[solver],
 		HiddenLayerSizes: hiddenLayerSizes,
 		Loss:             "square",
@@ -236,30 +237,33 @@ func (regr *MLPRegressor) backprop(X, Y mat.Matrix, epoch, miniBatchLen, nSample
 	miniBatchPart := float64(miniBatchLen) / float64(nSamples)
 	_, nOutputs := Y.Dims()
 	outputLayer := len(regr.Layers) - 1
-	//lossFunc := lm.LossFunctions[regr.Loss]
+
 	J = 0
 	for l := outputLayer; l >= 0; l-- {
 		L := regr.Layers[l]
 
-		var Xl mat.Matrix
-		if l == 0 {
-			Xl = X
-		} else {
-			Xl = regr.Layers[l-1].Ypred
-		}
-
 		// compute Ydiff
 		if l == outputLayer {
 			L.Ytrue.Copy(Y)
-			base.MatDimsCheck("-", L.Ydiff, L.Ypred, Y)
+			//base.MatDimsCheck("-", L.Ydiff, L.Ypred, Y)
 			L.Ydiff.Sub(L.Ypred, Y)
 		} else {
 			// compute ydiff and ytrue for non-terminal layer
 			//delta2 = (delta3 * Theta2) .* [1 a2(t,:)] .* (1-[1 a2(t,:)])
 			nextLayer := regr.Layers[l+1]
 			//base.MatDimsCheck(".", L.Ydiff, nextLayer.Ydiff, base.MatFirstColumnRemoved{Matrix: nextLayer.Theta.T()})
-			//L.Ydiff.Mul(nextLayer.Ydiff, MatFirstColumnRemoved{Matrix: nextLayer.Theta.T()})
-			base.MatParallelMul(L.Ydiff, nextLayer.Ydiff, MatFirstColumnRemoved{Matrix: nextLayer.Theta.T()})
+
+			if regr.UseBlas {
+				NextThetaG := nextLayer.Theta.RawMatrix()
+				NextThetaG1 := base.MatDenseSlice(nextLayer.Theta, 1, NextThetaG.Rows, 0, NextThetaG.Cols)
+				//  C = alpha * A * B + beta * C
+				blas64.Gemm(blas.NoTrans, blas.Trans, 1., nextLayer.Ydiff.RawMatrix(), NextThetaG1.RawMatrix(), 0., L.Ydiff.RawMatrix())
+
+			} else {
+				L.Ydiff.Mul(nextLayer.Ydiff, MatFirstColumnRemoved{Matrix: nextLayer.Theta.T()})
+
+			}
+
 			//L.Ydiff.Apply(func(_, _ int, v float64) float64 { return panicIfNaN(v) }, L.Ydiff)
 			L.Ydiff.MulElem(L.Ydiff, L.Hgrad)
 			//L.Ydiff.Apply(func(_, _ int, v float64) float64 { return panicIfNaN(v) }, L.Ydiff)
@@ -286,8 +290,12 @@ func (regr *MLPRegressor) backprop(X, Y mat.Matrix, epoch, miniBatchLen, nSample
 		L.Ydiff.MulElem(L.Ydiff, L.Hgrad)
 
 		// put [1 X].T * (dJ/dh.*dh/dz) in L.Grad
-		L.Grad.Mul(onesAddedMat{Matrix: Xl}.T(), L.Ydiff)
-		// L.Grad.Scale(miniBatchPart, L.Grad)
+		if regr.UseBlas {
+			blas64.Gemm(blas.Trans, blas.NoTrans, 1., L.X1.RawMatrix(), L.Ydiff.RawMatrix(), 0., L.Grad.RawMatrix())
+
+		} else {
+			L.Grad.Mul(L.X1.T(), L.Ydiff)
+		}
 
 		Alpha := regr.Alpha
 		// Add regularization to cost and grad
@@ -335,25 +343,20 @@ func (regr *MLPRegressor) Predict(X, Y *mat.Dense) lm.Regressor {
 
 // put X dot Theta in Z and activation(X dot Theta) in Y
 // Z and Y can be nil
-func (regr *MLPRegressor) predictZH(X mat.Matrix, Z, Y *mat.Dense, fitting bool) lm.Regressor {
-	nSamples, _ := X.Dims()
+func (regr *MLPRegressor) predictZH(X, Z, Y *mat.Dense, fitting bool) lm.Regressor {
+	nSamples, nFeatures0 := X.Dims()
 	outputLayer := len(regr.Layers) - 1
 	for l := 0; l < len(regr.Layers); l++ {
 		L := regr.Layers[l]
-		var prevLayer *Layer
-		if l == 0 {
-			prevLayer = nil
-		} else {
-			prevLayer = regr.Layers[l-1]
-		}
-		var Xl mat.Matrix
-		if l == 0 {
-			Xl = X
-		} else {
-			Xl = regr.Layers[l-1].Ypred
-		}
 		_, nOutputs := L.Theta.Dims()
-		L.initOutputs(nSamples, nOutputs, prevLayer)
+		L.allocOutputs(nSamples, nOutputs)
+		if l == 0 {
+			L.X1 = mat.NewDense(nSamples, 1+nFeatures0, nil)
+			L.X1.Copy(onesAddedMat{Matrix: X})
+		} else {
+			L.X1 = regr.Layers[l-1].NextX1
+		}
+
 		if L.Ypred == nil {
 			panic("L.Ypred == nil")
 		}
@@ -363,14 +366,16 @@ func (regr *MLPRegressor) predictZH(X mat.Matrix, Z, Y *mat.Dense, fitting bool)
 
 		// compute activation.F([1 X] dot theta)
 		//base.MatDimsCheck(".", L.Z, onesAddedMat{Matrix: Xl}, L.Theta)
-		L.Z.Mul(onesAddedMat{Matrix: Xl}, L.Theta)
-		//base.MatParallelMul(L.Z, onesAddedMat{Matrix: Xl}, L.Theta)
+		if regr.UseBlas {
+			L.Z.Mul(L.X1, L.Theta)
+		} else {
+			blas64.Gemm(blas.NoTrans, blas.NoTrans, 1., L.X1.RawMatrix(), L.Theta.RawMatrix(), 0., L.Z.RawMatrix())
+		}
 
 		if l == outputLayer && Z != nil {
 			Z.Copy(L.Z)
 		}
 		NewActivation(L.Activation).Func(L.Z, L.Ypred)
-		//L.Ypred.Apply(func(_, _ int, v float64) float64 { return panicIfNaN(v) }, L.Ypred)
 	}
 
 	if Y != nil {
