@@ -51,7 +51,7 @@ func NewRandomProblem(nSamples, nFeatures, nOutputs int, activation string, loss
 }
 
 func TestMLPRegressorIdentitySquareLoss(t *testing.T) {
-	testMLPRegressor(t, "identity", "square", "adam", 4)
+	testMLPRegressor(t, "identity", "square", "adam", 2)
 }
 
 func TestMLPRegressorLogisticLogLoss(t *testing.T) {
@@ -243,11 +243,6 @@ func TestMnist(t *testing.T) {
 	mlp.allocLayers(400, 10, func() float64 { return 0. })
 	mlp.Layers[0].Theta.Copy(Theta1.T())
 	mlp.Layers[1].Theta.Copy(Theta2.T())
-	//fmt.Println("sum 1st X ", mat.Sum(X.Slice(0, 1, 0, 400)))
-	// fmt.Println("sum Theta1 ", mat.Sum(Theta1))
-	// fmt.Println("sum Theta1 ", mat.Sum(mlp.Layers[0].Theta))
-	// fmt.Println("sum Theta2 ", mat.Sum(Theta2))
-	// fmt.Println("sum Theta2 ", mat.Sum(mlp.Layers[1].Theta))
 	J := mlp.fitEpoch(X, Yohe, 0)
 
 	//fmt.Println("at test thetas J:=", J)

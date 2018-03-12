@@ -1,7 +1,6 @@
 package neuralNetwork
 
 import (
-	"fmt"
 	"math"
 	"math/rand"
 	"pa-m/sklearn/metrics"
@@ -17,11 +16,12 @@ type Optimizer = base.Optimizer
 
 // Layer represents a layer in a neural network. its mainly an Activation and a Theta
 type Layer struct {
-	Activation                    string
-	Ytrue, Z, Ypred, Ydiff, Hgrad *mat.Dense
-	slices                        struct{ Ytrue, Z, Ypred, Ydiff, Hgrad []float64 }
-	Theta, Grad, Update           *mat.Dense
-	Optimizer                     Optimizer
+	Activation                                string
+	X1, Ytrue, Z, Ypred, NextX1, Ydiff, Hgrad *mat.Dense
+
+	slices              struct{ Ytrue, Z, NextX1, Ydiff, Hgrad []float64 }
+	Theta, Grad, Update *mat.Dense
+	Optimizer           Optimizer
 }
 
 // NewLayer creates a randomly initialized layer
@@ -36,10 +36,10 @@ func NewLayer(inputs, outputs int, activation string, optimizer Optimizer, theta
 		Optimizer: optimizer}
 }
 
-func (L *Layer) initOutputs(nSamples, nOutputs int) {
+func (L *Layer) initOutputs(nSamples, nOutputs int, prevLayer *Layer) {
 	s := &L.slices
-	size := nSamples * nOutputs
-	mk := func(s *[]float64, m **mat.Dense) {
+	mk := func(s *[]float64, m **mat.Dense, nSamples, nOutputs int) {
+		size := nSamples * nOutputs
 		if *s == nil || cap(*s) < size {
 			*s = make([]float64, size)
 		} else {
@@ -47,11 +47,21 @@ func (L *Layer) initOutputs(nSamples, nOutputs int) {
 		}
 		*m = mat.NewDense(nSamples, nOutputs, *s)
 	}
-	mk(&s.Z, &L.Z)
-	mk(&s.Hgrad, &L.Hgrad)
-	mk(&s.Ypred, &L.Ypred)
-	mk(&s.Ytrue, &L.Ytrue)
-	mk(&s.Ydiff, &L.Ydiff)
+	// make slices for Ytrue, Z, NextX, Ydiff, Hgrad
+	mk(&s.Ytrue, &L.Ytrue, nSamples, nOutputs)
+	mk(&s.Z, &L.Z, nSamples, nOutputs)
+	mk(&s.NextX1, &L.NextX1, nSamples, 1+nOutputs)
+	mk(&s.Ydiff, &L.Ydiff, nSamples, nOutputs)
+	mk(&s.Hgrad, &L.Hgrad, nSamples, nOutputs)
+	//mk(&s.Ypred, &L.Ypred, nSamples, nOutputs)
+
+	for sample := 0; sample < nSamples; sample++ {
+		L.NextX1.Set(sample, 0, 1.)
+	}
+	L.Ypred = base.MatDenseFirstColumnRemoved(L.NextX1)
+	if prevLayer != nil {
+		L.X1 = prevLayer.NextX1
+	}
 }
 
 // Regressors is the list of regressors in this package
@@ -198,7 +208,7 @@ func (regr *MLPRegressor) fitEpoch(Xfull, Yfull *mat.Dense, epoch int) float64 {
 		//fmt.Printf("miniBatchStart %d, miniBatchEnd %d\n", miniBatchStart, miniBatchEnd)
 		X := Xfull.Slice(miniBatchStart, miniBatchEnd, 0, nFeatures).(*mat.Dense)
 		Y := Yfull.Slice(miniBatchStart, miniBatchEnd, 0, nOutputs).(*mat.Dense)
-		fmt.Println("fitMiniBatch ", miniBatchStart, miniBatchEnd)
+
 		Jmini := regr.fitMiniBatch(X, Y, epoch, miniBatchLen, nSamples)
 		Jsum += Jmini
 		miniBatchStart, miniBatchEnd = miniBatchStart+miniBatchLen, miniBatchEnd+miniBatchLen
@@ -248,7 +258,8 @@ func (regr *MLPRegressor) backprop(X, Y mat.Matrix, epoch, miniBatchLen, nSample
 			//delta2 = (delta3 * Theta2) .* [1 a2(t,:)] .* (1-[1 a2(t,:)])
 			nextLayer := regr.Layers[l+1]
 			//base.MatDimsCheck(".", L.Ydiff, nextLayer.Ydiff, base.MatFirstColumnRemoved{Matrix: nextLayer.Theta.T()})
-			L.Ydiff.Mul(nextLayer.Ydiff, MatFirstColumnRemoved{Matrix: nextLayer.Theta.T()})
+			//L.Ydiff.Mul(nextLayer.Ydiff, MatFirstColumnRemoved{Matrix: nextLayer.Theta.T()})
+			base.MatParallelMul(L.Ydiff, nextLayer.Ydiff, MatFirstColumnRemoved{Matrix: nextLayer.Theta.T()})
 			//L.Ydiff.Apply(func(_, _ int, v float64) float64 { return panicIfNaN(v) }, L.Ydiff)
 			L.Ydiff.MulElem(L.Ydiff, L.Hgrad)
 			//L.Ydiff.Apply(func(_, _ int, v float64) float64 { return panicIfNaN(v) }, L.Ydiff)
@@ -329,6 +340,12 @@ func (regr *MLPRegressor) predictZH(X mat.Matrix, Z, Y *mat.Dense, fitting bool)
 	outputLayer := len(regr.Layers) - 1
 	for l := 0; l < len(regr.Layers); l++ {
 		L := regr.Layers[l]
+		var prevLayer *Layer
+		if l == 0 {
+			prevLayer = nil
+		} else {
+			prevLayer = regr.Layers[l-1]
+		}
 		var Xl mat.Matrix
 		if l == 0 {
 			Xl = X
@@ -336,7 +353,7 @@ func (regr *MLPRegressor) predictZH(X mat.Matrix, Z, Y *mat.Dense, fitting bool)
 			Xl = regr.Layers[l-1].Ypred
 		}
 		_, nOutputs := L.Theta.Dims()
-		L.initOutputs(nSamples, nOutputs)
+		L.initOutputs(nSamples, nOutputs, prevLayer)
 		if L.Ypred == nil {
 			panic("L.Ypred == nil")
 		}
@@ -345,13 +362,15 @@ func (regr *MLPRegressor) predictZH(X mat.Matrix, Z, Y *mat.Dense, fitting bool)
 		}
 
 		// compute activation.F([1 X] dot theta)
-		base.MatDimsCheck(".", L.Z, onesAddedMat{Matrix: Xl}, L.Theta)
+		//base.MatDimsCheck(".", L.Z, onesAddedMat{Matrix: Xl}, L.Theta)
 		L.Z.Mul(onesAddedMat{Matrix: Xl}, L.Theta)
+		//base.MatParallelMul(L.Z, onesAddedMat{Matrix: Xl}, L.Theta)
+
 		if l == outputLayer && Z != nil {
 			Z.Copy(L.Z)
 		}
 		NewActivation(L.Activation).Func(L.Z, L.Ypred)
-		L.Ypred.Apply(func(_, _ int, v float64) float64 { return panicIfNaN(v) }, L.Ypred)
+		//L.Ypred.Apply(func(_, _ int, v float64) float64 { return panicIfNaN(v) }, L.Ypred)
 	}
 
 	if Y != nil {

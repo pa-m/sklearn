@@ -6,7 +6,10 @@ import (
 	"io"
 	"math"
 	"math/rand"
+	"runtime"
+	"sync"
 
+	"gonum.org/v1/gonum/blas/blas64"
 	"gonum.org/v1/gonum/mat"
 )
 
@@ -115,11 +118,14 @@ type MatRowSlice struct {
 }
 
 // Dims for MatRowSlice
-func (m MatRowSlice) Dims() (int, int) { _, c := m.Matrix.Dims(); return m.End - m.Start, c - 1 }
+func (m MatRowSlice) Dims() (int, int) { _, c := m.Matrix.Dims(); return m.End - m.Start, c }
 
 // At for MatRowSlice
 func (m MatRowSlice) At(i, j int) float64 {
-	return m.Matrix.At(i-m.Start, j)
+	if i < 0 || i > m.End-m.Start {
+		panic("indexing error")
+	}
+	return m.Matrix.At(i+m.Start, j)
 }
 
 // Set for MatRowSlice
@@ -328,4 +334,55 @@ func MatSigmoid(dst *mat.Dense, X mat.Matrix) *mat.Dense {
 		return 1. / (1. + math.Exp(-v))
 	}, X)
 	return dst
+}
+
+// MatParallelMul use goroutines to parallize on rows slice of A
+func MatParallelMul(dst, A *mat.Dense, B mat.Matrix) {
+	MatDimsCheck(".", dst, A, B)
+	// dst.Mul(A, B)
+	// return
+	// FIXME mul on slices dont work
+	nSamples, _ := A.Dims()
+	_, nOutputs := B.Dims()
+	nJobs := runtime.NumCPU()
+	sliceRows := (nSamples + nJobs - 1) / nJobs
+	wg := new(sync.WaitGroup)
+	start := 0
+	fn := func(job, start, end int, wg *sync.WaitGroup) {
+		//MatDimsCheck(".", dst.Slice(start, end, 0, nOutputs), MatRowSlice{Matrix: A, Start: start, End: end}, B)
+		_, Acols := A.Dims()
+		MatDenseSlice(dst, start, end, 0, nOutputs).Mul(MatDenseSlice(A, start, end, 0, Acols), B)
+		wg.Done()
+	}
+	for job := 0; job < nJobs; job++ {
+		end := start + sliceRows
+		if end > nSamples {
+			end = nSamples
+		}
+		wg.Add(1)
+		go fn(job, start, end, wg)
+		//fn(job, start, end, wg)
+	}
+	wg.Wait()
+}
+
+// MatDenseFirstColumnRemoved returns a *mat.Dense with the same underlaying data as M but 1st column removed
+func MatDenseFirstColumnRemoved(src *mat.Dense) *mat.Dense {
+	nSamples, nOutputs := src.Dims()
+	return MatDenseSlice(src, 0, nSamples, 1, nOutputs)
+}
+
+// MatDenseSlice returns a *mat.Dense with the same underlaying data as M but rows and columns removed
+func MatDenseSlice(src mat.RawMatrixer, i, k, j, l int) *mat.Dense {
+	M := src.RawMatrix()
+	m := &mat.Dense{}
+	m.SetRawMatrix(
+		blas64.General{
+			Rows:   k - i,
+			Cols:   l - j,
+			Stride: M.Stride,
+			Data:   M.Data[i*M.Stride+j : (k-1)*M.Stride+l],
+		},
+	)
+	return m
 }
