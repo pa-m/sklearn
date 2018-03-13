@@ -9,7 +9,6 @@ import (
 	"gonum.org/v1/gonum/blas"
 
 	lm "github.com/pa-m/sklearn/linear_model"
-	"gonum.org/v1/gonum/blas/blas64"
 	"gonum.org/v1/gonum/mat"
 )
 
@@ -257,7 +256,7 @@ func (regr *MLPRegressor) backprop(X, Y mat.Matrix, epoch, miniBatchLen, nSample
 				NextThetaG := nextLayer.Theta.RawMatrix()
 				NextThetaG1 := base.MatDenseSlice(nextLayer.Theta, 1, NextThetaG.Rows, 0, NextThetaG.Cols)
 				//  C = alpha * A * B + beta * C
-				blas64.Gemm(blas.NoTrans, blas.Trans, 1., nextLayer.Ydiff.RawMatrix(), NextThetaG1.RawMatrix(), 0., L.Ydiff.RawMatrix())
+				base.MatParallelGemm(blas.NoTrans, blas.Trans, 1., nextLayer.Ydiff.RawMatrix(), NextThetaG1.RawMatrix(), 0., L.Ydiff.RawMatrix())
 
 			} else {
 				L.Ydiff.Mul(nextLayer.Ydiff, MatFirstColumnRemoved{Matrix: nextLayer.Theta.T()})
@@ -291,7 +290,7 @@ func (regr *MLPRegressor) backprop(X, Y mat.Matrix, epoch, miniBatchLen, nSample
 
 		// put [1 X].T * (dJ/dh.*dh/dz) in L.Grad
 		if regr.UseBlas {
-			blas64.Gemm(blas.Trans, blas.NoTrans, 1., L.X1.RawMatrix(), L.Ydiff.RawMatrix(), 0., L.Grad.RawMatrix())
+			base.MatParallelGemm(blas.Trans, blas.NoTrans, 1., L.X1.RawMatrix(), L.Ydiff.RawMatrix(), 0., L.Grad.RawMatrix())
 
 		} else {
 			L.Grad.Mul(L.X1.T(), L.Ydiff)
@@ -369,7 +368,7 @@ func (regr *MLPRegressor) predictZH(X, Z, Y *mat.Dense, fitting bool) lm.Regress
 		if regr.UseBlas {
 			L.Z.Mul(L.X1, L.Theta)
 		} else {
-			blas64.Gemm(blas.NoTrans, blas.NoTrans, 1., L.X1.RawMatrix(), L.Theta.RawMatrix(), 0., L.Z.RawMatrix())
+			base.MatParallelGemm(blas.NoTrans, blas.NoTrans, 1., L.X1.RawMatrix(), L.Theta.RawMatrix(), 0., L.Z.RawMatrix())
 		}
 
 		if l == outputLayer && Z != nil {

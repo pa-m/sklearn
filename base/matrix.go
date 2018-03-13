@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"sync"
 
+	"gonum.org/v1/gonum/blas"
 	"gonum.org/v1/gonum/blas/blas64"
 	"gonum.org/v1/gonum/mat"
 )
@@ -336,34 +337,66 @@ func MatSigmoid(dst *mat.Dense, X mat.Matrix) *mat.Dense {
 	return dst
 }
 
-// MatParallelMul use goroutines to parallize on rows slice of A
-func MatParallelMul(dst, A mat.RawMatrixer, B mat.Matrix) {
-	//MatDimsCheck(".", dst, A, B)
-	// dst.Mul(A, B)
-	// return
-	// FIXME mul on slices dont work
-	Araw := A.RawMatrix()
-	nSamples, Acols := Araw.Rows, Araw.Cols
-	_, nOutputs := B.Dims()
+// MatParallelGemm parallelize Gemm on A rows
+func MatParallelGemm(tA, tB blas.Transpose, alpha float64, a, b blas64.General, beta float64, c blas64.General) {
+	var start, end int
+	// defer func() {
+	// 	if r := recover(); r != nil {
+	// 		fmt.Printf("a %d,%d start:%d end:%d %s\n", a.Rows, a.Cols, start, end, r)
+	// 	}
+	// }()
 	nJobs := runtime.NumCPU()
-	sliceRows := (nSamples + nJobs - 1) / nJobs
+	// n is a.Rows if blas.NoTrans, else a.Cols
+	var n int
+	if tA == blas.NoTrans {
+		n = a.Rows
+	} else {
+		n = a.Cols
+	}
+
+	sliceRows := (n + nJobs - 1) / nJobs
 	wg := new(sync.WaitGroup)
-	start := 0
 	fn := func(job, start, end int, wg *sync.WaitGroup) {
 		//MatDimsCheck(".", dst.Slice(start, end, 0, nOutputs), MatRowSlice{Matrix: A, Start: start, End: end}, B)
-		MatDenseSlice(dst, start, end, 0, nOutputs).Mul(MatDenseSlice(A, start, end, 0, Acols), B)
+		if end > n {
+			end = n
+		}
+		if end > start {
+			//fmt.Printf("start %d end %d aRows %d cRows %d\n", start, end, a.Rows, c.Rows)
+			var aSlice blas64.General
+			if tA == blas.NoTrans {
+				aSlice = MatGeneralSlice(a, start, end, 0, a.Cols)
+			} else {
+				aSlice = MatGeneralSlice(a, 0, a.Rows, start, end)
+			}
+			blas64.Gemm(tA, tB, alpha,
+				aSlice,
+				b,
+				beta,
+				MatGeneralSlice(c, start, end, 0, c.Cols))
+		}
 		wg.Done()
 	}
-	for job := 0; job < nJobs; job++ {
-		end := start + sliceRows
-		if end > nSamples {
-			end = nSamples
-		}
+	if n < 64 {
 		wg.Add(1)
-		go fn(job, start, end, wg)
-		//fn(job, start, end, wg)
+		fn(0, 0, a.Rows, wg)
+
+	} else {
+		for job := 0; job < nJobs; job++ {
+			end = start + sliceRows
+			if end > n {
+				end = n
+			}
+			if end > start {
+				wg.Add(1)
+				//fmt.Printf("processing rows %d-%d of a(%d,%d, len:%d)\n", start, end, a.Rows, a.Cols, len(a.Data))
+				go fn(job, start, end, wg)
+			}
+			start = end
+		}
+		wg.Wait()
+
 	}
-	wg.Wait()
 }
 
 // MatDenseFirstColumnRemoved returns a *mat.Dense with the same underlaying data as M but 1st column removed
@@ -382,6 +415,16 @@ func MatDenseSlice(src mat.RawMatrixer, i, k, j, l int) *mat.Dense {
 
 // MatGeneralSlice returns a blas64.General with the same underlaying data as M but rows and columns removed
 func MatGeneralSlice(M blas64.General, i, k, j, l int) blas64.General {
+	// defer func() {
+	// 	if r := recover(); r != nil {
+	// 		fmt.Printf("i*M.Stride+j : %d*%d+%d : %d  (k-1)*M.Stride+l: %d*%d+%d : %d len:%d %s\n",
+	// 			i, M.Stride, j, i*M.Stride+j,
+	// 			k-1, M.Stride, l, (k-1)*M.Stride+l, len(M.Data), r)
+	// 	}
+	// }()
+	if k <= i {
+		panic(fmt.Errorf("k<=i %d %d", k, i))
+	}
 	return blas64.General{
 		Rows:   k - i,
 		Cols:   l - j,
