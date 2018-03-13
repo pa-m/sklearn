@@ -31,6 +31,7 @@ func NewLayer(inputs, outputs int, activation string, optimizer Optimizer, theta
 
 	Theta := mat.NewDense(inputs, outputs, thetaSlice)
 	Theta.Apply(func(feature, output int, _ float64) float64 { return rnd() }, Theta)
+	matx{Dense: Theta}.Orthonormalize()
 	return &Layer{Activation: activation,
 		Theta:     Theta,
 		Grad:      mat.NewDense(inputs, outputs, gradSlice),

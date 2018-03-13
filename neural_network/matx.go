@@ -115,3 +115,72 @@ func (m matx) SumAbs() float64 {
 func (m matx) RawMatrix() blas64.General {
 	return m.Dense.RawMatrix()
 }
+
+func (m matx) Orthonormalize() {
+	feats, outs := m.Dense.Dims()
+	if mat.Norm(m.Dense, 1) == 0. {
+
+		return
+	}
+	if feats < outs {
+		for i := 0; i < outs; i++ {
+			row := base.MatDenseSlice(m.Dense, i, i+1, 0, outs)
+			nrm := mat.Norm(row, 2)
+			if nrm == 0. {
+				break
+			}
+			row.Scale(1./nrm, row)
+			for i1 := 0; i1 < i; i1++ {
+				r1 := base.MatDenseSlice(m.Dense, i1, i1+1, 0, outs)
+				cos := matx{}.SumApplied2(row, r1, func(r, r1 float64) float64 { return r * r1 })
+				if cos == 1. {
+					//fmt.Println("Orthonormalize: colin")
+					continue
+				}
+				// splain := "\nbefore:" + base.MatStr(row)
+				// splain += "\nadd   :" + base.MatStr(r1) + fmt.Sprintf("* %g", -cos)
+
+				matx{Dense: row}.AddScaled(-cos, r1)
+				// splain += "\nresult:" + base.MatStr(row)
+				nrm = mat.Norm(row, 2)
+				// splain += fmt.Sprintf("\nnorme2: %g\ni:%d, i1:%d\n", nrm, i, i1)
+				if nrm == 0. {
+					panic("can't orthonormalize")
+					// return
+				}
+				row.Scale(1./nrm, row)
+			}
+		}
+
+	} else {
+		for i := 0; i < outs; i++ {
+			row := base.MatDenseSlice(m.Dense, 0, feats, i, i+1)
+			nrm := mat.Norm(row, 2)
+			if nrm == 0. {
+				break
+			}
+			row.Scale(1./nrm, row)
+			for i1 := 0; i1 < i; i1++ {
+				r1 := base.MatDenseSlice(m.Dense, 0, feats, i1, i1+1)
+				cos := matx{}.SumApplied2(row, r1, func(r, r1 float64) float64 { return r * r1 })
+				if cos == 1. {
+					//fmt.Println("Orthonormalize: colin")
+					continue
+				}
+				// splain := "\nbefore:" + base.MatStr(row)
+				// splain += "\nadd   :" + base.MatStr(r1) + fmt.Sprintf("* %g", -cos)
+
+				matx{Dense: row}.AddScaled(-cos, r1)
+				// splain += "\nresult:" + base.MatStr(row)
+				nrm = mat.Norm(row, 2)
+				// splain += fmt.Sprintf("\nnorme2: %g\ni:%d, i1:%d\n", nrm, i, i1)
+				if nrm == 0. {
+					panic("can't orthonormalize")
+					// return
+				}
+				row.Scale(1./nrm, row)
+			}
+		}
+	}
+
+}
