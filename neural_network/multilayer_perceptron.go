@@ -206,8 +206,8 @@ func (regr *MLPRegressor) fitEpoch(Xfull, Yfull *mat.Dense, epoch int) float64 {
 	for miniBatchStart < nSamples {
 		miniBatchLen := miniBatchEnd - miniBatchStart
 		//fmt.Printf("miniBatchStart %d, miniBatchEnd %d\n", miniBatchStart, miniBatchEnd)
-		X := Xfull.Slice(miniBatchStart, miniBatchEnd, 0, nFeatures).(*mat.Dense)
-		Y := Yfull.Slice(miniBatchStart, miniBatchEnd, 0, nOutputs).(*mat.Dense)
+		X := base.MatDenseSlice(Xfull, miniBatchStart, miniBatchEnd, 0, nFeatures)
+		Y := base.MatDenseSlice(Yfull, miniBatchStart, miniBatchEnd, 0, nOutputs)
 
 		Jmini := regr.fitMiniBatch(X, Y, epoch, miniBatchLen, nSamples)
 		Jsum += Jmini
