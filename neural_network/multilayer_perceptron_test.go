@@ -133,7 +133,7 @@ func TestMLPClassifierMicrochip(t *testing.T) {
 	Ypred := mat.NewDense(nSamples, nOutputs, nil)
 	var J float64
 	loss := func() float64 {
-		regr.predictZH(Xp, nil, Ypred, false)
+		regr.predictZH(Xp, Ypred)
 		return regr.fitEpoch(Xp, Ytrue, 1)
 	}
 	chkLoss := func(context string, expectedLoss float64) {
@@ -259,3 +259,30 @@ func TestMnist(t *testing.T) {
 	}
 
 }
+
+func BenchmarkMnist(b *testing.B) {
+
+	X, Y := datasets.LoadMnist()
+
+	X, Yohe := preprocessing.NewOneHotEncoder().Fit(X, Y).Transform(X, Y)
+	//fmt.Println(base.MatDimsString(Yohe))
+	Theta1, Theta2 := datasets.LoadMnistWeights()
+	mlp := NewMLPClassifier([]int{25}, "logistic", "adam", 0.)
+	mlp.Loss = "cross-entropy"
+	mlp.MiniBatchSize = 5000
+	mlp.Shuffle = false
+	mlp.allocLayers(400, 10, func() float64 { return 0. })
+	mlp.Layers[0].Theta.Copy(Theta1.T())
+	mlp.Layers[1].Theta.Copy(Theta2.T())
+	mlp.fitEpoch(X, Yohe, 0)
+
+	for epoch := 1; epoch < b.N*1; epoch++ {
+		mlp.fitEpoch(X, Yohe, epoch)
+	}
+
+}
+
+//BenchmarkMnist-8   	      20	  62810454 ns/op	18984637 B/op	     201 allocs/op
+//BenchmarkMnist-8   	      20	  62243278 ns/op	18985050 B/op	     202 allocs/op
+//BenchmarkMnist-8   	      30	  41560266 ns/op	 2522941 B/op	     159 allocs/op
+//BenchmarkMnist-8   	      30	  37128304 ns/op	 2522653 B/op	     156 allocs/op

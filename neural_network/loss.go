@@ -96,20 +96,21 @@ type activationStruct struct{}
 
 // ActivationFunctions WIP
 type ActivationFunctions interface {
-	Func(z mat.Matrix, h *mat.Dense)
+	Func(z, h *mat.Dense)
 	Grad(z, h mat.Matrix, grad *mat.Dense)
 }
 type identityActivation struct{ activationStruct }
 
-func (identityActivation) Func(z mat.Matrix, h *mat.Dense) { h.Copy(z) }
+func (identityActivation) Func(z, h *mat.Dense) { h.Copy(z) }
 func (identityActivation) Grad(z, h mat.Matrix, grad *mat.Dense) {
 	grad.Copy(matApply{Matrix: h, Func: func(h float64) float64 { return 1. }})
 }
 
 type logisticActivation struct{ activationStruct }
 
-func (logisticActivation) Func(z mat.Matrix, h *mat.Dense) {
-	h.Copy(matApply{Matrix: z, Func: func(z float64) float64 { return 1. / (1. + math.Exp(-z)) }})
+func (logisticActivation) Func(z, h *mat.Dense) {
+	matx{Dense: h}.CopyApplied(z, func(z float64) float64 { return 1. / (1. + math.Exp(-z)) })
+	//h.Copy(matApply{Matrix: z, Func: func(z float64) float64 { return 1. / (1. + math.Exp(-z)) }})
 }
 func (logisticActivation) Grad(z, h mat.Matrix, grad *mat.Dense) {
 	grad.Copy(matApply{Matrix: h, Func: func(h float64) float64 { return h * (1. - h) }})
@@ -117,7 +118,7 @@ func (logisticActivation) Grad(z, h mat.Matrix, grad *mat.Dense) {
 
 type tanhActivation struct{ activationStruct }
 
-func (tanhActivation) Func(z mat.Matrix, h *mat.Dense) {
+func (tanhActivation) Func(z, h *mat.Dense) {
 	h.Copy(matApply{Matrix: z, Func: math.Tanh})
 }
 func (tanhActivation) Grad(z, h mat.Matrix, grad *mat.Dense) {
@@ -126,7 +127,7 @@ func (tanhActivation) Grad(z, h mat.Matrix, grad *mat.Dense) {
 
 type reluActivation struct{ activationStruct }
 
-func (reluActivation) Func(z mat.Matrix, h *mat.Dense) {
+func (reluActivation) Func(z, h *mat.Dense) {
 	h.Copy(matApply{Matrix: z, Func: func(z float64) float64 { return math.Max(0, z) }})
 }
 func (reluActivation) Grad(z, h mat.Matrix, grad *mat.Dense) {

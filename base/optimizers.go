@@ -90,7 +90,7 @@ func NewRMSPropOptimizer() *SGDOptimizer {
 
 // NewAdamOptimizer returns an initialized adam solver
 func NewAdamOptimizer() *SGDOptimizer {
-	s := &SGDOptimizer{StepSize: .5, Beta1: .9, Beta2: .999, Epsilon: 1e-8, Adam: true}
+	s := &SGDOptimizer{StepSize: .5, Beta1: .9, Beta2: .999, Epsilon: 1e-8, BatchPart: 1.0, Adam: true}
 	return s
 }
 
