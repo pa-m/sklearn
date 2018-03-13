@@ -175,6 +175,7 @@ func TestMLPClassifierMicrochip(t *testing.T) {
 		"rmsprop",
 		"adadelta",
 		"adam",
+		"lbfgs",
 	}
 	newOptimizer := func(name string) base.Optimizer {
 
@@ -187,6 +188,8 @@ func TestMLPClassifierMicrochip(t *testing.T) {
 			s := base.NewAdamOptimizer()
 			//s.StepSize = 2
 			return s
+		case "lbfgs":
+			return nil
 		default:
 			s := base.NewOptimizer(name)
 			return s
@@ -201,7 +204,13 @@ func TestMLPClassifierMicrochip(t *testing.T) {
 		regr.Alpha = 1.
 		regr.Epochs = 50
 		regr.MiniBatchSize = 118 //1,2,59,118
-		regr.Layers[0].Optimizer = newOptimizer(optimizer)
+		regr.Solver = optimizer
+		switch optimizer {
+		case "lbfgs":
+			regr.Layers[0].Optimizer = nil
+		default:
+			regr.Layers[0].Optimizer = newOptimizer(optimizer)
+		}
 
 		regr.Fit(Xp, Ytrue)
 		elapsed := time.Since(start)

@@ -236,6 +236,7 @@ func TestLinFitGOM(t *testing.T) {
 			regr.Options.GOMethod = method
 			//m.Verbose = true
 			//m.ComputeScore = true
+
 			start := time.Now()
 			regr.Fit(p.X, p.Y)
 			elapsed := time.Since(start)

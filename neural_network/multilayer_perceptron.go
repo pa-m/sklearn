@@ -1,9 +1,12 @@
 package neuralNetwork
 
 import (
+	"fmt"
 	"math"
 	"math/rand"
 	"pa-m/sklearn/metrics"
+
+	"gonum.org/v1/gonum/optimize"
 
 	"github.com/pa-m/sklearn/base"
 	"gonum.org/v1/gonum/blas"
@@ -67,6 +70,7 @@ type MLPRegressor struct {
 	Optimizer        base.OptimCreator
 	LossName         string
 	Activation       string
+	Solver           string
 	HiddenLayerSizes []int
 
 	Layers                           []*Layer
@@ -98,7 +102,8 @@ func NewMLPRegressor(hiddenLayerSizes []int, activation string, solver string, A
 	regr := MLPRegressor{
 		Shuffle:          true,
 		UseBlas:          true,
-		Optimizer:        base.Solvers[solver],
+		Solver:           solver,
+		Optimizer:        nil,
 		HiddenLayerSizes: hiddenLayerSizes,
 		Loss:             "square",
 		Activation:       activation,
@@ -106,6 +111,11 @@ func NewMLPRegressor(hiddenLayerSizes []int, activation string, solver string, A
 	}
 	if activation != "identity" {
 		regr.Loss = "log"
+	}
+	switch {
+	case isGOMethodOnly(solver):
+	default:
+		regr.SetOptimizer(base.Solvers[solver])
 	}
 	return regr
 }
@@ -171,13 +181,48 @@ func (regr *MLPRegressor) Fit(X, Y *mat.Dense) lm.Regressor {
 	if regr.Epochs <= 0 {
 		regr.Epochs = 1e6 / nSamples
 	}
-	for epoch := 0; epoch < regr.Epochs; epoch++ {
-		regr.fitEpoch(X, Y, epoch)
+	switch {
+	case isGOMethodOnly(regr.Solver):
+		regr.fitGOM(X, Y)
+
+	default:
+		for epoch := 0; epoch < regr.Epochs; epoch++ {
+			regr.fitEpoch(X, Y, epoch)
+		}
 	}
 	return regr
 }
 
-// firEpoch fits one epoch
+// fitGOM fits with a gonum/optimize Method
+
+func (regr *MLPRegressor) fitGOM(X, Y *mat.Dense) float64 {
+	epoch := 0
+
+	p := optimize.Problem{
+		Func: func(thetaSlice []float64) float64 {
+			copy(regr.thetaSlice, thetaSlice)
+			J := regr.fitEpoch(X, Y, epoch)
+			epoch++
+			return J
+		},
+		Grad: func(gradSlice []float64, thetaSlice []float64) {
+			copy(gradSlice, regr.gradSlice)
+		},
+	}
+	method := base.GOMethodCreators[regr.Solver]()
+	settings := optimize.DefaultSettings()
+	settings.FuncEvaluations = regr.Epochs
+
+	ret, err := optimize.Local(p, regr.thetaSlice, settings, method)
+	if err != nil {
+		fmt.Println(err)
+	}
+	copy(regr.thetaSlice, ret.X)
+	regr.J = ret.F
+	return ret.F
+}
+
+// fitEpoch fits one epoch
 func (regr *MLPRegressor) fitEpoch(Xfull, Yfull *mat.Dense, epoch int) float64 {
 	nSamples, nFeatures := Xfull.Dims()
 	_, nOutputs := Yfull.Dims()
@@ -320,8 +365,12 @@ func (regr *MLPRegressor) backprop(X, Y mat.Matrix, epoch, miniBatchLen, nSample
 			}
 		}
 		//compute theta Update from Grad
-		L.Optimizer.GetUpdate(L.Update, L.Grad)
-		L.Theta.Add(L.Theta, L.Update)
+		switch regr.Solver {
+		case "lbfgs":
+		default:
+			L.Optimizer.GetUpdate(L.Update, L.Grad)
+			L.Theta.Add(L.Theta, L.Update)
+		}
 	}
 	return J
 }
@@ -437,3 +486,9 @@ func sgn(x float64) float64 {
 
 // rm checks arg is a *Dense and returns it
 func rm(m *mat.Dense) *mat.Dense { return m }
+
+func isGOMethodOnly(solver string) bool {
+	_, isBaseOptimCreator := base.Solvers[solver]
+	_, isGOMethodCreator := base.GOMethodCreators[solver]
+	return isGOMethodCreator && !isBaseOptimCreator
+}

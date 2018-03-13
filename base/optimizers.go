@@ -30,6 +30,23 @@ var Solvers = map[string]OptimCreator{
 	"adam":     func() Optimizer { return NewAdamOptimizer() },
 }
 
+// GOMethodCreator is a func that creates a gonum/optimize.Method
+type GOMethodCreator func() optimize.Method
+
+// GOMethodCreators is the map of all gonum optimize method creators (gonum native method creators + base.Optimizer creators)
+var GOMethodCreators = map[string]GOMethodCreator{
+	"sgd":             func() optimize.Method { return NewSGDOptimizer() },
+	"adagrad":         func() optimize.Method { return NewAdagradOptimizer() },
+	"rmsprop":         func() optimize.Method { return NewRMSPropOptimizer() },
+	"adadelta":        func() optimize.Method { return NewAdadeltaOptimizer() },
+	"adam":            func() optimize.Method { return NewAdamOptimizer() },
+	"bfgs":            func() optimize.Method { return &optimize.BFGS{} },
+	"cg":              func() optimize.Method { return &optimize.CG{} },
+	"gradientdescent": func() optimize.Method { return &optimize.GradientDescent{} },
+	"lbfgs":           func() optimize.Method { return &optimize.LBFGS{} },
+	"neldermead":      func() optimize.Method { return &optimize.NelderMead{} },
+}
+
 // SGDOptimizer is struct for SGD solver v https://en.wikipedia.org/wiki/Stochastic_gradient_descent
 type SGDOptimizer struct {
 	// StepSize is used for all variants
