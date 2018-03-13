@@ -30,6 +30,9 @@ type Layer struct {
 func NewLayer(inputs, outputs int, activation string, optimizer Optimizer, thetaSlice, gradSlice, updateSlice []float64, rnd func() float64) *Layer {
 
 	Theta := mat.NewDense(inputs, outputs, thetaSlice)
+	if rnd == nil {
+		rnd = func() float64 { return -.5 + 2*rand.Float64() }
+	}
 	Theta.Apply(func(feature, output int, _ float64) float64 { return rnd() }, Theta)
 	matx{Dense: Theta}.Orthonormalize()
 	return &Layer{Activation: activation,
@@ -176,7 +179,8 @@ func (regr *MLPRegressor) Fit(X, Y *mat.Dense) lm.Regressor {
 	nSamples, nFeatures := X.Dims()
 	_, nOutputs := Y.Dims()
 	// create layers
-	regr.allocLayers(nFeatures, nOutputs, rand.NormFloat64)
+	var rnd func() float64
+	regr.allocLayers(nFeatures, nOutputs, rnd)
 	// J is the loss value
 	regr.J = math.Inf(1)
 	if regr.Epochs <= 0 {
