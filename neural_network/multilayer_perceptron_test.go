@@ -11,7 +11,6 @@ import (
 
 	"github.com/gonum/floats"
 	"github.com/pa-m/sklearn/base"
-	lm "github.com/pa-m/sklearn/linear_model"
 	"github.com/pa-m/sklearn/preprocessing"
 
 	"gonum.org/v1/gonum/mat"
@@ -72,7 +71,7 @@ func TestMLPRegressorTanhCrossEntropyLoss(t *testing.T) {
 
 func testMLPRegressor(t *testing.T, activationName string, lossName string, solver string, maxLayers int) {
 	var nSamples, nFeatures, nOutputs = 2000, 3, 2
-	activation := lm.Activations[activationName]
+	//activation := base.Activations[activationName]
 	var p = NewRandomProblem(nSamples, nFeatures, nOutputs, activationName, lossName)
 	var HiddenLayerSizes []int
 
@@ -88,7 +87,7 @@ func testMLPRegressor(t *testing.T, activationName string, lossName string, solv
 		//regr.SetOptimizer(OptimCreator, true)
 		regr.Epochs = 400
 		regr.GradientClipping = 5.
-		testSetup := fmt.Sprintf("%T %T %s loss layers %v", regr, activation, lossName, HiddenLayerSizes)
+		testSetup := fmt.Sprintf("%T %s %s loss layers %v", regr, activationName, lossName, HiddenLayerSizes)
 		//Ypred := mat.NewDense(nSamples, nOutputs, nil)
 
 		regr.Loss = lossName

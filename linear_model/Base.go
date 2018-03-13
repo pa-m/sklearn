@@ -19,6 +19,9 @@ import (
 
 type float = float64
 
+// Activation is borrowed from base package
+type Activation = base.Activation
+
 // LinearModel is a base struct for multioutput regressions
 type LinearModel struct {
 	FitIntercept, Normalize          bool
@@ -70,7 +73,7 @@ func NewLinearRegression() *LinearRegression {
 	regr.Optimizer = base.NewAdamOptimizer()
 	regr.FitIntercept = true
 	regr.Normalize = false
-	regr.ActivationFunction = Identity{}
+	regr.ActivationFunction = base.Identity{}
 	regr.LossFunction = SquareLoss
 	return regr
 }
@@ -335,7 +338,7 @@ func LinFit(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 		opts.Loss = SquareLoss
 	}
 	if opts.Activation == nil {
-		opts.Activation = Identity{}
+		opts.Activation = base.Identity{}
 	}
 
 	YpredMini := mat.NewDense(miniBatchSize, nOutputs, nil)
@@ -419,7 +422,7 @@ func LinFitGOM(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 		opts.Loss = SquareLoss
 	}
 	if opts.Activation == nil {
-		opts.Activation = Identity{}
+		opts.Activation = base.Identity{}
 	}
 
 	converged := false

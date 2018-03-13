@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/pa-m/sklearn/base"
 	"gonum.org/v1/gonum/mat"
 )
 
@@ -38,7 +39,7 @@ func SquareLoss(Ytrue, X, Theta mat.Matrix, Ypred, Ydiff, grad *mat.Dense, Alpha
 		return ydiff
 	}, Ydiff)
 	// put into grad
-	if _, ok := activation.(Identity); ok {
+	if _, ok := activation.(base.Identity); ok {
 		grad.Mul(X.T(), Ydiff) //<- for identity only
 
 	} else {
@@ -158,7 +159,7 @@ func CrossEntropyLoss(Ytrue, X, Theta mat.Matrix, Ypred, Ydiff, grad *mat.Dense,
 		}
 		return hpred
 	}, Ypred)
-	if _, ok := activation.(Logistic); ok {
+	if _, ok := activation.(base.Logistic); ok {
 		grad.Mul(X.T(), Ydiff)
 	} else {
 		// // for Logistic activation only

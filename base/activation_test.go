@@ -1,4 +1,4 @@
-package linearModel
+package base
 
 import (
 	"math/rand"

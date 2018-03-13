@@ -6,26 +6,27 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/pa-m/sklearn/base"
 	"gonum.org/v1/gonum/diff/fd"
 	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
 )
 
 func TestSquareLoss(t *testing.T) {
-	for _, activationFunction := range []Activation{Identity{}, Logistic{}, Tanh{}, ReLU{}} {
+	for _, activationFunction := range base.Activations {
 		testLossDerivatives(t, SquareLoss, activationFunction)
 	}
 }
 
 func TestLogLoss(t *testing.T) {
-	for _, activationFunction := range []Activation{Identity{}, Logistic{}, Tanh{}, ReLU{}} {
+	for _, activationFunction := range base.Activations {
 		testLossDerivatives(t, LogLoss, activationFunction)
 	}
 }
 
 func TestCrossEntropyLoss(t *testing.T) {
 	// TODO tanh
-	for _, activationFunction := range []Activation{Identity{}, Logistic{}, Tanh{}, ReLU{}} {
+	for _, activationFunction := range base.Activations {
 		testLossDerivatives(t, CrossEntropyLoss, activationFunction)
 	}
 }

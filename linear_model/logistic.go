@@ -2,6 +2,7 @@ package linearModel
 
 import (
 	"github.com/gonum/floats"
+	"github.com/pa-m/sklearn/base"
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/optimize"
 	//"gonum.org/v1/gonum/diff/fd"
@@ -20,7 +21,7 @@ func NewLogisticRegression() *LogisticRegression {
 	//regr.Optimizer = base.NewAdamOptimizer()
 	regr.FitIntercept = true
 	regr.Normalize = false
-	regr.ActivationFunction = Sigmoid{}
+	regr.ActivationFunction = base.Logistic{}
 	regr.LossFunction = CrossEntropyLoss
 	regr.Options.GOMethod = &optimize.LBFGS{}
 	return regr
@@ -30,7 +31,7 @@ func NewLogisticRegression() *LogisticRegression {
 func (regr *LogisticRegression) PredictProba(X, Y *mat.Dense) {
 	regr.DecisionFunction(X, Y)
 	Y.Apply(func(i int, o int, y float64) float64 {
-		return (Sigmoid{}).F(y)
+		return (base.Sigmoid{}).F(y)
 	}, Y)
 }
 

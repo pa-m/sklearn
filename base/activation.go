@@ -1,4 +1,4 @@
-package linearModel
+package base
 
 import (
 	"gonum.org/v1/gonum/mat"
