@@ -282,7 +282,10 @@ func BenchmarkMnist(b *testing.B) {
 
 }
 
+//go test ./neural_network -run BenchmarkMnist -bench ^BenchmarkMnist -cpuprofile /tmp/cpu.prof -memprofile /tmp/mem.prof -benchmem
 //BenchmarkMnist-8   	      20	  62810454 ns/op	18984637 B/op	     201 allocs/op
 //BenchmarkMnist-8   	      20	  62243278 ns/op	18985050 B/op	     202 allocs/op
 //BenchmarkMnist-8   	      30	  41560266 ns/op	 2522941 B/op	     159 allocs/op
 //BenchmarkMnist-8   	      30	  37128304 ns/op	 2522653 B/op	     156 allocs/op
+//BenchmarkMnist-8   	      30	  35717715 ns/op	 2523106 B/op	     154 allocs/op
+//BenchmarkMnist-8   	      50	  26804534 ns/op	 1550716 B/op	     117 allocs/op

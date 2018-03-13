@@ -1,6 +1,7 @@
 package neuralNetwork
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/pa-m/sklearn/base"
@@ -53,11 +54,42 @@ func (m matx) AddScaledApplied(scale float64, B mat.RawMatrixer, f func(float64)
 // CopyApplied  copy f(B) to m
 func (m matx) CopyApplied(B mat.RawMatrixer, f func(float64) float64) {
 	amat, bmat := m.RawMatrix(), B.RawMatrix()
-	for ja, jb, jm := 0, 0, 0; ja < amat.Rows*amat.Stride; ja, jb, jm = ja+amat.Stride, jb+bmat.Stride, jm+amat.Stride {
-		for i := range amat.Data[ja : ja+amat.Cols] {
-			amat.Data[i+jm] = f(bmat.Data[i+jb])
+	if amat.Rows != bmat.Rows || amat.Cols != bmat.Cols {
+		panic(fmt.Errorf("%d,%d != %d,%d", amat.Rows, amat.Cols, bmat.Rows, bmat.Cols))
+	}
+	for ja, jb := 0, 0; ja < amat.Rows*amat.Stride; ja, jb = ja+amat.Stride, jb+bmat.Stride {
+		for i, vb := range bmat.Data[jb : jb+bmat.Cols] {
+			amat.Data[i+ja] = f(vb)
 		}
 	}
+}
+
+// CopyScaledApplied2  copy scale*f(B,C) to m
+func (m matx) CopyScaledApplied2(B, C mat.RawMatrixer, scale float64, f func(float64, float64) float64) {
+	amat, bmat, cmat := m.RawMatrix(), B.RawMatrix(), C.RawMatrix()
+	if amat.Rows != bmat.Rows || amat.Cols != bmat.Cols {
+		panic(fmt.Errorf("%d,%d != %d,%d", amat.Rows, amat.Cols, bmat.Rows, bmat.Cols))
+	}
+	for ja, jb, jc := 0, 0, 0; ja < amat.Rows*amat.Stride; ja, jb, jc = ja+amat.Stride, jb+bmat.Stride, jc+cmat.Stride {
+		for i := range amat.Data[ja : ja+amat.Cols] {
+			amat.Data[i+ja] = scale * f(bmat.Data[i+jb], cmat.Data[i+jc])
+		}
+	}
+}
+
+// SumApplied2  returns sum of  f(B,C) t
+func (matx) SumApplied2(B, C mat.RawMatrixer, f func(float64, float64) float64) float64 {
+	bmat, cmat := B.RawMatrix(), C.RawMatrix()
+	if cmat.Rows != bmat.Rows || cmat.Cols != bmat.Cols {
+		panic(fmt.Errorf("%d,%d != %d,%d", bmat.Rows, bmat.Cols, cmat.Rows, cmat.Cols))
+	}
+	sum := 0.
+	for jb, jc := 0, 0; jb < bmat.Rows*bmat.Stride; jb, jc = jb+bmat.Stride, jc+cmat.Stride {
+		for i := range bmat.Data[jb : jb+bmat.Cols] {
+			sum += f(bmat.Data[i+jb], cmat.Data[i+jc])
+		}
+	}
+	return sum
 }
 
 func (m matx) SumSquares() float64 {

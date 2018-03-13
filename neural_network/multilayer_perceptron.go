@@ -251,7 +251,7 @@ func (regr *MLPRegressor) backprop(X, Y mat.Matrix, epoch, miniBatchLen, nSample
 				base.MatParallelGemm(blas.NoTrans, blas.Trans, 1., nextLayer.Ydiff.RawMatrix(), NextThetaG1.RawMatrix(), 0., L.Ydiff.RawMatrix())
 
 			} else {
-				L.Ydiff.Mul(nextLayer.Ydiff, MatFirstColumnRemoved{Matrix: nextLayer.Theta.T()})
+				L.Ydiff.Mul(nextLayer.Ydiff, base.MatFirstColumnRemoved{Matrix: nextLayer.Theta.T()})
 
 			}
 

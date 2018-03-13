@@ -92,7 +92,7 @@ func testActivationDerivatives(t *testing.T, activation string) {
 	G := mat.NewDense(nSamples, nOutputs, gradSlice)
 	//Gfd := mat.NewDense(nSamples, nOutputs, gradSliceFd)
 
-	Z.Copy(matApply0{Rows: nSamples, Columns: nOutputs, Func: rand.Float64})
+	Z.Apply(func(_, _ int, _ float64) float64 { return rand.Float64() }, Z)
 
 	a.Func(Z, H)
 	a.Grad(Z, H, G)
