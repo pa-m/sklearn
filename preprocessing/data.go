@@ -337,27 +337,45 @@ func (scaler *PolynomialFeatures) Transform(X, Y *mat.Dense) (Xout, Yout *mat.De
 	return Xout, Y
 }
 
-// InverseTransform inverse tranformation for PolynomialFeatures. not implemented.
+// InverseTransform inverse tranformation for PolynomialFeatures.
 func (scaler *PolynomialFeatures) InverseTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
 	//TODO
 	type jt struct{ jorig, jpoly int }
 	var jts []jt
 	nSamples, _ := X.Dims()
-	for ioutput, p := range scaler.Powers {
-		var jWith1 = -1
-		var sumpj = 0
-		for j, pj := range p {
-			sumpj = +pj
-			if pj == 1 {
-				jWith1 = j
+	XoutCols := 0
+
+	intsum := func(a []int) int {
+		var s int
+		for _, v := range a {
+			s += v
+		}
+		return s
+	}
+	intmaxidx := func(a []int) int {
+		i := 0
+		for j, v := range a {
+			if v > a[i] {
+				i = j
 			}
 		}
-		if sumpj == 1 && jWith1 > 0 {
-			jts = append(jts, jt{jWith1, ioutput})
+		return i
+	}
+	for ioutput, p := range scaler.Powers {
+		var jMax = intmaxidx(p)
+		var sumpj = intsum(p)
+		if sumpj == 1 {
+			//fmt.Println(ioutput, "p", p, "sumpj", sumpj, "jWith1", jMax)
+			jts = append(jts, jt{jMax, ioutput})
+			if jMax >= XoutCols {
+				XoutCols = jMax + 1
+			}
 		}
 	}
-	Xout = mat.NewDense(nSamples, len(jts), nil)
+	Xout = mat.NewDense(nSamples, XoutCols, nil)
+
 	for _, pair := range jts {
+		//fmt.Println(jts)
 		for i := 0; i < nSamples; i++ {
 			Xout.Set(i, pair.jorig, X.At(i, pair.jpoly))
 		}

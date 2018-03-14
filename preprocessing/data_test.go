@@ -71,7 +71,8 @@ func TestPolynomialFeatures(t *testing.T) {
 	isTransformer(pf)
 	pf.IncludeBias = true
 	pf.InteractionOnly = false
-	X := mat.NewDense(1, 3, []float{1, 2, 3})
+	nSamples, nFeatures := 1, 3
+	X := mat.NewDense(nSamples, nFeatures, []float{1, 2, 3})
 	pf.Fit(X, nil)
 	//fmt.Printf("powers=%v\n", pf.Powers)
 	if fmt.Sprintf("%v", pf.Powers) != "[[0 0 0] [0 0 1] [0 0 2] [0 0 3] [0 1 0] [0 1 1] [0 1 2] [0 2 0] [0 2 1] [0 3 0] [1 0 0] [1 0 1] [1 0 2] [1 1 0] [1 1 1] [1 2 0] [2 0 0] [2 0 1] [2 1 0] [3 0 0]]" {
@@ -79,7 +80,14 @@ func TestPolynomialFeatures(t *testing.T) {
 	}
 	Xout, _ := pf.Transform(X, nil)
 	if "[1 3 9 27 2 6 18 4 12 8 1 3 9 2 6 4 1 3 2 1]" != fmt.Sprint(Xout.RawRowView(0)) {
-		t.Fail()
+		t.Errorf("polyfeatures transform\nexpected %v\ngot %v", "[1 3 9 27 2 6 18 4 12 8 1 3 9 2 6 4 1 3 2 1]", fmt.Sprint(Xout.RawRowView(0)))
+	}
+	X1, _ := pf.Transform(X, nil)
+	X2, _ := pf.InverseTransform(X1, nil)
+	Xd := mat.NewDense(nSamples, nFeatures, nil)
+	Xd.Sub(X2, X)
+	if mat.Norm(Xd, 2) > 1e-4 {
+		t.Errorf("PolynomialFeatures.InverseTransform failed expected %#v, got %#v", X.RawRowView(0), X2.RawRowView(0))
 	}
 
 	pf.IncludeBias = true
@@ -89,6 +97,7 @@ func TestPolynomialFeatures(t *testing.T) {
 	if fmt.Sprintf("%v", pf.Powers) != "[[0 0 0] [0 0 1] [0 0 2] [0 0 3] [0 1 0] [0 2 0] [0 3 0] [1 0 0] [2 0 0] [3 0 0]]" {
 		fmt.Println("failed interactiononly")
 		t.Fail()
+
 	}
 
 	pf.IncludeBias = false
@@ -96,7 +105,10 @@ func TestPolynomialFeatures(t *testing.T) {
 	pf.Fit(X, nil)
 	//fmt.Printf("powers=%v\n", pf.Powers)
 	if fmt.Sprintf("%v", pf.Powers) != "[[0 0 1] [0 0 2] [0 0 3] [0 1 0] [0 1 1] [0 1 2] [0 2 0] [0 2 1] [0 3 0] [1 0 0] [1 0 1] [1 0 2] [1 1 0] [1 1 1] [1 2 0] [2 0 0] [2 0 1] [2 1 0] [3 0 0]]" {
-		t.Fail()
+		t.Errorf("polyfeatures nobias nointeraction\nexpected %v\ngot %v",
+			"[[0 0 1] [0 0 2] [0 0 3] [0 1 0] [0 1 1] [0 1 2] [0 2 0] [0 2 1] [0 3 0] [1 0 0] [1 0 1] [1 0 2] [1 1 0] [1 1 1] [1 2 0] [2 0 0] [2 0 1] [2 1 0] [3 0 0]]",
+			fmt.Sprintf("%v", pf.Powers),
+		)
 	}
 
 }
@@ -112,7 +124,8 @@ func ExampleInsertOnes() {
 }
 
 func TestOneHotEncoder(t *testing.T) {
-	Y := mat.NewDense(2, 1, []float64{1, 10})
+	nSamples, nOutputs := 2, 1
+	Y := mat.NewDense(nSamples, nOutputs, []float64{1, 10})
 	ohe := NewOneHotEncoder()
 	ohe.Fit(nil, Y)
 	//fmt.Printf("%#v\n", ohe)
@@ -120,6 +133,13 @@ func TestOneHotEncoder(t *testing.T) {
 		t.Fail()
 	}
 	if ohe.NumClasses[0] != 10 {
+		t.Fail()
+	}
+	_, Y1 := ohe.Transform(nil, Y)
+	_, Y2 := ohe.InverseTransform(nil, Y1)
+	Yd := mat.NewDense(nSamples, nOutputs, nil)
+	Yd.Sub(Y, Y2)
+	if mat.Norm(Yd, 2) > 1e-4 {
 		t.Fail()
 	}
 }
