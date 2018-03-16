@@ -76,6 +76,7 @@ type MLPRegressor struct {
 	Activation       string
 	Solver           string
 	HiddenLayerSizes []int
+	RandomState      *rand.Rand
 
 	Layers                           []*Layer
 	Alpha, L1Ratio, GradientClipping float64
@@ -137,6 +138,11 @@ func (regr *MLPRegressor) inputs(prevOutputs int) (inputs int) {
 func (regr *MLPRegressor) allocLayers(nFeatures, nOutputs int, rnd func() float64) {
 	var thetaLen, thetaOffset, thetaLen1 int
 	regr.Layers = make([]*Layer, 0)
+
+	if rnd == nil && regr.RandomState != nil {
+		rnd = func() float64 { return -.5 + 2*regr.RandomState.Float64() }
+	}
+
 	prevOutputs := nFeatures
 
 	for _, outputs := range regr.HiddenLayerSizes {
@@ -147,6 +153,7 @@ func (regr *MLPRegressor) allocLayers(nFeatures, nOutputs int, rnd func() float6
 	regr.thetaSlice = make([]float64, thetaLen, thetaLen)
 	regr.gradSlice = make([]float64, thetaLen, thetaLen)
 	regr.updateSlice = make([]float64, thetaLen, thetaLen)
+
 	prevOutputs = nFeatures
 	for _, outputs := range regr.HiddenLayerSizes {
 		thetaLen1 = regr.inputs(prevOutputs) * outputs
@@ -166,6 +173,7 @@ func (regr *MLPRegressor) allocLayers(nFeatures, nOutputs int, rnd func() float6
 	}
 	// add output layer
 	thetaLen1 = regr.inputs(prevOutputs) * nOutputs
+
 	regr.Layers = append(regr.Layers, NewLayer(1+prevOutputs, nOutputs, lastActivation, regr.Optimizer(),
 		regr.thetaSlice[thetaOffset:thetaOffset+thetaLen1],
 		regr.gradSlice[thetaOffset:thetaOffset+thetaLen1],
@@ -438,7 +446,7 @@ func (regr *MLPRegressor) Score(X, Y *mat.Dense) float64 {
 	if regr.Loss == "square" {
 		return metrics.R2Score(Y, Ypred, nil, "").At(0, 0)
 	}
-	return metrics.AccuracyScore(Y, Ypred, nil, "").At(0, 0)
+	return metrics.AccuracyScore(Y, Ypred, true, nil)
 }
 
 // MLPClassifier ...

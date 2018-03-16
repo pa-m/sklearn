@@ -226,7 +226,7 @@ func TestMLPClassifierMicrochip(t *testing.T) {
 			best["best for time"] = testSetup + fmt.Sprintf("(%s)", elapsed)
 		}
 		regr.Predict(Xp, Ypred)
-		accuracy := metrics.AccuracyScore(Ytrue, Ypred, nil, "").At(0, 0)
+		accuracy := metrics.AccuracyScore(Ytrue, Ypred, true, nil)
 		// FIXME accuracy should be over 0.83
 		expectedAccuracy := 0.82
 		if accuracy < expectedAccuracy {
@@ -235,7 +235,7 @@ func TestMLPClassifierMicrochip(t *testing.T) {
 	}
 	fmt.Println("MLPClassifier BEST SETUP:", best)
 
-	// // fmt.Println("acc:", metrics.AccuracyScore(Ytrue, Ypred, nil, "uniform_average").At(0, 0))
+	// // fmt.Println("acc:", metrics.AccuracyScore(Ytrue, Ypred,true,nil))
 	// fmt.Println("ok")
 }
 

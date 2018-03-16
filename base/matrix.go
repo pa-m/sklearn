@@ -14,6 +14,21 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
+// MatConst is a matrix where all cless have the same value
+type MatConst struct {
+	Rows, Columns int
+	Value         float64
+}
+
+// Dims for MatConst
+func (m MatConst) Dims() (int, int) { return m.Rows, m.Columns }
+
+// At for MatConst
+func (m MatConst) At(i, j int) float64 { return m.Value }
+
+// T for MatConst
+func (m MatConst) T() mat.Matrix { return MatTranspose{Matrix: m} }
+
 // MatTranspose is a matrix override to transpose a mat.Matrix from its initializer
 type MatTranspose struct{ mat.Matrix }
 

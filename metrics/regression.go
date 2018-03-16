@@ -3,29 +3,14 @@ package metrics
 import (
 	//	"fmt"
 	"math"
+	"pa-m/sklearn/base"
 
 	"gonum.org/v1/gonum/mat"
 )
 
 type float = float64
 
-type constVector struct {
-	Value      float64
-	Length     int
-	Transposed bool
-}
-
-func (v constVector) Dims() (int, int) {
-	if v.Transposed {
-		return 1, v.Length
-	}
-	return v.Length, 1
-
-}
-func (v constVector) At(int, int) float64 { return v.Value }
-func (v constVector) T() mat.Matrix       { return &constVector{v.Value, v.Length, !v.Transposed} }
-func (v constVector) Len() int            { return v.Length }
-func (v constVector) AtVec(int) float64   { return v.Value }
+type constVector = base.MatConst
 
 // R2Score """R^2 (coefficient of determination) regression score function.
 // Best possible score is 1.0 and it can be negative (because the
@@ -94,11 +79,11 @@ func (v constVector) AtVec(int) float64   { return v.Value }
 // >>> r2Score(yTrue, yPred)
 // -3.0
 // """
-func R2Score(yTrue, yPred *mat.Dense, sampleWeight *mat.VecDense, multioutput string) *mat.Dense {
+func R2Score(yTrue, yPred *mat.Dense, sampleWeight *mat.Dense, multioutput string) *mat.Dense {
 	nSamples, nOutputs := yTrue.Dims()
 	if sampleWeight == nil {
 
-		sampleWeight = mat.VecDenseCopyOf(constVector{1., nSamples, false})
+		sampleWeight = mat.DenseCopyOf(base.MatConst{Rows: nSamples, Columns: 1, Value: 1.})
 
 	}
 	numerator := mat.NewDense(1, nOutputs, nil)
@@ -108,12 +93,11 @@ func R2Score(yTrue, yPred *mat.Dense, sampleWeight *mat.VecDense, multioutput st
 	diff2.MulElem(diff, diff)
 	numerator.Mul(sampleWeight.T(), diff2)
 
-	sampleWeightSum := mat.NewDense(1, 1, nil)
-	sampleWeightSum.Mul(sampleWeight.T(), constVector{1, nSamples, false})
+	sampleWeightSum := mat.Sum(sampleWeight)
 
 	yTrueAvg := mat.NewDense(1, nOutputs, nil)
 	yTrueAvg.Mul(sampleWeight.T(), yTrue)
-	yTrueAvg.Scale(1./sampleWeightSum.At(0, 0), yTrueAvg)
+	yTrueAvg.Scale(1./sampleWeightSum, yTrueAvg)
 
 	diff2.Apply(func(i int, j int, v float64) float64 {
 		v = yTrue.At(i, j) - yTrueAvg.At(0, j)
@@ -133,9 +117,8 @@ func R2Score(yTrue, yPred *mat.Dense, sampleWeight *mat.VecDense, multioutput st
 	case "variance_weighted":
 		r2 := mat.NewDense(1, 1, nil)
 		r2.Mul(denominator, r2score.T())
-		sumden := mat.NewDense(1, 1, nil)
-		sumden.Mul(denominator, constVector{1, nOutputs, false})
-		r2.Scale(1./sumden.At(0, 0), r2)
+		sumden := mat.Sum(denominator)
+		r2.Scale(1./sumden, r2)
 		return r2
 	default: // "uniform_average":
 		return mat.NewDense(1, 1, []float64{mat.Sum(r2score) / float64(nOutputs)})
@@ -257,72 +240,4 @@ func MeanAbsoluteError(yTrue, yPred mat.Matrix, sampleWeight *mat.Dense, multiou
 	default: // "uniform_average":
 		return mat.NewDense(1, 1, []float64{mat.Sum(tmp) / float64(nOutputs)})
 	}
-}
-
-// AccuracyScore reports (weighted) true values/nSamples
-func AccuracyScore(yTrue, yPred mat.Matrix, sampleWeight *mat.Dense, multioutput string) *mat.Dense {
-	nSamples, nOutputs := yTrue.Dims()
-	tmp := mat.NewDense(1, nOutputs, nil)
-
-	tmp.Apply(func(_ int, j int, v float64) float64 {
-		N, D := 0., 0.
-		for i := 0; i < nSamples; i++ {
-			ydiff := yPred.At(i, j) - yTrue.At(i, j)
-			w := 1.
-			if sampleWeight != nil {
-				w = sampleWeight.At(0, j)
-			}
-			N += w * math.Abs(ydiff)
-			D += w
-		}
-		return 1. - N/D
-	}, tmp)
-
-	switch multioutput {
-	case "raw_values":
-		return tmp
-	default: // "uniform_average":
-		return mat.NewDense(1, 1, []float64{mat.Sum(tmp) / float64(nOutputs)})
-	}
-}
-
-func countTPFPTNFN(Ytrue, Ypred mat.Matrix, pivot float64) (TP, FP, TN, FN float64) {
-	nSamples, nOutputs := Ytrue.Dims()
-	for i := 0; i < nSamples; i++ {
-		for o := 0; o < nOutputs; o++ {
-			if Ypred.At(i, o) >= pivot {
-				if Ytrue.At(i, o) >= pivot {
-					TP += 1.
-				} else {
-					FP += 1.
-				}
-			} else {
-				if Ytrue.At(i, o) >= pivot {
-					FN += 1.
-				} else {
-					TN += 1.
-				}
-			}
-		}
-	}
-	return
-}
-
-// Precision v https://en.wikipedia.org/wiki/F1_score
-func Precision(Ytrue, Ypred mat.Matrix, pivot float64) float64 {
-	TP, FP, _, _ := countTPFPTNFN(Ytrue, Ypred, pivot)
-	return TP / (TP + FP)
-
-}
-
-// Recall v https://en.wikipedia.org/wiki/F1_score
-func Recall(Ytrue, Ypred mat.Matrix, pivot float64) float64 {
-	TP, _, _, FN := countTPFPTNFN(Ytrue, Ypred, pivot)
-	return TP / (TP + FN)
-}
-
-// F1Score v https://en.wikipedia.org/wiki/F1_score
-func F1Score(Ytrue, Ypred mat.Matrix, pivot float64) float64 {
-	P, R := Precision(Ytrue, Ypred, pivot), Recall(Ytrue, Ypred, pivot)
-	return 2. / ((1. / R) + (1. / P))
 }

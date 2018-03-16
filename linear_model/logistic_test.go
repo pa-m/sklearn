@@ -172,7 +172,7 @@ func TestLogRegExamScore(t *testing.T) {
 	regr.PredictProba(X, Ypred)
 
 	regr.PredictProba(X, Ypred)
-	// fmt.Println("acc:", metrics.AccuracyScore(Ytrue, Ypred, nil, "uniform_average").At(0, 0))
+	// fmt.Println("acc:", metrics.AccuracyScore(Ytrue, Ypred, true, nil))
 	// fmt.Println("ok")
 }
 
@@ -283,7 +283,7 @@ func TestLogRegMicrochipTest(t *testing.T) {
 			bestTime = elapsed
 			best["best for time"] = testSetup + fmt.Sprintf("(%s)", elapsed)
 		}
-		accuracy := metrics.AccuracyScore(Ytrue, Ypred, nil, "").At(0, 0)
+		accuracy := metrics.AccuracyScore(Ytrue, Ypred, true, nil)
 		expectedAccuracy := 0.83
 		if accuracy < expectedAccuracy {
 			t.Errorf("%T accuracy=%g expected:%g", method, accuracy, expectedAccuracy)
@@ -353,7 +353,7 @@ func TestLogRegMicrochipTest(t *testing.T) {
 			bestTime = elapsed
 			best["best for time"] = testSetup + fmt.Sprintf("(%s)", elapsed)
 		}
-		accuracy := metrics.AccuracyScore(Ytrue, Ypred, nil, "").At(0, 0)
+		accuracy := metrics.AccuracyScore(Ytrue, Ypred, true, nil)
 		expectedAccuracy := 0.80
 		if accuracy < expectedAccuracy {
 			t.Errorf("%s accuracy=%g expected:%g", regr.Optimizer, accuracy, expectedAccuracy)

@@ -36,6 +36,17 @@ func TestR2Score(t *testing.T) {
 	}
 }
 
+// >>> y_pred = [0, 2, 1, 3]
+// >>> y_true = [0, 1, 2, 3]
+// >>> accuracy_score(y_true, y_pred)
+// 0.5
+// >>> accuracy_score(y_true, y_pred, normalize=False)
+// 2
+// In the multilabel case with binary label indicators:
+// >>> accuracy_score(np.array([[0, 1], [1, 1]]), np.ones((2, 2)))
+// 0.5
+// """
+
 func TestExplainedVarianceScore(t *testing.T) {
 	//1st example of sklearn metrics r2score
 	// yTrue := mat.NewDense(4, 1, []float64{3, -0.5, 2, 7})
