@@ -63,7 +63,7 @@ func countTPFPTNFN(Ytrue, Ypred mat.Matrix, pivot float64) (TP, FP, TN, FN float
 	return
 }
 
-// Precision v https://en.wikipedia.org/wiki/F1_score
+// PrecisionScore v https://en.wikipedia.org/wiki/F1_score
 func PrecisionScore(Ytrue, Ypred mat.Matrix) float64 {
 	pivot := 0.5
 	TP, FP, _, _ := countTPFPTNFN(Ytrue, Ypred, pivot)
@@ -71,7 +71,7 @@ func PrecisionScore(Ytrue, Ypred mat.Matrix) float64 {
 
 }
 
-// Recall v https://en.wikipedia.org/wiki/F1_score
+// RecallScore v https://en.wikipedia.org/wiki/F1_score
 func RecallScore(Ytrue, Ypred mat.Matrix) float64 {
 	pivot := .5
 	TP, _, _, FN := countTPFPTNFN(Ytrue, Ypred, pivot)

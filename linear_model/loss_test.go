@@ -41,8 +41,8 @@ func testLossDerivatives(t *testing.T, lossFunc Loss, activation Activation) {
 	Theta := mat.NewDense(1, 1, nil)
 	{
 		p := NewRandomLinearProblem(nSamples, 1, 1)
-		//scaler := preprocessing.NewMinMaxScaler([]float64{0, 1})
-		//X, Ytrue := scaler.Fit(p.X, p.Y).Transform(p.X, p.Y)
+		// scaler := preprocessing.NewMinMaxScaler([]float64{0, 1})
+		// X, Ytrue := scaler.Fit(p.X, p.Y).Transform(p.X, p.Y)
 		X, Ytrue := p.X, p.Y
 		Ytrue.Apply(func(i int, j int, v float64) float64 {
 			v = rand.Float64()

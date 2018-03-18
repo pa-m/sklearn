@@ -19,6 +19,7 @@ type Problem struct {
 }
 
 func NewRandomLinearProblem(nSamples, nFeatures, nOutputs int) *Problem {
+
 	X := mat.NewDense(nSamples, nFeatures, nil)
 	X.Apply(func(i, j int, v float64) float64 {
 		if j == 0 {
@@ -32,6 +33,7 @@ func NewRandomLinearProblem(nSamples, nFeatures, nOutputs int) *Problem {
 	}, TrueTheta)
 	Ytrue := mat.NewDense(nSamples, nOutputs, nil)
 	Ytrue.Product(X, TrueTheta)
+
 	return &Problem{X: X, Y: Ytrue}
 }
 

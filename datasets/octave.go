@@ -120,7 +120,6 @@ func LoadOctaveBin(filename string) map[string]*mat.Dense {
 		f.Pos += int(Rows * Cols * 8)
 		check(err)
 		// transpose:
-
 		t := mat.NewDense(int(Cols), int(Rows), data)
 		retval[VarName] = mat.DenseCopyOf(t.T())
 	}
