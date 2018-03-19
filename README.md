@@ -25,7 +25,6 @@ You'll also find
     - loss functions: square,cross-entropy
     - activation functions: identity,logistic,tanh,relu
 
-
 All of this is 
 - a personal project to get a deeper understanding of how all of this magic works
 - a work in progress, subject to refactoring, so interfaces may change, especially args to NewXXX

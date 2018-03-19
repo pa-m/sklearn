@@ -1,6 +1,7 @@
 package datasets
 
 import (
+	"bufio"
 	"compress/gzip"
 	"encoding/binary"
 	"fmt"
@@ -19,12 +20,12 @@ func LoadOctaveBin(filename string) map[string]*mat.Dense {
 	var err error
 	var b []byte
 	type PosReader struct {
-		io.ReadCloser
+		io.Reader
 		Pos int
 	}
 	read := func(f *PosReader, n int) ([]byte, error) {
 		b := make([]byte, n)
-		nread, err := f.ReadCloser.Read(b)
+		nread, err := f.Reader.Read(b)
 		if err != nil {
 			return b, err
 		}
@@ -60,15 +61,16 @@ func LoadOctaveBin(filename string) map[string]*mat.Dense {
 	f0, err = os.Open(filename)
 	check(err)
 	defer f0.Close()
+	f1 := bufio.NewReaderSize(f0, 65536)
 
 	var f *PosReader
 	if strings.HasSuffix(filename, ".gz") {
-		reader, err := gzip.NewReader(f0)
+		reader, err := gzip.NewReader(f1)
 		check(err)
-		f = &PosReader{ReadCloser: reader}
+		f = &PosReader{Reader: reader}
 
 	} else {
-		f = &PosReader{ReadCloser: f}
+		f = &PosReader{Reader: f1}
 	}
 
 	magic := "Octave-1-L"
@@ -116,12 +118,16 @@ func LoadOctaveBin(filename string) map[string]*mat.Dense {
 		// read 1 unknown byte
 		read(f, 1)
 		data := make([]float64, Rows*Cols, Rows*Cols)
-		err = binary.Read(f, binary.LittleEndian, data)
-		f.Pos += int(Rows * Cols * 8)
-		check(err)
-		// transpose:
-		t := mat.NewDense(int(Cols), int(Rows), data)
-		retval[VarName] = mat.DenseCopyOf(t.T())
+		t := mat.NewDense(int(Rows), int(Cols), data)
+
+		coldata := make([]float64, int(Rows))
+		for c := 0; c < int(Cols); c++ {
+			err := binary.Read(f, binary.LittleEndian, coldata)
+			check(err)
+			f.Pos += int(Rows * 8)
+			t.SetCol(c, coldata)
+		}
+		retval[VarName] = t
 	}
 
 }
