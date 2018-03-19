@@ -299,3 +299,47 @@ func BenchmarkMnist(b *testing.B) {
 //BenchmarkMnist-8   	      30	  37128304 ns/op	 2522653 B/op	     156 allocs/op
 //BenchmarkMnist-8   	      30	  35717715 ns/op	 2523106 B/op	     154 allocs/op
 //BenchmarkMnist-8   	      50	  26804534 ns/op	 1550716 B/op	     117 allocs/op
+
+func ExampleBreastCancer() {
+	ds := datasets.LoadBreastCancer()
+	fmt.Println("Dims", base.MatDimsString(ds.X, ds.Y))
+
+	scaler := preprocessing.NewStandardScaler()
+	X0, Y0 := scaler.Fit(ds.X, ds.Y).Transform(ds.X, ds.Y)
+
+	nSamples, nOutputs := Y0.Dims()
+	pca := preprocessing.NewPCA()
+	X1, Y1 := pca.Fit(X0, Y0).Transform(X0, Y0)
+	thres := .995
+	ExplainedVarianceRatio := 0.
+	var nComponents int
+	for nComponents = 0; nComponents < len(pca.ExplainedVarianceRatio) && ExplainedVarianceRatio < thres; nComponents++ {
+		ExplainedVarianceRatio += pca.ExplainedVarianceRatio[nComponents]
+	}
+	fmt.Printf("ExplainedVarianceRatio %.3f %.3f\n", ExplainedVarianceRatio, pca.ExplainedVarianceRatio[0:nComponents])
+	fmt.Printf("%d components explain %.2f%% of variance\n", nComponents, thres*100.)
+	X1 = base.MatDenseSlice(X1, 0, nSamples, 0, nComponents)
+
+	poly := preprocessing.NewPolynomialFeatures(2)
+	poly.IncludeBias = false
+	X2, Y2 := poly.Fit(X1, Y1).Transform(X1, Y1)
+
+	m := NewMLPClassifier([]int{}, "relu", "adam", 0.)
+	m.Loss = "cross-entropy"
+
+	m.Epochs = 300
+	m.Fit(X2, Y2)
+	Ypred := mat.NewDense(nSamples, nOutputs, nil)
+	m.Predict(X2, Ypred)
+	accuracy := metrics.AccuracyScore(Y2, Ypred, true, nil)
+	fmt.Println("accuracy>0.99 ?", accuracy > 0.99)
+	if accuracy <= 0.99 {
+		fmt.Println("accuracy:", accuracy)
+	}
+	// Output:
+	// Dims  569,30 569,1
+	// ExplainedVarianceRatio 0.996 [0.443 0.190 0.094 0.066 0.055 0.040 0.023 0.016 0.014 0.012 0.010 0.009 0.008 0.005 0.003 0.003 0.002 0.002 0.002 0.001]
+	// 20 components explain 99.50% of variance
+	// accuracy>0.99 ? true
+
+}

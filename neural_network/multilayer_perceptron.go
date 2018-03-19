@@ -27,7 +27,7 @@ type Layer struct {
 }
 
 // NewLayer creates a randomly initialized layer
-func NewLayer(inputs, outputs int, activation string, optimizer Optimizer, thetaSlice, gradSlice, updateSlice []float64, rnd func() float64) *Layer {
+func NewLayer(inputs, outputs int, activation string, optimCreator base.OptimCreator, thetaSlice, gradSlice, updateSlice []float64, rnd func() float64) *Layer {
 
 	Theta := mat.NewDense(inputs, outputs, thetaSlice)
 	if rnd == nil {
@@ -35,6 +35,10 @@ func NewLayer(inputs, outputs int, activation string, optimizer Optimizer, theta
 	}
 	Theta.Apply(func(feature, output int, _ float64) float64 { return rnd() }, Theta)
 	matx{Dense: Theta}.Orthonormalize()
+	var optimizer base.Optimizer
+	if optimCreator != nil {
+		optimizer = optimCreator()
+	}
 	return &Layer{Activation: activation,
 		Theta:     Theta,
 		Grad:      mat.NewDense(inputs, outputs, gradSlice),
@@ -72,7 +76,6 @@ var Regressors = []lm.Regressor{&MLPRegressor{}}
 type MLPRegressor struct {
 	Shuffle, UseBlas bool
 	Optimizer        base.OptimCreator
-	LossName         string
 	Activation       string
 	Solver           string
 	HiddenLayerSizes []int
@@ -153,11 +156,10 @@ func (regr *MLPRegressor) allocLayers(nFeatures, nOutputs int, rnd func() float6
 	regr.thetaSlice = make([]float64, thetaLen, thetaLen)
 	regr.gradSlice = make([]float64, thetaLen, thetaLen)
 	regr.updateSlice = make([]float64, thetaLen, thetaLen)
-
 	prevOutputs = nFeatures
 	for _, outputs := range regr.HiddenLayerSizes {
 		thetaLen1 = regr.inputs(prevOutputs) * outputs
-		regr.Layers = append(regr.Layers, NewLayer(regr.inputs(prevOutputs), outputs, regr.Activation, regr.Optimizer(),
+		regr.Layers = append(regr.Layers, NewLayer(regr.inputs(prevOutputs), outputs, regr.Activation, regr.Optimizer,
 			regr.thetaSlice[thetaOffset:thetaOffset+thetaLen1],
 			regr.gradSlice[thetaOffset:thetaOffset+thetaLen1],
 			regr.updateSlice[thetaOffset:thetaOffset+thetaLen1],
@@ -166,7 +168,7 @@ func (regr *MLPRegressor) allocLayers(nFeatures, nOutputs int, rnd func() float6
 		prevOutputs = outputs
 	}
 	var lastActivation string
-	if regr.LossName == "cross-entropy" || regr.LossName == "log" {
+	if regr.Loss == "cross-entropy" || regr.Loss == "log" {
 		lastActivation = "logistic"
 	} else {
 		lastActivation = regr.Activation
@@ -174,7 +176,7 @@ func (regr *MLPRegressor) allocLayers(nFeatures, nOutputs int, rnd func() float6
 	// add output layer
 	thetaLen1 = regr.inputs(prevOutputs) * nOutputs
 
-	regr.Layers = append(regr.Layers, NewLayer(1+prevOutputs, nOutputs, lastActivation, regr.Optimizer(),
+	regr.Layers = append(regr.Layers, NewLayer(1+prevOutputs, nOutputs, lastActivation, regr.Optimizer,
 		regr.thetaSlice[thetaOffset:thetaOffset+thetaLen1],
 		regr.gradSlice[thetaOffset:thetaOffset+thetaLen1],
 		regr.updateSlice[thetaOffset:thetaOffset+thetaLen1],

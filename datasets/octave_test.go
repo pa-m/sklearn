@@ -35,23 +35,15 @@ func TestLoadOctaveBin(t *testing.T) {
 		e := -7.3744e-04
 		a := X.At(0, 69)
 		if !floats.EqualWithinAbs(e, a, 1e-8) {
-			t.Errorf("0,69 expected %g got %g", e, a)
+			t.Errorf("at 0,69 expected %g got %g", e, a)
 		}
 	}
 	{
 		e := 4.8918e-05
 		a := X.At(0, 353)
 		if !floats.EqualWithinAbs(e, a, 1e-9) {
-			t.Errorf("0,353 expected %g got %g", e, a)
+			t.Errorf("at 0,353 expected %g got %g", e, a)
 		}
-		// for i := 0; i < 5000; i++ {
-		// 	for j := 0; j < 400; j++ {
-		// 		a := X.At(i, j)
-		// 		if floats.EqualWithinAbs(e, a, 1e-9) {
-		// 			fmt.Printf("%d,%d %g\n", i, j, a)
-		// 		}
-		// 	}
-		// }
 	}
 	{
 		e := 62.227
