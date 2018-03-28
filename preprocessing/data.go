@@ -2,6 +2,7 @@ package preprocessing
 
 import (
 	"math"
+	"math/rand"
 
 	"github.com/gonum/floats"
 	"gonum.org/v1/gonum/mat"
@@ -13,6 +14,7 @@ type float = float64
 type Transformer interface {
 	Fit(X, Y *mat.Dense) Transformer
 	Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense)
+	FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense)
 	InverseTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense)
 }
 
@@ -92,6 +94,11 @@ func (scaler *MinMaxScaler) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
 	return Xout, Y
 }
 
+// FitTransform for MinMaxScaler
+func (scaler *MinMaxScaler) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	return scaler.Fit(X, Y).Transform(X, Y)
+}
+
 // InverseTransform rescale data into original bounds
 func (scaler *MinMaxScaler) InverseTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
 	nSamples, nFeatures := X.Dims()
@@ -154,6 +161,11 @@ func (scaler *StandardScaler) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense)
 		return (x - scaler.Mean.At(0, j)) / scaler.Scale.At(0, j)
 	}, X)
 	return Xout, Y
+}
+
+// FitTransform for StandardScaler
+func (scaler *StandardScaler) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	return scaler.Fit(X, Y).Transform(X, Y)
 }
 
 // InverseTransform unscales data
@@ -337,6 +349,11 @@ func (scaler *PolynomialFeatures) Transform(X, Y *mat.Dense) (Xout, Yout *mat.De
 	return Xout, Y
 }
 
+// FitTransform for PolynomialFeatures
+func (scaler *PolynomialFeatures) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	return scaler.Fit(X, Y).Transform(X, Y)
+}
+
 // InverseTransform inverse tranformation for PolynomialFeatures.
 func (scaler *PolynomialFeatures) InverseTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
 	//TODO
@@ -491,6 +508,11 @@ func (m *OneHotEncoder) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
 	return
 }
 
+// FitTransform for OneHotEncoder
+func (m *OneHotEncoder) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	return m.Fit(X, Y).Transform(X, Y)
+}
+
 // InverseTransform compute Yout classes from one hot encoded format
 func (m *OneHotEncoder) InverseTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
 	nSamples, _ := Y.Dims()
@@ -508,4 +530,70 @@ func (m *OneHotEncoder) InverseTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense
 	}
 	return
 
+}
+
+// Shuffler shuffles rows of X and Y
+type Shuffler struct{ Perm []int }
+
+// NewShuffler returns a *Shuffler
+func NewShuffler() *Shuffler { return &Shuffler{} }
+
+// Fit for Shuffler
+func (m *Shuffler) Fit(X, Y *mat.Dense) Transformer {
+	m.Perm = rand.Perm(X.RawMatrix().Rows)
+	return m
+}
+
+// Transform for Shuffler
+func (m *Shuffler) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	xmat, ymat := X.RawMatrix(), Y.RawMatrix()
+	var dstxpos, dstypos, j int
+	var v float64
+	for i, srcxpos, srcypos := 0, 0, 0; i < len(m.Perm); i, srcxpos, srcypos = i+1, srcxpos+xmat.Stride, srcypos+ymat.Stride {
+		if m.Perm[i] > i {
+			dstxpos, dstypos = m.Perm[i]*xmat.Stride, m.Perm[i]*ymat.Stride
+			for j = 0; j < xmat.Stride; j++ {
+				v = xmat.Data[srcxpos+j]
+				xmat.Data[srcxpos+j] = xmat.Data[dstxpos+j]
+				xmat.Data[dstxpos+j] = v
+			}
+			for j = 0; j < ymat.Stride; j++ {
+				v = ymat.Data[srcypos+j]
+				ymat.Data[srcypos+j] = ymat.Data[dstypos+j]
+				ymat.Data[dstypos+j] = v
+			}
+		}
+	}
+	return X, Y
+}
+
+// FitTransform for Shuffler
+func (m *Shuffler) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	return m.Fit(X, Y).Transform(X, Y)
+}
+
+// InverseTransform for Shuffler
+func (m *Shuffler) InverseTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	xmat, ymat := X.RawMatrix(), Y.RawMatrix()
+	var srcxpos, srcypos, dstxpos, dstypos, j int
+	var v float64
+	for i := len(m.Perm) - 1; i >= 0; i-- {
+		if m.Perm[i] > i {
+			srcxpos, dstxpos = m.Perm[i]*xmat.Stride, i*xmat.Stride
+			srcypos, dstypos = m.Perm[i]*ymat.Stride, i*ymat.Stride
+			for j = 0; j < xmat.Stride; j++ {
+				v = xmat.Data[srcxpos+j]
+				xmat.Data[srcxpos+j] = xmat.Data[dstxpos+j]
+				xmat.Data[dstxpos+j] = v
+			}
+			for j = 0; j < ymat.Stride; j++ {
+				v := ymat.Data[srcypos+j]
+				ymat.Data[srcypos+j] = ymat.Data[dstypos+j]
+				ymat.Data[dstypos+j] = v
+			}
+
+		}
+	}
+
+	return X, Y
 }

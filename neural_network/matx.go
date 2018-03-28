@@ -29,15 +29,10 @@ func (m matx) AddScaled(scale float64, B mat.RawMatrixer) {
 
 // CopyPrependOnes copy B to m with a column of ones prepended
 func (m matx) CopyPrependOnes(B mat.RawMatrixer) {
-	amat, bmat := m.RawMatrix(), B.RawMatrix()
-	for ja, jb, jm := 0, 0, 0; ja < amat.Rows*amat.Stride; ja, jb, jm = ja+amat.Stride, jb+bmat.Stride, jm+amat.Stride {
-		for i := range amat.Data[ja : ja+amat.Cols] {
-			if i > 0 {
-				amat.Data[i+jm] = bmat.Data[i+jb-1]
-			} else {
-				amat.Data[i+jm] = 1.
-			}
-		}
+	mmat, bmat := m.RawMatrix(), B.RawMatrix()
+	for jb, jm := 0, 0; jb < bmat.Rows*bmat.Stride; jb, jm = jb+bmat.Stride, jm+mmat.Stride {
+		mmat.Data[jm] = 1.
+		copy(mmat.Data[jm+1:jm+1+bmat.Cols], bmat.Data[jb:jb+bmat.Cols])
 	}
 }
 

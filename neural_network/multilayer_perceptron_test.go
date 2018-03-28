@@ -61,9 +61,10 @@ func TestMLPRegressorLogisticCrossEntropyLoss(t *testing.T) {
 	testMLPRegressor(t, "logistic", "cross-entropy", "adam", 2)
 }
 
-func TestMLPRegressorTanhCrossEntropyLoss(t *testing.T) {
-	testMLPRegressor(t, "tanh", "cross-entropy", "adam", 2)
-}
+// // tanh has values in -1..1 so cross entropy must be adapted
+// func TestMLPRegressorTanhCrossEntropyLoss(t *testing.T) {
+// 	testMLPRegressor(t, "tanh", "cross-entropy", "adam", 2)
+// }
 
 // func TestMLPRegressorReLUCrossEntropyLoss(t *testing.T) {
 // 	testMLPRegressor(t, "relu", "cross-entropy", "adam", 2)
@@ -299,8 +300,9 @@ func BenchmarkMnist(b *testing.B) {
 //BenchmarkMnist-8   	      30	  37128304 ns/op	 2522653 B/op	     156 allocs/op
 //BenchmarkMnist-8   	      30	  35717715 ns/op	 2523106 B/op	     154 allocs/op
 //BenchmarkMnist-8   	      50	  26804534 ns/op	 1550716 B/op	     117 allocs/op
+//BenchmarkMnist-8   	      50	  26648869 ns/op	 1240290 B/op	     150 allocs/op
 
-func ExampleBreastCancer() {
+func ExampleMLPClassifier() {
 	ds := datasets.LoadBreastCancer()
 	fmt.Println("Dims", base.MatDimsString(ds.X, ds.Y))
 

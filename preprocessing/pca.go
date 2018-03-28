@@ -38,6 +38,11 @@ func (m *PCA) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
 	return
 }
 
+// FitTransform for PCA
+func (m *PCA) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	return m.Fit(X, Y).Transform(X, Y)
+}
+
 // InverseTransform put X into original space
 func (m *PCA) InverseTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
 	var v = new(mat.Dense)

@@ -3,6 +3,7 @@ package preprocessing
 import (
 	"fmt"
 	_ "math"
+	"pa-m/sklearn/base"
 
 	"github.com/gonum/floats"
 	"gonum.org/v1/gonum/mat"
@@ -142,4 +143,25 @@ func TestOneHotEncoder(t *testing.T) {
 	if mat.Norm(Yd, 2) > 1e-4 {
 		t.Fail()
 	}
+}
+
+func ExampleShuffler() {
+	X, Y := mat.NewDense(2, 3, []float64{1, 2, 3, 4, 5, 6}), mat.NewDense(2, 3, []float64{7, 8, 9, 10, 11, 12})
+	m := NewShuffler()
+	m.Fit(X, Y)
+	copy(m.Perm, []int{1, 0})
+	m.Transform(X, Y)
+	fmt.Println("Transformed:")
+	fmt.Println(base.MatStr(X, Y))
+	m.InverseTransform(X, Y)
+	fmt.Println("InverseTransformed:")
+	fmt.Println(base.MatStr(X, Y))
+	// Output:
+	// Transformed:
+	// 4	5	6	10	11	12
+	// 1	2	3	7	8	9
+
+	// InverseTransformed:
+	// 1	2	3	7	8	9
+	// 4	5	6	10	11	12
 }

@@ -9,6 +9,7 @@ import (
 	"gonum.org/v1/gonum/optimize"
 
 	"github.com/pa-m/sklearn/base"
+	"github.com/pa-m/sklearn/preprocessing"
 	"gonum.org/v1/gonum/blas"
 
 	lm "github.com/pa-m/sklearn/linear_model"
@@ -100,14 +101,14 @@ type OptimCreator = base.OptimCreator
 // solver is on of agd,adagrad,rmsprop,adadelta,adam (one of the keys of base.Solvers) defaults to "adam"
 // Alpha is the regularization parameter
 // Loss is one of square,log,cross-entropy defaults: square for identity, log for logistic,tanh,relu
-func NewMLPRegressor(hiddenLayerSizes []int, activation string, solver string, Alpha float64) MLPRegressor {
+func NewMLPRegressor(hiddenLayerSizes []int, activation string, solver string, Alpha float64) *MLPRegressor {
 	if activation == "" {
 		activation = "relu"
 	}
 	if solver == "" {
 		solver = "adam"
 	}
-	regr := MLPRegressor{
+	regr := &MLPRegressor{
 		Shuffle:          true,
 		UseBlas:          true,
 		Solver:           solver,
@@ -241,8 +242,11 @@ func (regr *MLPRegressor) fitGOM(X, Y *mat.Dense) float64 {
 func (regr *MLPRegressor) fitEpoch(Xfull, Yfull *mat.Dense, epoch int) float64 {
 	nSamples, nFeatures := Xfull.Dims()
 	_, nOutputs := Yfull.Dims()
+	var shuffler preprocessing.Transformer
 	if regr.Shuffle {
-		base.MatShuffle(Xfull, Yfull)
+		shuffler = preprocessing.NewShuffler()
+		shuffler.FitTransform(Xfull, Yfull)
+		defer shuffler.InverseTransform(Xfull, Yfull)
 	}
 	var miniBatchSize int
 	switch {
@@ -459,9 +463,9 @@ type MLPClassifier struct{ MLPRegressor }
 // solver is on of agd,adagrad,rmsprop,adadelta,adam (one of the keys of base.Solvers) defaults to "adam"
 // Alpha is the regularization parameter
 // lossName is one of square,log,cross-entropy (one of the keys of lm.LossFunctions) defaults to "log"
-func NewMLPClassifier(hiddenLayerSizes []int, activation string, solver string, Alpha float64) MLPClassifier {
-	regr := MLPClassifier{
-		MLPRegressor: NewMLPRegressor(hiddenLayerSizes, activation, solver, Alpha),
+func NewMLPClassifier(hiddenLayerSizes []int, activation string, solver string, Alpha float64) *MLPClassifier {
+	regr := &MLPClassifier{
+		MLPRegressor: *NewMLPRegressor(hiddenLayerSizes, activation, solver, Alpha),
 	}
 	regr.Loss = "log"
 	return regr
