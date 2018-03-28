@@ -7,6 +7,7 @@ import (
 	"runtime"
 	// use dot import for lisibility
 	//"github.com/pa-m/sklearn/base"
+	"github.com/pa-m/sklearn/base"
 	"gonum.org/v1/gonum/mat"
 	gg "gorgonia.org/gorgonia"
 	"gorgonia.org/tensor"
@@ -28,7 +29,7 @@ func NewLinearRegressionGorgonia() *LinearRegressionGorgonia {
 }
 
 // Fit lears coef and intercept for a *LinearRegressionGorgonia
-func (regr *LinearRegressionGorgonia) Fit(X0, y0 *mat.Dense) Regressor {
+func (regr *LinearRegressionGorgonia) Fit(X0, y0 *mat.Dense) base.Transformer {
 	Float := gg.Float64
 
 	g := gg.NewGraph()
@@ -114,9 +115,26 @@ func (regr *LinearRegressionGorgonia) Fit(X0, y0 *mat.Dense) Regressor {
 }
 
 // Predict return predicted Ys for a list or Xs
-func (regr *LinearRegressionGorgonia) Predict(X, Y *mat.Dense) Regressor {
+func (regr *LinearRegressionGorgonia) Predict(X, Y *mat.Dense) base.Regressor {
 	regr.DecisionFunction(X, Y)
 	return regr
+}
+
+// FitTransform is for Pipeline
+func (regr *LinearRegressionGorgonia) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	r, c := Y.Dims()
+	Xout, Yout = X, mat.NewDense(r, c, nil)
+	regr.Fit(X, Y)
+	regr.Predict(X, Yout)
+	return
+}
+
+// Transform is for Pipeline
+func (regr *LinearRegressionGorgonia) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	r, c := Y.Dims()
+	Xout, Yout = X, mat.NewDense(r, c, nil)
+	regr.Predict(X, Yout)
+	return
 }
 
 // --------

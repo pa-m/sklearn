@@ -4,6 +4,8 @@ import (
 	"math"
 	"math/rand"
 
+	"github.com/pa-m/sklearn/base"
+
 	"github.com/gonum/floats"
 	"gonum.org/v1/gonum/mat"
 )
@@ -11,10 +13,11 @@ import (
 type float = float64
 
 // Transformer is an interface for various preprocessors
-type Transformer interface {
-	Fit(X, Y *mat.Dense) Transformer
-	Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense)
-	FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense)
+type Transformer = base.Transformer
+
+// InverseTransformer is a transformer able to inverse his tranformation
+type InverseTransformer interface {
+	Transformer
 	InverseTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense)
 }
 
@@ -101,6 +104,9 @@ func (scaler *MinMaxScaler) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense
 
 // InverseTransform rescale data into original bounds
 func (scaler *MinMaxScaler) InverseTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	if X == nil {
+		return X, Y
+	}
 	nSamples, nFeatures := X.Dims()
 	Xout = mat.NewDense(nSamples, nFeatures, nil)
 	Xout.Apply(func(i int, j int, x float64) float64 {
@@ -170,6 +176,9 @@ func (scaler *StandardScaler) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Den
 
 // InverseTransform unscales data
 func (scaler *StandardScaler) InverseTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	if X == nil {
+		return X, Y
+	}
 	Xout = mat.DenseCopyOf(X)
 	Xout.Apply(func(i int, j int, x float64) float64 {
 		return scaler.Mean.At(0, j) + x*scaler.Scale.At(0, j)
@@ -356,7 +365,9 @@ func (scaler *PolynomialFeatures) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat
 
 // InverseTransform inverse tranformation for PolynomialFeatures.
 func (scaler *PolynomialFeatures) InverseTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
-	//TODO
+	if X == nil {
+		return X, Y
+	}
 	type jt struct{ jorig, jpoly int }
 	var jts []jt
 	nSamples, _ := X.Dims()

@@ -289,7 +289,7 @@ func TestBestRegressionImplementation(t *testing.T) {
 	bestErr := make(map[string]float)
 	bestTime := time.Second * 86400
 	bestSetup := make(map[string]string)
-	for _, regr := range []Regressor{NewLinearRegression(), NewSGDRegressor(), NewBayesianRidge(), NewLinearRegressionGorgonia()} {
+	for _, regr := range []base.Regressor{NewLinearRegression(), NewSGDRegressor(), NewBayesianRidge(), NewLinearRegressionGorgonia()} {
 		//for _, normalize := range []bool{false, true} {
 		testSetup := fmt.Sprintf("%T", regr)
 

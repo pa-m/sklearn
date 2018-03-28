@@ -28,13 +28,6 @@ type LinearModel struct {
 	XOffset, XScale, Coef, Intercept *mat.Dense
 }
 
-// Regressor is the common interface for all regressors
-type Regressor interface {
-	Fit(X, Y *mat.Dense) Regressor
-	Predict(X, Y *mat.Dense) Regressor
-	Score(X, T *mat.Dense) float64
-}
-
 // LinearRegression ia Ordinary least squares Linear Regression.
 // Parameters
 // ----------
@@ -79,7 +72,7 @@ func NewLinearRegression() *LinearRegression {
 }
 
 // Fit fits Coef for a LinearRegression
-func (regr *LinearRegression) Fit(X0, Y0 *mat.Dense) Regressor {
+func (regr *LinearRegression) Fit(X0, Y0 *mat.Dense) base.Transformer {
 	X := mat.DenseCopyOf(X0)
 	regr.XOffset, regr.XScale = preprocessing.DenseNormalize(X, regr.FitIntercept, regr.Normalize)
 	Y := mat.DenseCopyOf(Y0)
@@ -96,7 +89,7 @@ func (regr *LinearRegression) Fit(X0, Y0 *mat.Dense) Regressor {
 }
 
 // Predict predicts y for X using Coef
-func (regr *LinearRegression) Predict(X, Y *mat.Dense) Regressor {
+func (regr *LinearRegression) Predict(X, Y *mat.Dense) base.Regressor {
 	regr.DecisionFunction(X, Y)
 	return regr
 }
@@ -115,6 +108,23 @@ func NewLasso() *LinearRegression {
 	regr.Alpha = 1e-3
 	regr.L1Ratio = 1.
 	return regr
+}
+
+// FitTransform is for Pipeline
+func (regr *LinearRegression) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	r, c := Y.Dims()
+	Xout, Yout = X, mat.NewDense(r, c, nil)
+	regr.Fit(X, Y)
+	regr.Predict(X, Yout)
+	return
+}
+
+// Transform is for Pipeline
+func (regr *LinearRegression) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	r, c := Y.Dims()
+	Xout, Yout = X, mat.NewDense(r, c, nil)
+	regr.Predict(X, Yout)
+	return
 }
 
 // SGDRegressor base struct
@@ -136,7 +146,7 @@ func NewSGDRegressor() *SGDRegressor {
 }
 
 // Fit learns Coef
-func (regr *SGDRegressor) Fit(X0, y0 *mat.Dense) Regressor {
+func (regr *SGDRegressor) Fit(X0, y0 *mat.Dense) base.Transformer {
 	X := mat.DenseCopyOf(X0)
 	regr.XOffset, regr.XScale = preprocessing.DenseNormalize(X, regr.FitIntercept, regr.Normalize)
 	Y := mat.DenseCopyOf(y0)
@@ -251,9 +261,26 @@ func (regr *SGDRegressor) Fit(X0, y0 *mat.Dense) Regressor {
 }
 
 // Predict predicts y from X using Coef
-func (regr *SGDRegressor) Predict(X, Y *mat.Dense) Regressor {
+func (regr *SGDRegressor) Predict(X, Y *mat.Dense) base.Regressor {
 	regr.DecisionFunction(X, Y)
 	return regr
+}
+
+// FitTransform is for Pipeline
+func (regr *SGDRegressor) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	r, c := Y.Dims()
+	Xout, Yout = X, mat.NewDense(r, c, nil)
+	regr.Fit(X, Y)
+	regr.Predict(X, Yout)
+	return
+}
+
+// Transform is for Pipeline
+func (regr *SGDRegressor) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	r, c := Y.Dims()
+	Xout, Yout = X, mat.NewDense(r, c, nil)
+	regr.Predict(X, Yout)
+	return
 }
 
 func unused(...interface{}) {}

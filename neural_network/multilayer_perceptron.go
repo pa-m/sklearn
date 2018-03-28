@@ -12,7 +12,6 @@ import (
 	"github.com/pa-m/sklearn/preprocessing"
 	"gonum.org/v1/gonum/blas"
 
-	lm "github.com/pa-m/sklearn/linear_model"
 	"gonum.org/v1/gonum/mat"
 )
 
@@ -71,7 +70,7 @@ func (L *Layer) allocOutputs(nSamples, nOutputs int) {
 }
 
 // Regressors is the list of regressors in this package
-var Regressors = []lm.Regressor{&MLPRegressor{}}
+var Regressors = []base.Regressor{&MLPRegressor{}}
 
 // MLPRegressor is a multilayer perceptron regressor
 type MLPRegressor struct {
@@ -186,7 +185,7 @@ func (regr *MLPRegressor) allocLayers(nFeatures, nOutputs int, rnd func() float6
 }
 
 // Fit fits an MLPRegressor
-func (regr *MLPRegressor) Fit(X, Y *mat.Dense) lm.Regressor {
+func (regr *MLPRegressor) Fit(X, Y *mat.Dense) base.Transformer {
 	nSamples, nFeatures := X.Dims()
 	_, nOutputs := Y.Dims()
 	// create layers
@@ -242,10 +241,10 @@ func (regr *MLPRegressor) fitGOM(X, Y *mat.Dense) float64 {
 func (regr *MLPRegressor) fitEpoch(Xfull, Yfull *mat.Dense, epoch int) float64 {
 	nSamples, nFeatures := Xfull.Dims()
 	_, nOutputs := Yfull.Dims()
-	var shuffler preprocessing.Transformer
+	var shuffler preprocessing.InverseTransformer
 	if regr.Shuffle {
 		shuffler = preprocessing.NewShuffler()
-		shuffler.FitTransform(Xfull, Yfull)
+		shuffler.Fit(Xfull, Yfull).Transform(Xfull, Yfull)
 		defer shuffler.InverseTransform(Xfull, Yfull)
 	}
 	var miniBatchSize int
@@ -397,14 +396,31 @@ func (regr *MLPRegressor) backprop(X, Y mat.Matrix, epoch, miniBatchLen, nSample
 func unused(...interface{}) {}
 
 // Predict return the forward result
-func (regr *MLPRegressor) Predict(X, Y *mat.Dense) lm.Regressor {
+func (regr *MLPRegressor) Predict(X, Y *mat.Dense) base.Regressor {
 	regr.predictZH(X, Y)
 	return regr
 }
 
+// FitTransform is for Pipeline
+func (regr *MLPRegressor) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	r, c := Y.Dims()
+	Xout, Yout = X, mat.NewDense(r, c, nil)
+	regr.Fit(X, Y)
+	regr.Predict(X, Yout)
+	return
+}
+
+// Transform is for Pipeline
+func (regr *MLPRegressor) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	r, c := Y.Dims()
+	Xout, Yout = X, mat.NewDense(r, c, nil)
+	regr.Predict(X, Yout)
+	return
+}
+
 // put X dot Theta in Z and activation(X dot Theta) in Y
 // Z and Y can be nil
-func (regr *MLPRegressor) predictZH(X, Y *mat.Dense) lm.Regressor {
+func (regr *MLPRegressor) predictZH(X, Y *mat.Dense) base.Regressor {
 	nSamples, nFeatures0 := X.Dims()
 	for l := 0; l < len(regr.Layers); l++ {
 		L := regr.Layers[l]
@@ -443,7 +459,7 @@ func (regr *MLPRegressor) predictZH(X, Y *mat.Dense) lm.Regressor {
 	return regr
 }
 
-// Score returns accuracy. see metrics package for other scores
+// Score returns R2Score for square loss, else accuracy. see metrics package for other scores
 func (regr *MLPRegressor) Score(X, Y *mat.Dense) float64 {
 	nSamples, _ := Y.Dims()
 	_, nOutputs := Y.Dims()
@@ -472,7 +488,7 @@ func NewMLPClassifier(hiddenLayerSizes []int, activation string, solver string, 
 }
 
 // Predict return the forward result for MLPClassifier
-func (regr *MLPClassifier) Predict(X, Y *mat.Dense) lm.Regressor {
+func (regr *MLPClassifier) Predict(X, Y *mat.Dense) base.Regressor {
 	regr.predictZH(X, Y)
 	Y.Copy(regr.Layers[len(regr.Layers)-1].Ypred)
 	Y.Apply(func(i, o int, y float64) float64 {

@@ -6,6 +6,7 @@ import (
 
 	"github.com/gonum/floats"
 	//"github.com/pa-m/sklearn/base"
+	"github.com/pa-m/sklearn/base"
 	"github.com/pa-m/sklearn/preprocessing"
 	"gonum.org/v1/gonum/mat"
 )
@@ -37,7 +38,7 @@ func NewBayesianRidge() *BayesianRidge {
 //             Training data
 //         y : numpy array of shape [nSamples]
 //             Target values. Will be cast to X's dtype if necessary
-func (regr *BayesianRidge) Fit(X0, Y *mat.Dense) Regressor {
+func (regr *BayesianRidge) Fit(X0, Y *mat.Dense) base.Transformer {
 	var nSamples, nFeatures = X0.Dims()
 	var _, nOutputs = Y.Dims()
 	X := mat.NewDense(nSamples, nFeatures, nil)
@@ -207,7 +208,7 @@ func (regr *BayesianRidge) Fit(X0, Y *mat.Dense) Regressor {
 // yMean : array, shape = (nSamples,)
 //     Mean of predictive distribution of query points.
 // """
-func (regr *BayesianRidge) Predict(X, Y *mat.Dense) Regressor {
+func (regr *BayesianRidge) Predict(X, Y *mat.Dense) base.Regressor {
 	// d := func(X mat.Matrix) string { r, c := X.Dims(); return fmt.Sprintf("%d,%d", r, c) }
 	// fmt.Println("Predict", d(X), d(regr.Coef))
 	Y.Mul(X, regr.Coef)
@@ -218,7 +219,7 @@ func (regr *BayesianRidge) Predict(X, Y *mat.Dense) Regressor {
 }
 
 // Predict2 returns y and stddev
-func (regr *BayesianRidge) Predict2(X, Y, yStd *mat.Dense) Regressor {
+func (regr *BayesianRidge) Predict2(X, Y, yStd *mat.Dense) base.Regressor {
 	nSamples, nFeatures := X.Dims()
 	regr.Predict(X, Y)
 	Xn := mat.DenseCopyOf(X)
@@ -244,4 +245,21 @@ func (regr *BayesianRidge) Predict2(X, Y, yStd *mat.Dense) Regressor {
 	}, sigmasSquaredData)
 
 	return regr
+}
+
+// FitTransform is for Pipeline
+func (regr *BayesianRidge) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	r, c := Y.Dims()
+	Xout, Yout = X, mat.NewDense(r, c, nil)
+	regr.Fit(X, Y)
+	regr.Predict(X, Yout)
+	return
+}
+
+// Transform is for Pipeline
+func (regr *BayesianRidge) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	r, c := Y.Dims()
+	Xout, Yout = X, mat.NewDense(r, c, nil)
+	regr.Predict(X, Yout)
+	return
 }

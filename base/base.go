@@ -2,11 +2,26 @@ package base
 
 import (
 	"reflect"
+
+	"gonum.org/v1/gonum/mat"
 )
 
 type float = float64
 
 func unused(...interface{}) {}
+
+// Transformer transforms X,Y
+type Transformer interface {
+	Fit(X, Y *mat.Dense) Transformer
+	Transform(X, T *mat.Dense) (Xout, Yout *mat.Dense)
+}
+
+// Regressor is the common interface for all regressors
+type Regressor interface {
+	Transformer
+	Predict(X, Y *mat.Dense) Regressor
+	Score(X, T *mat.Dense) float64
+}
 
 // CopyStruct create an new *struct with copied fields using reflection. it's not a deep copy.
 func CopyStruct(m interface{}) interface{} {

@@ -45,6 +45,10 @@ func (m *PCA) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
 
 // InverseTransform put X into original space
 func (m *PCA) InverseTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	if X == nil {
+		return X, Y
+	}
+
 	var v = new(mat.Dense)
 	m.SVD.VTo(v)
 	nSamples, _ := X.Dims()

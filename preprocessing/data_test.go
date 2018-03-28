@@ -165,3 +165,12 @@ func ExampleShuffler() {
 	// 1	2	3	7	8	9
 	// 4	5	6	10	11	12
 }
+
+func TestTransformer(t *testing.T) {
+	f := func(t Transformer) Transformer { return t }
+	f(NewStandardScaler())
+	f(NewMinMaxScaler([]float64{0, 1}))
+	f(NewOneHotEncoder())
+	f(NewPolynomialFeatures(2))
+	f(NewShuffler())
+}
