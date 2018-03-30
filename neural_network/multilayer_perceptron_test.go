@@ -308,7 +308,6 @@ func ExampleMLPClassifier() {
 
 	scaler := preprocessing.NewStandardScaler()
 	X0, Y0 := scaler.Fit(ds.X, ds.Y).Transform(ds.X, ds.Y)
-
 	nSamples, nOutputs := Y0.Dims()
 	pca := preprocessing.NewPCA()
 	X1, Y1 := pca.Fit(X0, Y0).Transform(X0, Y0)
@@ -336,6 +335,7 @@ func ExampleMLPClassifier() {
 	m.Fit(X2, Y2)
 	Ypred := mat.NewDense(nSamples, nOutputs, nil)
 	m.Predict(X2, Ypred)
+
 	accuracy := metrics.AccuracyScore(Y2, Ypred, true, nil)
 	fmt.Println("accuracy>0.99 ?", accuracy > 0.99)
 	if accuracy <= 0.99 {

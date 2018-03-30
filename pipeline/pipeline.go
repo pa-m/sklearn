@@ -47,16 +47,15 @@ func (p *Pipeline) Fit(X, Y *mat.Dense) *Pipeline {
 func (p *Pipeline) Predict(X, Y *mat.Dense) *Pipeline {
 	Xtmp, Ytmp := X, Y
 	for _, step := range p.NamedSteps {
-		fmt.Println("before ", step.Name, Xtmp.At(0, 0))
 		Xtmp, Ytmp = step.Step.Transform(Xtmp, Ytmp)
-		fmt.Println("after ", step.Name, Xtmp.At(0, 0))
+
 	}
 	for iStep := len(p.NamedSteps) - 2; iStep >= 0; iStep-- {
 		step := p.NamedSteps[iStep]
-		fmt.Println("before iv ", step.Name, Ytmp.At(0, 0))
-		step.Step.(preprocessing.InverseTransformer).InverseTransform(nil, Y)
-		fmt.Println("after iv ", step.Name, Ytmp.At(0, 0))
+		_, Ytmp = step.Step.(preprocessing.InverseTransformer).InverseTransform(nil, Ytmp)
+
 	}
+	Y.Copy(Ytmp)
 	return p
 
 }

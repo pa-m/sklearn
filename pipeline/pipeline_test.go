@@ -12,7 +12,7 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
-func _ExamplePipeline() {
+func ExamplePipeline() {
 	ds := datasets.LoadBreastCancer()
 	fmt.Println("Dims", base.MatDimsString(ds.X, ds.Y))
 

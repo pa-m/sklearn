@@ -461,8 +461,8 @@ func (regr *MLPRegressor) predictZH(X, Y *mat.Dense) base.Regressor {
 
 // Score returns R2Score for square loss, else accuracy. see metrics package for other scores
 func (regr *MLPRegressor) Score(X, Y *mat.Dense) float64 {
-	nSamples, _ := Y.Dims()
-	_, nOutputs := Y.Dims()
+	nSamples, _ := X.Dims()
+	_, nOutputs := regr.Layers[len(regr.Layers)-1].Theta.Dims()
 	Ypred := mat.NewDense(nSamples, nOutputs, nil)
 	regr.Predict(X, Y)
 	if regr.Loss == "square" {
@@ -500,6 +500,16 @@ func (regr *MLPClassifier) Predict(X, Y *mat.Dense) base.Regressor {
 		return y
 	}, Y)
 	return regr
+}
+
+// Transform for pipeline
+func (regr *MLPClassifier) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	nSamples, _ := X.Dims()
+	_, nOutputs := regr.Layers[len(regr.Layers)-1].Theta.Dims()
+	Yout = mat.NewDense(nSamples, nOutputs, nil)
+	regr.Predict(X, Yout)
+	Xout = X
+	return
 }
 
 func panicIfNaN(v float64) float64 {
