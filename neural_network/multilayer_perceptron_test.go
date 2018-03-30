@@ -337,14 +337,14 @@ func ExampleMLPClassifier() {
 	m.Predict(X2, Ypred)
 
 	accuracy := metrics.AccuracyScore(Y2, Ypred, true, nil)
-	fmt.Println("accuracy>0.99 ?", accuracy > 0.99)
-	if accuracy <= 0.99 {
+	fmt.Println("accuracy>0.999 ?", accuracy > 0.999)
+	if accuracy <= 0.999 {
 		fmt.Println("accuracy:", accuracy)
 	}
 	// Output:
 	// Dims  569,30 569,1
 	// ExplainedVarianceRatio 0.996 [0.443 0.190 0.094 0.066 0.055 0.040 0.023 0.016 0.014 0.012 0.010 0.009 0.008 0.005 0.003 0.003 0.002 0.002 0.002 0.001]
 	// 20 components explain 99.50% of variance
-	// accuracy>0.99 ? true
+	// accuracy>0.999 ? true
 
 }

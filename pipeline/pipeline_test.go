@@ -16,22 +16,16 @@ func ExamplePipeline() {
 	ds := datasets.LoadBreastCancer()
 	fmt.Println("Dims", base.MatDimsString(ds.X, ds.Y))
 
-	chkTransformer := func(t preprocessing.Transformer) {}
-
 	scaler := preprocessing.NewStandardScaler()
-	chkTransformer(scaler)
 
 	pca := preprocessing.NewPCA()
 	pca.MinVarianceRatio = 0.995
-	chkTransformer(pca)
 
 	poly := preprocessing.NewPolynomialFeatures(2)
 	poly.IncludeBias = false
-	chkTransformer(poly)
 
 	m := nn.NewMLPClassifier([]int{}, "relu", "adam", 0.)
 	m.Loss = "cross-entropy"
-
 	m.Epochs = 300
 
 	pl := MakePipeline(scaler, pca, poly, m)
@@ -42,12 +36,12 @@ func ExamplePipeline() {
 	Ypred := mat.NewDense(nSamples, nOutputs, nil)
 	pl.Predict(ds.X, Ypred)
 	accuracy := metrics.AccuracyScore(ds.Y, Ypred, true, nil)
-	fmt.Println("accuracy>0.99 ?", accuracy > 0.99)
-	if accuracy <= 0.99 {
+	fmt.Println("accuracy>0.999 ?", accuracy > 0.999)
+	if accuracy <= .999 {
 		fmt.Println("accuracy:", accuracy)
 	}
 	// Output:
 	// Dims  569,30 569,1
-	// accuracy>0.99 ? true
+	// accuracy>0.999 ? true
 
 }
