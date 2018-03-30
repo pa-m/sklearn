@@ -150,7 +150,7 @@ func CrossEntropyLoss(Ytrue, X, Theta mat.Matrix, Ypred, Ydiff, grad *mat.Dense,
 			h = 1. - eps
 		}
 		y := Ytrue.At(i, o)
-		J += -y*math.Log(h) - (1.-y)*math.Log(1.-h)
+		J += -y*math.Log(h) - (1.-y)*math.Log1p(-h)
 		if math.IsNaN(J) {
 			panic(fmt.Errorf("J Nan after -y*math.Log(h) - (1.-y)*math.Log(1.-h). y=%g h=%g", y, h))
 		}

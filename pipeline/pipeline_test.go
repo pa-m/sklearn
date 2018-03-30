@@ -22,6 +22,7 @@ func _ExamplePipeline() {
 	chkTransformer(scaler)
 
 	pca := preprocessing.NewPCA()
+	pca.MinVarianceRatio = 0.995
 	chkTransformer(pca)
 
 	poly := preprocessing.NewPolynomialFeatures(2)

@@ -326,6 +326,9 @@ func ExampleMLPClassifier() {
 	poly.IncludeBias = false
 	X2, Y2 := poly.Fit(X1, Y1).Transform(X1, Y1)
 
+	// fmt.Println(base.MatStr(base.MatDenseSlice(X2, 0, 2, 0, 5)))
+	// fmt.Println(base.MatStr(base.MatDenseRowSlice(Y2, 0, 2)))
+
 	m := NewMLPClassifier([]int{}, "relu", "adam", 0.)
 	m.Loss = "cross-entropy"
 

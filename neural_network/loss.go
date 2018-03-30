@@ -52,13 +52,13 @@ func (crossEntropyLoss) Loss(Ytrue, Ypred, Grad *mat.Dense) float64 {
 	nSamples, _ := Ytrue.Dims()
 	// J:=-y log(h)-(1-y) log(1-h)
 	Jfun := func(y, h float64) float64 {
-		eps := 1e-15
+		eps := 1e-30
 		if h <= 0 {
 			h = eps
 		} else if h >= 1. {
 			h = 1 - eps
 		}
-		return -y*math.Log(h) - (1.-y)*math.Log(1.-h)
+		return -y*math.Log(h) - (1.-y)*math.Log1p(-h)
 	}
 	//fmt.Printf("h11=%f J11=%f\n", Ypred.At(0, 0), Jfun(Ytrue.At(0, 0), Ypred.At(0, 0))/float64(nSamples))
 	J := matx{}.SumApplied2(Ytrue, Ypred, Jfun) / float64(nSamples)

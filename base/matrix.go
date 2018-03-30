@@ -447,3 +447,31 @@ func MatGeneralSlice(M blas64.General, i, k, j, l int) blas64.General {
 		Data:   M.Data[i*M.Stride+j : (k-1)*M.Stride+l],
 	}
 }
+
+// MatDenseRowSlice returns a *mat.Dense with the same underlaying data as src but rows and columns removed
+func MatDenseRowSlice(src mat.RawMatrixer, i, k int) *mat.Dense {
+	M := src.RawMatrix()
+	m := &mat.Dense{}
+	m.SetRawMatrix(MatGeneralRowSlice(M, i, k))
+	return m
+}
+
+// MatGeneralRowSlice returns a blas64.General with the same underlaying data as M but rows and columns removed
+func MatGeneralRowSlice(M blas64.General, i, k int) blas64.General {
+	// defer func() {
+	// 	if r := recover(); r != nil {
+	// 		fmt.Printf("i*M.Stride+j : %d*%d+%d : %d  (k-1)*M.Stride+l: %d*%d+%d : %d len:%d %s\n",
+	// 			i, M.Stride, j, i*M.Stride+j,
+	// 			k-1, M.Stride, l, (k-1)*M.Stride+l, len(M.Data), r)
+	// 	}
+	// }()
+	if k <= i {
+		panic(fmt.Errorf("k<=i %d %d", k, i))
+	}
+	return blas64.General{
+		Rows:   k - i,
+		Cols:   M.Cols,
+		Stride: M.Stride,
+		Data:   M.Data[i*M.Stride : k*M.Stride],
+	}
+}
