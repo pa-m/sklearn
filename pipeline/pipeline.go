@@ -24,6 +24,7 @@ type NamedStep struct {
 // Pipeline is a sequance of transformers and an estimator
 type Pipeline struct {
 	NamedSteps []NamedStep
+	NOutputs   int
 }
 
 // NewPipeline returns a *Pipeline
@@ -33,7 +34,8 @@ func NewPipeline(steps ...NamedStep) *Pipeline {
 }
 
 // Fit for Pipeline
-func (p *Pipeline) Fit(X, Y *mat.Dense) *Pipeline {
+func (p *Pipeline) Fit(X, Y *mat.Dense) base.Transformer {
+	_, p.NOutputs = Y.Dims()
 	Xtmp, Ytmp := X, Y
 	for _, step := range p.NamedSteps {
 		step.Step.Fit(Xtmp, Ytmp)
@@ -44,7 +46,7 @@ func (p *Pipeline) Fit(X, Y *mat.Dense) *Pipeline {
 }
 
 // Predict ...
-func (p *Pipeline) Predict(X, Y *mat.Dense) *Pipeline {
+func (p *Pipeline) Predict(X, Y *mat.Dense) base.Regressor {
 	Xtmp, Ytmp := X, Y
 	for _, step := range p.NamedSteps {
 		Xtmp, Ytmp = step.Step.Transform(Xtmp, Ytmp)
@@ -58,6 +60,25 @@ func (p *Pipeline) Predict(X, Y *mat.Dense) *Pipeline {
 	Y.Copy(Ytmp)
 	return p
 
+}
+
+// Transform for pipeline
+func (p *Pipeline) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	nSamples, _ := X.Dims()
+	Xout = X
+	Yout = mat.NewDense(nSamples, p.NOutputs, nil)
+	p.Predict(Xout, Yout)
+	return
+}
+
+// Score for base.Regressor
+func (p *Pipeline) Score(X, Y *mat.Dense) float64 {
+	Xtmp, Ytmp := X, Y
+	for _, step := range p.NamedSteps[:len(p.NamedSteps)-1] {
+		Xtmp, Ytmp = step.Step.Transform(Xtmp, Ytmp)
+
+	}
+	return p.NamedSteps[len(p.NamedSteps)-1].Step.(base.Regressor).Score(Xtmp, Y)
 }
 
 // MakePipeline returns a Pipeline from unnamed steps
