@@ -1,4 +1,4 @@
-package base
+package interpolate
 
 import "fmt"
 
