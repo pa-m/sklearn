@@ -81,7 +81,7 @@ func Interp2d(x, y, z []float64) func(x, y float64) float64 {
 		}
 		zxlow := Interp1d(ysorted[ix0:ix1], zsorted[ix0:ix1])(y)
 		zxhi := Interp1d(ysorted[ix2:ix3], zsorted[ix2:ix3])(y)
-
-		return Interp1d([]float64{xsorted[ix0], xsorted[ix1]}, []float64{zxlow, zxhi})(x)
+		//fmt.Println("xlow", xsorted[ix0], zxlow, "xhi", xsorted[ix2], zxhi)
+		return Interp1d([]float64{xsorted[ix0], xsorted[ix2]}, []float64{zxlow, zxhi})(x)
 	}
 }
