@@ -4,8 +4,9 @@ import (
 
 	//"fmt"
 	"fmt"
-	"pa-m/sklearn/base"
 	"testing"
+
+	"github.com/pa-m/sklearn/base"
 
 	"gonum.org/v1/gonum/mat"
 )

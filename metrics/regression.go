@@ -3,7 +3,8 @@ package metrics
 import (
 	//	"fmt"
 	"math"
-	"pa-m/sklearn/base"
+
+	"github.com/pa-m/sklearn/base"
 
 	"gonum.org/v1/gonum/mat"
 )

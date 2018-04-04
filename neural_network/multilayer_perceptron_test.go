@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
-	"pa-m/sklearn/datasets"
-	"pa-m/sklearn/metrics"
 	"testing"
 	"time"
+
+	"github.com/pa-m/sklearn/datasets"
+	"github.com/pa-m/sklearn/metrics"
 
 	"github.com/gonum/floats"
 	"github.com/pa-m/sklearn/base"

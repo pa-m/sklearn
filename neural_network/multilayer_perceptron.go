@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
-	"pa-m/sklearn/metrics"
+
+	"github.com/pa-m/sklearn/metrics"
 
 	"gonum.org/v1/gonum/optimize"
 
