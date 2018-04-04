@@ -2,7 +2,6 @@
 language: go
 
 go:
-  - 1.8.x
   - 1.9.x
   - 1.10.x
   - tip
@@ -11,7 +10,6 @@ before_install:
   - go get -t -v ./... && go build -v ./...
 
 script:
-  - go vet ./...
   - go test -race -coverprofile=coverage.txt -covermode=atomic
 
 after_success:
