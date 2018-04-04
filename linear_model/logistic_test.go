@@ -73,11 +73,11 @@ func TestLogRegExamScore(t *testing.T) {
 
 	// test Fit with various gonum/optimize Method
 
-	var GOMethods = []optimize.Method{
-		&optimize.BFGS{},
-		&optimize.CG{},
+	var GOMethodCreators = map[string]func() optimize.Method{
+		"bfgs": func() optimize.Method { return &optimize.BFGS{} },
+		"cg":   func() optimize.Method { return &optimize.CG{} },
 		//&optimize.GradientDescent{},
-		&optimize.LBFGS{},
+		"lbfgs": func() optimize.Method { return &optimize.LBFGS{} },
 		//&optimize.NelderMead{},
 		//&optimize.Newton{}
 	}
@@ -90,10 +90,10 @@ func TestLogRegExamScore(t *testing.T) {
 	bestLoss := math.Inf(1)
 	bestTime := time.Second * 86400
 
-	for _, method := range GOMethods {
-		testSetup := fmt.Sprintf("(%T)", method)
+	for _, methodCreator := range GOMethodCreators {
+		testSetup := fmt.Sprintf("(%T)", methodCreator())
 		regr.Coef.SetCol(0, []float64{-24, 0.2, 0.2})
-		regr.Options.GOMethod = method
+		regr.Options.GOMethodCreator = methodCreator
 		//regr.Options.Recorder = printer
 		start := time.Now()
 		regr.Fit(X, Ytrue)
@@ -143,7 +143,7 @@ func TestLogRegExamScore(t *testing.T) {
 		regr.Options.ThetaInitializer = func(Theta *mat.Dense) {
 			Theta.SetCol(0, []float64{-24, 0.2, 0.2})
 		}
-		regr.Options.GOMethod = nil
+		regr.Options.GOMethodCreator = nil
 		//regr.Options.Recorder = printer
 		regr.Options.MiniBatchSize = nSamples
 		regr.Optimizer = newOptimizer(optimizer)
@@ -245,11 +245,11 @@ func TestLogRegMicrochipTest(t *testing.T) {
 
 	// test Fit Microchip with various gonum/optimize Method
 
-	var GOMethods = []optimize.Method{
-		&optimize.BFGS{},
-		&optimize.CG{},
+	var GOMethodCreators = map[string]func() optimize.Method{
+		"bfgs": func() optimize.Method { return &optimize.BFGS{} },
+		"cg":   func() optimize.Method { return &optimize.CG{} },
 		//&optimize.GradientDescent{},
-		&optimize.LBFGS{},
+		"lbfgs": func() optimize.Method { return &optimize.LBFGS{} },
 		//&optimize.NelderMead{},
 		//&optimize.Newton{}
 	}
@@ -262,9 +262,9 @@ func TestLogRegMicrochipTest(t *testing.T) {
 	bestLoss := math.Inf(1)
 	bestTime := time.Second * 86400
 
-	for _, method := range GOMethods {
-		testSetup := fmt.Sprintf("(%T)", method)
-		regr.Options.GOMethod = method
+	for _, methodCreator := range GOMethodCreators {
+		testSetup := fmt.Sprintf("(%T)", methodCreator())
+		regr.Options.GOMethodCreator = methodCreator
 		regr.Options.ThetaInitializer = func(Theta *mat.Dense) {
 			Theta.Apply(func(j, o int, _ float64) float64 { return 0. }, Theta)
 		}
@@ -286,7 +286,7 @@ func TestLogRegMicrochipTest(t *testing.T) {
 		accuracy := metrics.AccuracyScore(Ytrue, Ypred, true, nil)
 		expectedAccuracy := 0.83
 		if accuracy < expectedAccuracy {
-			t.Errorf("%T accuracy=%g expected:%g", method, accuracy, expectedAccuracy)
+			t.Errorf("%T accuracy=%g expected:%g", methodCreator(), accuracy, expectedAccuracy)
 		}
 	}
 
@@ -331,7 +331,7 @@ func TestLogRegMicrochipTest(t *testing.T) {
 		regr.Options.ThetaInitializer = func(Theta *mat.Dense) {
 			Theta.Apply(func(j, o int, _ float64) float64 { return 0. }, Theta)
 		}
-		regr.Options.GOMethod = nil
+		regr.Options.GOMethodCreator = nil
 		//regr.Options.Recorder = printer
 		regr.Options.MiniBatchSize = nSamples
 		regr.Optimizer = newOptimizer(optimizer)

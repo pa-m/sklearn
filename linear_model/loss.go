@@ -39,38 +39,44 @@ func SquareLoss(Ytrue, X, Theta mat.Matrix, Ypred, Ydiff, grad *mat.Dense, Alpha
 		return ydiff
 	}, Ydiff)
 	// put into grad
-	if _, ok := activation.(base.Identity); ok {
-		grad.Mul(X.T(), Ydiff) //<- for identity only
+	if grad != nil {
+		if _, ok := activation.(base.Identity); ok {
+			grad.Mul(X.T(), Ydiff) //<- for identity only
 
-	} else {
-		grad.Apply(func(j, o int, theta float64) float64 {
-			g := 0.
-			for i := 0; i < nSamples; i++ {
-				h := Ypred.At(i, o)
-				g += Ydiff.At(i, o) * X.At(i, j) * activation.Fprime(h)
-			}
-			return g
-		}, Theta)
+		} else {
+			grad.Apply(func(j, o int, theta float64) float64 {
+				g := 0.
+				for i := 0; i < nSamples; i++ {
+					h := Ypred.At(i, o)
+					g += Ydiff.At(i, o) * X.At(i, j) * activation.Fprime(h)
+				}
+				return g
+			}, Theta)
+		}
 	}
 	// add regularization to cost and grad
 	if Alpha > 0. {
 		L1, L2 := 0., 0.
-		grad.Apply(func(j, o int, g float64) float64 {
-			// here we count feature 0 (not ones) in regularization
-			if j >= 0 {
-				c := Theta.At(j, o)
+		if grad != nil {
+			grad.Apply(func(j, o int, g float64) float64 {
+				// here we count feature 0 (not ones) in regularization
+				if j >= 0 {
+					c := Theta.At(j, o)
 
-				L1 += math.Abs(c)
-				L2 += c * c
-				g += Alpha * (L1Ratio*sgn(c) + (1.-L1Ratio)*c)
-			}
-			return g
-		}, grad)
+					L1 += math.Abs(c)
+					L2 += c * c
+					g += Alpha * (L1Ratio*sgn(c) + (1.-L1Ratio)*c)
+				}
+				return g
+			}, grad)
+		}
 		J += Alpha * (L1Ratio*L1 + (1.-L1Ratio)*L2)
 	}
 
 	J /= 2. * float64(nSamples)
-	grad.Scale(1./float64(nSamples), grad)
+	if grad != nil {
+		grad.Scale(1./float64(nSamples), grad)
+	}
 	return
 }
 
@@ -99,32 +105,38 @@ func LogLoss(Ytrue, X, Theta mat.Matrix, Ypred, Ydiff, grad *mat.Dense, Alpha, L
 		return hpred
 	}, Ypred)
 	//grad.Mul(X.T(), Ydiff)
-	grad.Apply(func(j, o int, theta float64) float64 {
-		g := 0.
-		for i := 0; i < nSamples; i++ {
-			h := Ypred.At(i, o)
-			g += -Ytrue.At(i, o) * activation.Fprime(h) / h
-		}
-		return g
-	}, Theta)
+	if grad != nil {
+		grad.Apply(func(j, o int, theta float64) float64 {
+			g := 0.
+			for i := 0; i < nSamples; i++ {
+				h := Ypred.At(i, o)
+				g += -Ytrue.At(i, o) * activation.Fprime(h) / h
+			}
+			return g
+		}, Theta)
+	}
 
 	// add regularization to cost and grad
 	if Alpha > 0. {
 		L1, L2 := 0., 0.
-		grad.Apply(func(j, o int, g float64) float64 {
-			// we dont count feature 0 (ones) in regularization
-			if j > 0 {
-				c := Theta.At(j, o)
-				L1 += math.Abs(c)
-				L2 += c * c / 2.
-				g += Alpha * (L1Ratio*sgn(c) + (1.-L1Ratio)*c)
-			}
-			return g
-		}, grad)
+		if grad != nil {
+			grad.Apply(func(j, o int, g float64) float64 {
+				// we dont count feature 0 (ones) in regularization
+				if j > 0 {
+					c := Theta.At(j, o)
+					L1 += math.Abs(c)
+					L2 += c * c / 2.
+					g += Alpha * (L1Ratio*sgn(c) + (1.-L1Ratio)*c)
+				}
+				return g
+			}, grad)
+		}
 		J += Alpha * (L1Ratio*L1 + (1.-L1Ratio)*L2)
 	}
 	J /= float64(nSamples)
-	grad.Scale(1./float64(nSamples), grad)
+	if grad != nil {
+		grad.Scale(1./float64(nSamples), grad)
+	}
 	if math.IsNaN(J) {
 		panic("J Nan")
 	}
@@ -159,50 +171,56 @@ func CrossEntropyLoss(Ytrue, X, Theta mat.Matrix, Ypred, Ydiff, grad *mat.Dense,
 		}
 		return hpred
 	}, Ypred)
-	if _, ok := activation.(base.Logistic); ok {
-		grad.Mul(X.T(), Ydiff)
-	} else {
-		// // for Logistic activation only
-		grad.Apply(func(j, o int, theta float64) float64 {
-			g := 0.
-			for i := 0; i < nSamples; i++ {
-				h := Ypred.At(i, o)
-				y := Ytrue.At(i, o)
-				hprime := activation.Fprime(h)
-				if y == 1. {
-					g += -y * hprime / h
-				} else if y == 0. {
-					g += (1. - y) * hprime / (1. - h)
-				} else {
-					g += -y*hprime/h + (1.-y)*hprime/(1.-h)
+	if grad != nil {
+		if _, ok := activation.(base.Logistic); ok {
+			grad.Mul(X.T(), Ydiff)
+		} else {
+			// // for Logistic activation only
+			grad.Apply(func(j, o int, theta float64) float64 {
+				g := 0.
+				for i := 0; i < nSamples; i++ {
+					h := Ypred.At(i, o)
+					y := Ytrue.At(i, o)
+					hprime := activation.Fprime(h)
+					if y == 1. {
+						g += -y * hprime / h
+					} else if y == 0. {
+						g += (1. - y) * hprime / (1. - h)
+					} else {
+						g += -y*hprime/h + (1.-y)*hprime/(1.-h)
+					}
+					if math.IsNaN(g) {
+						panic(fmt.Errorf("g is NaN h=%g y=%g ", h, y))
+					}
 				}
-				if math.IsNaN(g) {
-					panic(fmt.Errorf("g is NaN h=%g y=%g ", h, y))
-				}
-			}
-			return g
-		}, Theta)
+				return g
+			}, Theta)
+		}
 	}
 	// add regularization to cost and grad
 	if Alpha > 0. {
 		L1, L2 := 0., 0.
-		grad.Apply(func(j, o int, g float64) float64 {
-			// we dont count feature 0 (ones) in regularization
-			if j > 0 || o > 0 {
-				c := Theta.At(j, o)
-				L1 += math.Abs(c)
-				L2 += c * c / 2.
-				g += Alpha * (L1Ratio*sgn(c) + (1.-L1Ratio)*c)
-			}
-			return g
-		}, grad)
+		if grad != nil {
+			grad.Apply(func(j, o int, g float64) float64 {
+				// we dont count feature 0 (ones) in regularization
+				if j > 0 || o > 0 {
+					c := Theta.At(j, o)
+					L1 += math.Abs(c)
+					L2 += c * c / 2.
+					g += Alpha * (L1Ratio*sgn(c) + (1.-L1Ratio)*c)
+				}
+				return g
+			}, grad)
+		}
 		//fmt.Printf("J=1/%d * { %g + %g * ( %g*%g +%g*%g) }\n", nSamples, J, Alpha, L1Ratio, L1, 1.-L1Ratio, L2)
 		J += Alpha * (L1Ratio*L1 + (1.-L1Ratio)*L2)
 		//fmt.Printf("=%g\n", J)
 	}
 	J /= float64(nSamples)
 	//fmt.Printf("/%d =>%g\n", nSamples, J)
-	grad.Scale(1./float64(nSamples), grad)
+	if grad != nil {
+		grad.Scale(1./float64(nSamples), grad)
+	}
 	return
 }
 

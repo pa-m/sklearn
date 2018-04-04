@@ -296,7 +296,7 @@ type LinFitOptions struct {
 	L1Ratio          float64
 	Loss             Loss
 	Activation       Activation
-	GOMethod         optimize.Method
+	GOMethodCreator  func() optimize.Method
 	ThetaInitializer func(Theta *mat.Dense)
 	Recorder         optimize.Recorder
 	PerOutputFit     bool
@@ -323,15 +323,15 @@ func initRecorder(recorder optimize.Recorder) (err error) {
 func LinFit(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 	nSamples, nFeatures := X.Dims()
 	_, nOutputs := Ytrue.Dims()
-	if opts.GOMethod == nil && opts.Solver == nil {
-		opts.GOMethod = &optimize.LBFGS{}
+	if opts.GOMethodCreator == nil && opts.Solver == nil {
+		opts.GOMethodCreator = func() optimize.Method { return &optimize.LBFGS{} }
 	}
 	// if _, isGOM := opts.Solver.(optimize.Method); isGOM && opts.GOMethod == nil && (opts.MiniBatchSize == 0 || opts.MiniBatchSize == nSamples) {
 	// 	fmt.Printf("USE %s as optimize.Method\n\n", opts.Solver)
 	// 	opts.GOMethod = opts.Solver.(optimize.Method)
 	// }
 
-	if opts.GOMethod != nil {
+	if opts.GOMethodCreator != nil {
 		opts.PerOutputFit = true
 		return LinFitGOM(X, Ytrue, opts)
 	}
@@ -481,7 +481,7 @@ func LinFitGOM(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 	if opts.PerOutputFit {
 		type fitOutputRes struct {
 			o   int
-			ret optimize.Result
+			ret *optimize.Result
 			err error
 		}
 		chanret := make(chan fitOutputRes, nOutputs)
@@ -490,23 +490,20 @@ func LinFitGOM(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 			Ypred := mat.NewDense(nSamples, 1, nil)
 			Ydiff := mat.NewDense(nSamples, 1, nil)
 			thetao := make([]float64, nFeatures, nFeatures)
-			gradslice := make([]float64, nFeatures, nFeatures)
-			grado := mat.NewDense(nFeatures, 1, gradslice)
 
 			p := optimize.Problem{
 				Func: func(thetao []float64) float64 {
-					J := opts.Loss(Ytrue.ColView(o), X, mat.NewDense(nFeatures, 1, thetao), Ypred, Ydiff, grado, opts.Alpha, opts.L1Ratio, nSamples, opts.Activation)
+					J := opts.Loss(Ytrue.ColView(o), X, mat.NewDense(nFeatures, 1, thetao), Ypred, Ydiff, nil, opts.Alpha, opts.L1Ratio, nSamples, opts.Activation)
 					return J
 				},
 				Grad: func(gradSlice, thetao []float64) {
-					opts.Loss(Ytrue.ColView(o), X, mat.NewDense(nFeatures, 1, thetao), Ypred, Ydiff, grado, opts.Alpha, opts.L1Ratio, nSamples, opts.Activation)
-					mat.Col(gradSlice, 0, grado)
+					opts.Loss(Ytrue.ColView(o), X, mat.NewDense(nFeatures, 1, thetao), Ypred, Ydiff, mat.NewDense(nFeatures, 1, gradSlice), opts.Alpha, opts.L1Ratio, nSamples, opts.Activation)
+
 				},
 			}
 			mat.Col(thetao, o, thetaM)
-			method := copyStruct(opts.GOMethod).(optimize.Method)
-			ret, err = optimize.Local(p, thetao, fSettings(), method)
-			chanret <- fitOutputRes{o: o, ret: *ret, err: err}
+			ret, err := optimize.Local(p, thetao, fSettings(), opts.GOMethodCreator())
+			chanret <- fitOutputRes{o: o, ret: ret, err: err}
 		}
 		for o := 0; o < nOutputs; o++ {
 			go fitOutput(o, chanret)
@@ -523,23 +520,20 @@ func LinFitGOM(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 		rmse = math.Sqrt(rmse) / float64(nOutputs)
 
 	} else {
-		gradslice := make([]float64, nFeatures*nOutputs, nFeatures*nOutputs)
-		grad := mat.NewDense(nFeatures, nOutputs, gradslice)
 
 		Ypred := mat.NewDense(nSamples, nOutputs, nil)
 		Ydiff := mat.NewDense(nSamples, nOutputs, nil)
 		p := optimize.Problem{
 			Func: func(theta []float64) float64 {
 
-				J := opts.Loss(Ytrue, X, mat.NewDense(nFeatures, nOutputs, theta), Ypred, Ydiff, grad, opts.Alpha, opts.L1Ratio, nSamples, opts.Activation)
+				J := opts.Loss(Ytrue, X, mat.NewDense(nFeatures, nOutputs, theta), Ypred, Ydiff, nil, opts.Alpha, opts.L1Ratio, nSamples, opts.Activation)
 				return J
 			},
 			Grad: func(gradSlice, theta []float64) {
-				opts.Loss(Ytrue, X, mat.NewDense(nFeatures, nOutputs, theta), Ypred, Ydiff, grad, opts.Alpha, opts.L1Ratio, nSamples, opts.Activation)
-				copy(gradSlice, gradslice)
+				opts.Loss(Ytrue, X, mat.NewDense(nFeatures, nOutputs, theta), Ypred, Ydiff, mat.NewDense(nFeatures, nOutputs, gradSlice), opts.Alpha, opts.L1Ratio, nSamples, opts.Activation)
 			},
 		}
-		ret, err = optimize.Local(p, theta, fSettings(), opts.GOMethod)
+		ret, err = optimize.Local(p, theta, fSettings(), opts.GOMethodCreator())
 		copy(theta, ret.X)
 		rmse = mat.Norm(Ydiff, 2) / float64(nOutputs)
 		epoch = ret.FuncEvaluations

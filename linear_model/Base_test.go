@@ -228,14 +228,19 @@ func TestLinFitGOM(t *testing.T) {
 	bestErr := make(map[string]float)
 	bestTime := time.Second * 86400
 	bestSetup := make(map[string]string)
-	for _, method := range []optimize.Method{&optimize.GradientDescent{}, &optimize.BFGS{}, &optimize.CG{}, &optimize.LBFGS{}} {
+	for _, methodCreator := range []func() optimize.Method{
+		func() optimize.Method { return &optimize.GradientDescent{} },
+		func() optimize.Method { return &optimize.BFGS{} },
+		func() optimize.Method { return &optimize.CG{} },
+		func() optimize.Method { return &optimize.LBFGS{} },
+	} {
 		for _, normalize := range []bool{false, true} {
-			testSetup := fmt.Sprintf("%T %v", method, normalize)
+			testSetup := fmt.Sprintf("%T %v", methodCreator(), normalize)
 			//fmt.Printf("-- TestLinearRegression normalize=%v --\n", normalize)
 			regr := NewLinearRegression()
 			regr.Alpha = 0.
 			regr.Normalize = normalize
-			regr.Options.GOMethod = method
+			regr.Options.GOMethodCreator = methodCreator
 			//m.Verbose = true
 			//m.ComputeScore = true
 
@@ -270,7 +275,7 @@ func TestLinFitGOM(t *testing.T) {
 			}
 			//if math.Sqrt(mse) > regr.Tol {
 			if r2score < .99 {
-				t.Errorf("Test %T %12T normalize=%v\nr2score=%g (%v) mse=%g mae=%g \n", regr, method, normalize, r2score, *metrics.R2Score(p.Y, Ypred, nil, "raw_values"), mse, mae)
+				t.Errorf("Test %T %12T normalize=%v\nr2score=%g (%v) mse=%g mae=%g \n", regr, methodCreator(), normalize, r2score, *metrics.R2Score(p.Y, Ypred, nil, "raw_values"), mse, mae)
 				t.Fail()
 			} else {
 				//fmt.Printf("Test %T %12T ok normalize=%v\nr2score=%g  mse=%g mae=%g elapsed=%s\n", regr, method, normalize, r2score, mse, mae, elapsed)
