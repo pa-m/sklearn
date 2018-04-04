@@ -1,5 +1,6 @@
 gochecks
 coverage.txt
 .idea
-.vscode*.bak
+.vscode
+*.bak
 *.test

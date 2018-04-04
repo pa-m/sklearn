@@ -13,6 +13,7 @@ func (s *xy) Swap(i, j int) {
 	s.x[i], s.x[j] = s.x[j], s.x[i]
 	s.y[i], s.y[j] = s.y[j], s.y[i]
 }
+func (s *xy) XY(i int) (float64, float64) { return s.x[i], s.y[i] }
 
 func interpolate2points(x0, y0, x1, y1 float64) func(float64) float64 {
 	return func(x float64) float64 {
@@ -26,15 +27,19 @@ func interpolate2points(x0, y0, x1, y1 float64) func(float64) float64 {
 // Interp1d return linear interpolation from x,y points
 // mimics partly scipy.interpolate.interp1d
 func Interp1d(x, y []float64) func(x float64) float64 {
-	xsorted, ysorted := make([]float64, len(x)), make([]float64, len(x))
-	copy(xsorted, x)
-	copy(ysorted, y)
-	both := &xy{x: xsorted, y: ysorted}
-	sort.Sort(both)
+	var both *xy
+	if sort.Float64sAreSorted(x) {
+		both = &xy{x, y}
+	} else {
+		both = &xy{make([]float64, len(x)), make([]float64, len(x))}
+		copy(both.x, x)
+		copy(both.y, y)
+		sort.Sort(both)
+	}
 	return func(x float64) float64 {
-		for ix := range xsorted[:len(xsorted)-1] {
-			if x < xsorted[ix+1] || ix == len(xsorted)-2 {
-				return interpolate2points(xsorted[ix], ysorted[ix], xsorted[ix+1], ysorted[ix+1])(x)
+		for ix := range both.x[:len(both.x)-1] {
+			if x < both.x[ix+1] || ix == len(both.x)-2 {
+				return interpolate2points(both.x[ix], both.y[ix], both.x[ix+1], both.y[ix+1])(x)
 			}
 		}
 		return math.NaN()

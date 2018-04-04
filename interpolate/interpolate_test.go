@@ -1,26 +1,47 @@
 package interpolate
 
-import "fmt"
+import (
+	"fmt"
+	"math/rand"
+	"sort"
+)
 
 func ExampleInterp1d() {
 	x := []float64{1, 2, 3, 4}
 	y := []float64{-1, -2, 6, 8}
-	f := Interp1d(x, y)
 	ea := func(expected, actual float64) {
 		if expected != actual {
 			fmt.Printf("expected:%g actual:%g\n", expected, actual)
 		}
 	}
-	ea(1, f(-1))
-	ea(0, f(0))
-	ea(-1, f(1))
-	ea(-1.5, f(1.5))
-	ea(-2, f(2))
-	ea(2, f(2.5))
-	ea(6, f(3))
-	ea(7, f(3.5))
-	ea(8, f(4))
-	ea(10, f(5))
+	subtest := func(shuffle bool) {
+		if shuffle {
+			perm := rand.Perm(len(x))
+			for sort.IntsAreSorted(perm) {
+				perm = rand.Perm(len(x))
+			}
+			for i, p := range perm {
+				if p > i {
+					x[p], x[i] = x[i], x[p]
+					y[p], y[i] = y[i], y[p]
+				}
+			}
+		}
+		f := Interp1d(x, y)
+		ea(1, f(-1))
+		ea(0, f(0))
+		ea(-1, f(1))
+		ea(-1.5, f(1.5))
+		ea(-2, f(2))
+		ea(2, f(2.5))
+		ea(6, f(3))
+		ea(7, f(3.5))
+		ea(8, f(4))
+		ea(10, f(5))
+	}
+	subtest(false)
+	subtest(true)
+
 	// Output:
 }
 

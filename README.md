@@ -20,6 +20,8 @@ You'll also find
 
 - some metrics MeanSquaredError,MeanAbsoluteError,R2Score,AccuracyScore, ...
 - some preprocessing MinMaxScaler,StandardScaler,OneHotEncoder,PolynomialFeatures
+- Pipeline and MakePipeline
+- some interpolation stuff like in scipy.interpolate: interp1d,interp2d,CubicSpline
 - all estimators can use  following
     - solvers:  sgd,adagrad,rmsprop,adadelta,adam + all gonum/optimize methods
     - loss functions: square,cross-entropy
@@ -27,7 +29,7 @@ You'll also find
 
 All of this is 
 - a personal project to get a deeper understanding of how all of this magic works
-- a work in progress, subject to refactoring, so interfaces may change, especially args to NewXXX
+- a recent work still in progress, subject to refactoring, so interfaces may change, especially args to NewXXX
 - processed with gofmt, golint, go vet
 - unit tested but coverage should reach 90%
 - underdocumented but python sklearn documentation should be sufficient
