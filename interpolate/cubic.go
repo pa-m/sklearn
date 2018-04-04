@@ -1,7 +1,6 @@
 package interpolate
 
 import (
-	"math"
 	"sort"
 
 	"gonum.org/v1/gonum/mat"
@@ -10,69 +9,35 @@ import (
 // CubicSpline adapted from https://github.com/morganherlocker/cubic-spline
 func CubicSpline(xs, ys []float64) func(x float64) float64 {
 
-	swapRows := func(m *mat.Dense, k, l int) {
-		rm := m.RawMatrix()
-		for j := 0; j < rm.Cols; j++ {
-			rm.Data[k*rm.Stride+j], rm.Data[l*rm.Stride+j] = rm.Data[l*rm.Stride+j], rm.Data[k*rm.Stride+j]
-		}
-	}
-	solve := func(A *mat.Dense, ks []float64) []float64 {
-		var m, _ = A.Dims()
-		for k := 0; k < m; k++ { // column
-
-			// pivot for column
-			var iMax = 0
-			var vali = math.Inf(-1)
-			for i := k; i < m; i++ {
-				if A.At(i, k) > vali {
-					iMax = i
-					vali = A.At(i, k)
-				}
-			}
-			swapRows(A, k, iMax)
-
-			// for all rows below pivot
-			for i := k + 1; i < m; i++ {
-				for j := k + 1; j < m+1; j++ {
-					A.Set(i, j, A.At(i, j)-A.At(k, j)*(A.At(i, k)/A.At(k, k)))
-				}
-				A.Set(i, k, 0.)
-			}
-		}
-		for i := m - 1; i >= 0; i-- { // rows = columns
-
-			var v = A.At(i, m) / A.At(i, i)
-			ks[i] = v
-			for j := i - 1; j >= 0; j-- { // rows
-
-				A.Set(j, m, A.At(j, m)-A.At(j, i)*v)
-				A.Set(j, i, 0.)
-			}
-		}
-		return ks
-	}
-
 	getNaturalKs := func(xs, ys, ks []float64) []float64 {
 		var n = len(xs) - 1
-		var A = mat.NewDense(n+1, n+2, nil)
+		var Adense = mat.NewDense(n+1, n+2, nil)
+		A := Adense.RawMatrix()
 
-		for i := 1; i < n; i++ { // rows
-
-			A.Set(i, i-1, 1./(xs[i]-xs[i-1]))
-			A.Set(i, i, 2.*(1/(xs[i]-xs[i-1])+1/(xs[i+1]-xs[i])))
-			A.Set(i, i+1, 1./(xs[i+1]-xs[i]))
-			A.Set(i, n+1, 3.*((ys[i]-ys[i-1])/((xs[i]-xs[i-1])*(xs[i]-xs[i-1]))+(ys[i+1]-ys[i])/((xs[i+1]-xs[i])*(xs[i+1]-xs[i]))))
+		for i, ai := 1, A.Stride; i < n; i, ai = i+1, ai+A.Stride { // rows
+			A.Data[ai+i-1] = 1. / (xs[i] - xs[i-1])
+			A.Data[ai+i] = 2. * (1/(xs[i]-xs[i-1]) + 1/(xs[i+1]-xs[i]))
+			A.Data[ai+i+1] = 1. / (xs[i+1] - xs[i])
+			// bias at line i
+			A.Data[ai+n-1] = 3. * ((ys[i]-ys[i-1])/((xs[i]-xs[i-1])*(xs[i]-xs[i-1])) + (ys[i+1]-ys[i])/((xs[i+1]-xs[i])*(xs[i+1]-xs[i])))
 		}
+		ai := 0
+		A.Data[ai+0] = 2. / (xs[1] - xs[0])
+		A.Data[ai+1] = 1. / (xs[1] - xs[0])
+		// bias at line 0
+		A.Data[ai+n+1] = 3. * (ys[1] - ys[0]) / ((xs[1] - xs[0]) * (xs[1] - xs[0]))
 
-		A.Set(0, 0, 2./(xs[1]-xs[0]))
-		A.Set(0, 1, 1./(xs[1]-xs[0]))
-		A.Set(0, n+1, 3.*(ys[1]-ys[0])/((xs[1]-xs[0])*(xs[1]-xs[0])))
+		ai = n * A.Stride
+		A.Data[ai+n-1] = 1. / (xs[n] - xs[n-1])
+		A.Data[ai+n] = 2. / (xs[n] - xs[n-1])
+		// bias at line n
+		A.Data[ai+n+1] = 3. * (ys[n] - ys[n-1]) / ((xs[n] - xs[n-1]) * (xs[n] - xs[n-1]))
 
-		A.Set(n, n-1, 1./(xs[n]-xs[n-1]))
-		A.Set(n, n, 2./(xs[n]-xs[n-1]))
-		A.Set(n, n+1, 3.*(ys[n]-ys[n-1])/((xs[n]-xs[n-1])*(xs[n]-xs[n-1])))
+		ksMat := mat.NewDense(len(ks), 1, ks)
+		ksMat.Solve(Adense.Slice(0, n+1, 0, n+1), Adense.Slice(0, n+1, n+1, n+2))
 
-		return solve(A, ks)
+		return ks
+
 	}
 
 	var both *xy
