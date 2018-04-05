@@ -1,6 +1,7 @@
 package interpolate
 
 import (
+	"errors"
 	"sort"
 
 	"gonum.org/v1/gonum/mat"
@@ -11,30 +12,40 @@ func CubicSpline(xs, ys []float64) func(x float64) float64 {
 
 	getNaturalKs := func(xs, ys, ks []float64) []float64 {
 		var n = len(xs) - 1
-		var Adense = mat.NewDense(n+1, n+2, nil)
-		A := Adense.RawMatrix()
+		var A = mat.NewSymBandDense(n+1, 1, nil)
+		Bd := mat.NewVecDense(n+1, nil)
 
-		for i, ai := 1, A.Stride; i < n; i, ai = i+1, ai+A.Stride { // rows
-			A.Data[ai+i-1] = 1. / (xs[i] - xs[i-1])
-			A.Data[ai+i] = 2. * (1/(xs[i]-xs[i-1]) + 1/(xs[i+1]-xs[i]))
-			A.Data[ai+i+1] = 1. / (xs[i+1] - xs[i])
-			// bias at line i
-			A.Data[ai+n-1] = 3. * ((ys[i]-ys[i-1])/((xs[i]-xs[i-1])*(xs[i]-xs[i-1])) + (ys[i+1]-ys[i])/((xs[i+1]-xs[i])*(xs[i+1]-xs[i])))
-		}
-		ai := 0
-		A.Data[ai+0] = 2. / (xs[1] - xs[0])
-		A.Data[ai+1] = 1. / (xs[1] - xs[0])
+		A.SetSymBand(0, 0, 2./(xs[1]-xs[0]))
+		A.SetSymBand(0, 1, 1./(xs[1]-xs[0]))
 		// bias at line 0
-		A.Data[ai+n+1] = 3. * (ys[1] - ys[0]) / ((xs[1] - xs[0]) * (xs[1] - xs[0]))
+		Bd.SetVec(0, 3.*(ys[1]-ys[0])/((xs[1]-xs[0])*(xs[1]-xs[0])))
 
-		ai = n * A.Stride
-		A.Data[ai+n-1] = 1. / (xs[n] - xs[n-1])
-		A.Data[ai+n] = 2. / (xs[n] - xs[n-1])
+		for i := 1; i < n; i++ { // rows
+			A.SetSymBand(i, i-1, 1./(xs[i]-xs[i-1]))
+			A.SetSymBand(i, i, 2.*(1/(xs[i]-xs[i-1])+1/(xs[i+1]-xs[i])))
+			A.SetSymBand(i, i+1, 1./(xs[i+1]-xs[i]))
+			// bias at line i
+			Bd.SetVec(i, 3.*((ys[i]-ys[i-1])/((xs[i]-xs[i-1])*(xs[i]-xs[i-1]))+(ys[i+1]-ys[i])/((xs[i+1]-xs[i])*(xs[i+1]-xs[i]))))
+		}
+
+		A.SetSymBand(n, n-1, 1./(xs[n]-xs[n-1]))
+		A.SetSymBand(n, n, 2./(xs[n]-xs[n-1]))
 		// bias at line n
-		A.Data[ai+n+1] = 3. * (ys[n] - ys[n-1]) / ((xs[n] - xs[n-1]) * (xs[n] - xs[n-1]))
+		Bd.SetVec(n, 3.*(ys[n]-ys[n-1])/((xs[n]-xs[n-1])*(xs[n]-xs[n-1])))
 
-		ksMat := mat.NewDense(len(ks), 1, ks)
-		ksMat.Solve(Adense.Slice(0, n+1, 0, n+1), Adense.Slice(0, n+1, n+1, n+2))
+		ksVec := mat.NewVecDense(len(ks), ks)
+
+		var err error
+		var chol mat.Cholesky
+		if chol.Factorize(A) {
+			err = chol.SolveVec(ksVec, Bd)
+		} else {
+			err = errors.New("not positive definite")
+		}
+
+		if err != nil {
+			ksVec.SolveVec(A, Bd)
+		}
 
 		return ks
 
