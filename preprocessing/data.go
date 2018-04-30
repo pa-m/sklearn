@@ -3,11 +3,13 @@ package preprocessing
 import (
 	"math"
 	"math/rand"
+	"sort"
 
 	"github.com/pa-m/sklearn/base"
 
 	"github.com/gonum/floats"
 	"gonum.org/v1/gonum/mat"
+	"gonum.org/v1/gonum/stat"
 )
 
 type float = float64
@@ -185,6 +187,138 @@ func (scaler *StandardScaler) InverseTransform(X, Y *mat.Dense) (Xout, Yout *mat
 	}, X)
 	return Xout, Y
 }
+
+//======================================================================
+
+// RobustScaler scales data by removing centering around the Median and
+// removing outliers by Quantile. See python sklearn's RobustScaler
+// http://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.RobustScaler.html.
+//
+type RobustScaler struct {
+	Center          bool
+	Scale           bool
+	Quantiles       *QuantilePair
+	Median          *mat.Dense
+	Tmp             *mat.Dense
+	QuantileDivider *mat.Dense
+}
+
+type QuantilePair struct {
+	Left  float64
+	Right float64
+}
+
+// NewDefaultRobustScaler supplies typical arguments (via python sklearn)
+func NewDefaultRobustScaler() *RobustScaler {
+	return NewRobustScaler(true, true, &QuantilePair{0.25, 0.75})
+}
+
+// NewRobustScaler creates a *RobustScaler
+func NewRobustScaler(center bool, scale bool, quantiles *QuantilePair) *RobustScaler {
+	if scale && (quantiles == nil) {
+		quantiles = &QuantilePair{0.25, 0.75}
+	}
+	return &RobustScaler{
+		Center:    center,
+		Scale:     scale,
+		Quantiles: quantiles,
+	}
+}
+
+// Reset ...
+func (scaler *RobustScaler) Reset() *RobustScaler {
+	return scaler
+}
+
+// Fit computes Median and Quantiles
+func (scaler *RobustScaler) Fit(X, Y *mat.Dense) Transformer {
+	scaler.Reset()
+	return scaler.PartialFit(X, Y)
+}
+
+// PartialFit computes Median and Quantiles
+func (scaler *RobustScaler) PartialFit(X, Y *mat.Dense) Transformer {
+	nSamples, nFeatures := X.Dims()
+	if nSamples == 0 {
+		return scaler
+	}
+	if scaler.Center && (scaler.Median == nil) {
+		scaler.Median = mat.NewDense(1, nFeatures, nil)
+	}
+	if scaler.Scale && (scaler.QuantileDivider == nil) {
+		scaler.QuantileDivider = mat.NewDense(1, nFeatures, nil)
+	}
+	if scaler.Tmp == nil {
+		scaler.Tmp = mat.NewDense(1, nSamples, nil)
+	}
+
+	for c := 0; c < nFeatures; c++ {
+		for r := 0; r < nSamples; r++ {
+			scaler.Tmp.Set(0, r, X.At(r, c))
+		}
+		sort.Float64s(scaler.Tmp.RawRowView(0))
+		if scaler.Center {
+			scaler.Median.Set(0, c, stat.Quantile(0.5, stat.Empirical, scaler.Tmp.RawRowView(0), nil))
+		}
+		if scaler.Scale {
+			q1 := stat.Quantile(scaler.Quantiles.Left, stat.Empirical, scaler.Tmp.RawRowView(0), nil)
+			q2 := stat.Quantile(scaler.Quantiles.Right, stat.Empirical, scaler.Tmp.RawRowView(0), nil)
+			scaler.QuantileDivider.Set(0, c, q2-q1)
+			scaler.QuantileDivider.Apply(
+				func(r int, c int, v float64) float64 {
+					if v == 0.0 {
+						return 1.0
+					} else {
+						return v
+					}
+				},
+				scaler.QuantileDivider)
+		}
+	}
+	return scaler
+}
+
+// Transform scales data
+func (scaler *RobustScaler) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	Xout = mat.DenseCopyOf(X)
+	Xout.Apply(func(i int, j int, x float64) float64 {
+		res := x
+		if scaler.Center {
+			res = res - scaler.Median.At(0, j)
+		}
+		if scaler.Scale {
+			res = res / scaler.QuantileDivider.At(0, j)
+		}
+		return res
+	}, X)
+	return Xout, Y
+}
+
+// FitTransform for RobustScaler
+func (scaler *RobustScaler) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	return scaler.Fit(X, Y).Transform(X, Y)
+}
+
+// InverseTransform unscales data
+func (scaler *RobustScaler) InverseTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	if X == nil {
+		return X, Y
+	}
+	Xout = mat.DenseCopyOf(X)
+	Xout.Apply(func(i int, j int, x float64) float64 {
+		res := x
+		if scaler.Scale {
+			res = res * scaler.QuantileDivider.At(0, j)
+		}
+		if scaler.Center {
+			res = res + scaler.Median.At(0, j)
+		}
+		return res
+	}, X)
+	return Xout, Y
+}
+
+//======================================================================
 
 // IncrementalMeanAndVar Calculate mean update and a Youngs and Cramer variance update.
 // lastMean and lastVariance are statistics computed at the last step by the
