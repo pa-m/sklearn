@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"sort"
+	"testing"
 )
 
 func ExampleInterp1d() {
@@ -59,3 +60,22 @@ func ExampleInterp2d() {
 	ea(5.5, f(2.25, 2.25))
 	// Output:
 }
+
+func TestInterp2d(t *testing.T) {
+	x := []float64{25, 25, 30, 30}
+	y := []float64{5, 10, 5, 10}
+	z := []float64{6.4, 7.1, 5.8, 6.4}
+	f := Interp2d(x, y, z)
+	ea := func(expected, actual float64) {
+		if expected != actual {
+			fmt.Printf("expected:%g actual:%g\n", expected, actual)
+		}
+	}
+	cop25 := 6.4 + (8.-5.)/(10.-5.)*(7.1-6.4)
+	cop30 := 5.8 + (8.-5.)/(10.-5.)*(6.4-5.8)
+	cop := cop25 + (15-25)/(30-25)*(cop30-cop25)
+	//fmt.Println("cop25:", cop25, "cop30:", cop30, "cop(15,8):", cop)
+	ea(cop, f(15, 8))
+}
+
+// TODO v https://github.com/diazona/interp2d

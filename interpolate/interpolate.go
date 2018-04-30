@@ -69,10 +69,10 @@ func Interp2d(x, y, z []float64) func(x, y float64) float64 {
 		l := len(xsorted)
 		ix2 := l - 1
 		for i := range xsorted {
-			if xsorted[i] > xsorted[ix0] && xsorted[i] <= x {
+			if xsorted[i] > xsorted[ix0] && xsorted[i] <= x && xsorted[i] <= xsorted[ix2] {
 				ix0 = i
 			}
-			if xsorted[l-1-i] <= xsorted[ix2] && xsorted[l-1-i] >= x {
+			if xsorted[l-1-i] <= xsorted[ix2] && xsorted[l-1-i] >= x && xsorted[l-1-i] > xsorted[ix0] {
 				ix2 = l - 1 - i
 			}
 		}
@@ -84,9 +84,13 @@ func Interp2d(x, y, z []float64) func(x, y float64) float64 {
 		for ix3 < l && xsorted[ix3] == xsorted[ix2] {
 			ix3++
 		}
+		x2 := xsorted[ix2]
+		for ix2 > 1 && xsorted[ix2-1] == x2 {
+			ix2--
+		}
 		zxlow := Interp1d(ysorted[ix0:ix1], zsorted[ix0:ix1])(y)
 		zxhi := Interp1d(ysorted[ix2:ix3], zsorted[ix2:ix3])(y)
-		//fmt.Println("xlow", xsorted[ix0], zxlow, "xhi", xsorted[ix2], zxhi)
+		//fmt.Println("xlow", xsorted[ix0:ix1], "xhi", xsorted[ix2:ix3], "yxlow", ysorted[ix0:ix1], "yxhi", ysorted[ix2:ix3], "zxlow", zsorted[ix0:ix1], zxlow, "zxhi", zsorted[ix2:ix3], zxhi)
 		return Interp1d([]float64{xsorted[ix0], xsorted[ix2]}, []float64{zxlow, zxhi})(x)
 	}
 }
