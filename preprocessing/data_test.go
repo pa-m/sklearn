@@ -67,6 +67,51 @@ func TestStandardScaler(t *testing.T) {
 	}
 }
 
+func TestRobustScaler(t *testing.T) {
+	m := NewDefaultRobustScaler()
+	isTransformer := func(Transformer) {}
+	isTransformer(m)
+	X := mat.NewDense(3, 3, []float64{1, 2, 3, 1, 4, 7, 9, 5, 9})
+	m.Fit(X, nil)
+	X = mat.NewDense(1, 3, []float64{8, 8, 8})
+	Y, _ := m.Transform(X, nil)
+	X2, _ := m.InverseTransform(Y, nil)
+	if !floats.EqualApprox(X.RawRowView(0), X2.RawRowView(0), 1e-6) {
+		t.Errorf("RobustScaler inversetransform failed %v", X2.RawRowView(0))
+		t.Fail()
+	}
+}
+
+func TestRobustScalerCenter(t *testing.T) {
+	m := NewRobustScaler(true, false, nil)
+	isTransformer := func(Transformer) {}
+	isTransformer(m)
+	X := mat.NewDense(3, 3, []float64{1, 4, 7, 3, 2, 8, 9, 1, 1})
+	correctY := mat.NewDense(3, 3, []float64{-2, 2, 0, 0, 0, 1, 6, -1, -6})
+	Y, _ := m.FitTransform(X, nil)
+	if !mat.Equal(Y, correctY) {
+		t.Errorf("RobustScaler hand-crafted centering test failed - should be\n%v\nbut got:\n%v",
+			mat.Formatted(correctY, mat.Prefix(""), mat.Squeeze()),
+			mat.Formatted(Y, mat.Prefix(""), mat.Squeeze()))
+		t.Fail()
+	}
+}
+
+func TestRobustScalerQuantiles(t *testing.T) {
+	m := NewRobustScaler(false, true, nil) // Use default (0.25, 0.75)
+	isTransformer := func(Transformer) {}
+	isTransformer(m)
+	X := mat.NewDense(8, 1, []float64{9, 10, 12, 13, 19, 20, 21, 22})
+	correctY := mat.NewDense(8, 1, []float64{0.9, 1.0, 1.2, 1.3, 1.9, 2.0, 2.1, 2.2})
+	Y, _ := m.FitTransform(X, nil)
+	if !mat.Equal(Y, correctY) {
+		t.Errorf("RobustScaler hand-crafted quantiles test failed - should be\n%v\nbut got:\n%v",
+			mat.Formatted(correctY, mat.Prefix(""), mat.Squeeze()),
+			mat.Formatted(Y, mat.Prefix(""), mat.Squeeze()))
+		t.Fail()
+	}
+}
+
 func TestPolynomialFeatures(t *testing.T) {
 	pf := NewPolynomialFeatures(3)
 	isTransformer := func(Transformer) {}
