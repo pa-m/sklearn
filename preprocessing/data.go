@@ -203,6 +203,7 @@ type RobustScaler struct {
 	QuantileDivider *mat.Dense
 }
 
+// QuantilePair represents bounds of quantile
 type QuantilePair struct {
 	Left  float64
 	Right float64
@@ -268,9 +269,9 @@ func (scaler *RobustScaler) PartialFit(X, Y *mat.Dense) Transformer {
 				func(r int, c int, v float64) float64 {
 					if v == 0.0 {
 						return 1.0
-					} else {
-						return v
 					}
+					return v
+
 				},
 				scaler.QuantileDivider)
 		}
