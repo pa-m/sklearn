@@ -3,20 +3,19 @@ package neighbors
 import (
 	"fmt"
 	"runtime"
-	"sort"
 
 	"github.com/pa-m/sklearn/base"
 	"github.com/pa-m/sklearn/metrics"
 
 	"github.com/gonum/floats"
-	"github.com/gonum/stat"
 	"gonum.org/v1/gonum/mat"
 )
 
-// KNeighborsRegressor is a Regression based on k-nearest neighbors.
+// KNeighborsClassifier is a Regression based on k-nearest neighbors.
 // The target is predicted by local interpolation of the targets
 // associated of the nearest neighbors in the training set.
-type KNeighborsRegressor struct {
+type KNeighborsClassifier struct {
+	base.Classifier
 	NearestNeighbors
 	K        int
 	Weight   string
@@ -24,15 +23,16 @@ type KNeighborsRegressor struct {
 	Distance Distance
 	// Runtime members
 	Xscaled, Y *mat.Dense
+	//Classes    []map[float64]bool
 }
 
-// NewKNeighborsRegressor returns an initialized *KNeighborsRegressor
-func NewKNeighborsRegressor(K int, Weights string) base.Regressor {
-	return &KNeighborsRegressor{NearestNeighbors: *NewNearestNeighbors(), K: K, Weight: Weights}
+// NewKNeighborsClassifier returns an initialized *KNeighborsClassifier
+func NewKNeighborsClassifier(K int, Weights string) base.Transformer {
+	return &KNeighborsClassifier{NearestNeighbors: *NewNearestNeighbors(), K: K, Weight: Weights}
 }
 
 // Fit ...
-func (m *KNeighborsRegressor) Fit(X, Y *mat.Dense) base.Transformer {
+func (m *KNeighborsClassifier) Fit(X, Y *mat.Dense) base.Transformer {
 	m.Xscaled = mat.DenseCopyOf(X)
 	m.Y = mat.DenseCopyOf(Y)
 	if m.Distance == nil {
@@ -42,12 +42,19 @@ func (m *KNeighborsRegressor) Fit(X, Y *mat.Dense) base.Transformer {
 		panic(fmt.Errorf("K<=0"))
 	}
 	m.NearestNeighbors.Fit(X)
+	// NSamples, Noutputs := Y.Dims()
+	// for o := 0; o < Noutputs; o++ {
+	// 	cl := make(map[float64]bool)
+	// 	for s := 0; s < NSamples; s++ {
+	// 		cl[Y.At(s, o)] = true
+	// 	}
+	// 	m.Classes = append(m.Classes,cl)
+	// }
 	return m
 }
 
 // Predict ...
-func (m *KNeighborsRegressor) Predict(X, Y *mat.Dense) base.Regressor {
-	NFitSamples, _ := m.Xscaled.Dims()
+func (m *KNeighborsClassifier) Predict(X, Y *mat.Dense) base.Transformer {
 	NX, _ := X.Dims()
 	_, outputs := m.Y.Dims()
 
@@ -57,26 +64,36 @@ func (m *KNeighborsRegressor) Predict(X, Y *mat.Dense) base.Regressor {
 
 	base.Parallelize(NCPU, NX, func(th, start, end int) {
 		var sumd2 float64
-		d2 := make([]float64, NFitSamples)
-		idx := make([]int, NFitSamples)
 		weights := make([]float64, m.K)
 		ys := make([]float64, m.K)
 		for ik := range weights {
 			weights[ik] = 1.
 		}
 		for sample := start; sample < end; sample++ {
-			// sort idx to get first K nearest
-			sort.Slice(idx, func(i, j int) bool { return d2[idx[i]] < d2[idx[j]] })
 			// set Y(sample,output) to weighted average of K nearest
 			sumd2 = floats.Sum(distances.RawRowView(sample))
+
+			classw := make(map[float64]float64)
 			for o := 0; o < outputs; o++ {
 				for ik := range ys {
-					ys[ik] = m.Y.At(int(indices.At(sample, ik)), o)
+					cl := m.Y.At(int(indices.At(sample, ik)), o)
 					if isWeightDistance {
 						weights[ik] = 1. - distances.At(sample, ik)/sumd2
 					}
+					if clw, present := classw[cl]; present {
+						classw[cl] = clw + weights[ik]
+					} else {
+						classw[cl] = weights[ik]
+					}
 				}
-				Y.Set(sample, o, stat.Mean(ys, weights))
+				wmax, clwmax := 0., 0.
+				for cl, w := range classw {
+					if w > wmax {
+						wmax = w
+						clwmax = cl
+					}
+				}
+				Y.Set(sample, o, clwmax)
 			}
 
 		}
@@ -84,8 +101,8 @@ func (m *KNeighborsRegressor) Predict(X, Y *mat.Dense) base.Regressor {
 	return m
 }
 
-// Transform for KNeighborsRegressor
-func (m *KNeighborsRegressor) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+// Transform for KNeighborsClassifier
+func (m *KNeighborsClassifier) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
 	NSamples, NOutputs := Y.Dims()
 	Xout = X
 	Yout = mat.NewDense(NSamples, NOutputs, nil)
@@ -93,8 +110,8 @@ func (m *KNeighborsRegressor) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense)
 	return
 }
 
-// Score for KNeighborsRegressor
-func (m *KNeighborsRegressor) Score(X, Y *mat.Dense) float64 {
+// Score for KNeighborsClassifier
+func (m *KNeighborsClassifier) Score(X, Y *mat.Dense) float64 {
 	NSamples, NOutputs := Y.Dims()
 	Ypred := mat.NewDense(NSamples, NOutputs, nil)
 	m.Predict(X, Ypred)

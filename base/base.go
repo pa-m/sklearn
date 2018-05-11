@@ -23,6 +23,11 @@ type Regressor interface {
 	Score(X, T *mat.Dense) float64
 }
 
+// Classifier is the common interface for all Classifiers
+type Classifier struct {
+	Regressor
+}
+
 // CopyStruct create an new *struct with copied fields using reflection. it's not a deep copy.
 func CopyStruct(m interface{}) interface{} {
 

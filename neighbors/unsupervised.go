@@ -67,9 +67,9 @@ func (m *NearestNeighbors) KNeighbors(X mat.Matrix, NNeighbors int) (distances, 
 				}
 			})
 			sort.Slice(idx, func(i, j int) bool { return sampleDistance[idx[i]] < sampleDistance[idx[j]] })
-			for i := 0; i < NNeighbors; i++ {
-				distances.Set(sample, i, sampleDistance[idx[i]])
-				indices.Set(sample, i, float64(idx[i]))
+			for ik := 0; ik < NNeighbors; ik++ {
+				indices.Set(sample, ik, float64(idx[ik]))
+				distances.Set(sample, ik, sampleDistance[idx[ik]])
 			}
 		}
 	})

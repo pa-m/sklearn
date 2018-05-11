@@ -14,7 +14,7 @@ func ExampleNearestNeighbors() {
 	distances, indices := nbrs.KNeighbors(X, 2)
 	fmt.Printf("indices:\n%v\n", mat.Formatted(indices))
 	fmt.Printf("distances:\n%v\n", mat.Formatted(distances))
-	// Outputs:
+	// Output:
 	// 	indices:
 	// ⎡0  1⎤
 	// ⎢1  0⎥
