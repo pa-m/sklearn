@@ -1,9 +1,10 @@
 package neighbors
 
 import (
-	"pa-m/sklearn/base"
 	"runtime"
 	"sort"
+
+	"github.com/pa-m/sklearn/base"
 
 	"gonum.org/v1/gonum/mat"
 )
