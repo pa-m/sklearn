@@ -75,3 +75,36 @@ func (m *NearestNeighbors) KNeighbors(X mat.Matrix, NNeighbors int) (distances, 
 	})
 	return
 }
+
+// KNeighborsGraph Computes the (weighted) graph of k-Neighbors for points in X
+// mode : {‘connectivity’, ‘distance’}, optional
+//     Type of returned matrix: ‘connectivity’ will return the connectivity matrix with ones and zeros, in ‘distance’ the edges are Euclidean distance between points.
+// Returns:
+// A : shape = [n_samples, n_samples_fit]
+//     n_samples_fit is the number of samples in the fitted data A[i, j] is assigned the weight of edge that connects i to j.
+func (m *NearestNeighbors) KNeighborsGraph(X *mat.Dense, NNeighbors int, mode string, includeSelf bool) (graph *mat.Dense) {
+	NSamples, _ := X.Dims()
+	NSamplesFit, _ := m.X.Dims()
+	distances, indices := m.KNeighbors(X, NNeighbors)
+	graph = mat.NewDense(NSamples, NSamplesFit, nil)
+	var source *mat.Dense
+
+	switch mode {
+	case "connectivity":
+		source = indices
+	default:
+		source = distances
+	}
+	base.Parallelize(-1, NSamples, func(th, start, end int) {
+		for sample := start; sample < end; sample++ {
+			for ik := 0; ik < NNeighbors; ik++ {
+				index := int(source.At(sample, ik))
+				if sample == index && !includeSelf {
+					continue
+				}
+				graph.Set(sample, index, 1.)
+			}
+		}
+	})
+	return
+}

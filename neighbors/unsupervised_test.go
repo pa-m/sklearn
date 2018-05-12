@@ -31,3 +31,16 @@ func ExampleNearestNeighbors() {
 	// ⎣                 0  1.4142135623730951⎦
 
 }
+
+func ExampleKNeighborsGraph() {
+	X := mat.NewDense(3, 1, []float64{0, 3, 1})
+	neigh := NewNearestNeighbors()
+	neigh.Fit(X)
+	A := neigh.KNeighborsGraph(X, 2, "connectivity", true)
+	fmt.Println(mat.Formatted(A))
+	// Output:
+	// ⎡1  0  1⎤
+	// ⎢0  1  1⎥
+	// ⎣1  0  1⎦
+
+}
