@@ -3,11 +3,11 @@ package neighbors
 import (
 	"fmt"
 	"runtime"
+	"sort"
 
 	"github.com/pa-m/sklearn/base"
 	"github.com/pa-m/sklearn/metrics"
 
-	"github.com/gonum/floats"
 	"gonum.org/v1/gonum/mat"
 )
 
@@ -23,11 +23,11 @@ type KNeighborsClassifier struct {
 	Distance Distance
 	// Runtime members
 	Xscaled, Y *mat.Dense
-	//Classes    []map[float64]bool
+	Classes    [][]float64
 }
 
 // NewKNeighborsClassifier returns an initialized *KNeighborsClassifier
-func NewKNeighborsClassifier(K int, Weights string) base.Transformer {
+func NewKNeighborsClassifier(K int, Weights string) *KNeighborsClassifier {
 	return &KNeighborsClassifier{NearestNeighbors: *NewNearestNeighbors(), K: K, Weight: Weights}
 }
 
@@ -42,43 +42,78 @@ func (m *KNeighborsClassifier) Fit(X, Y *mat.Dense) base.Transformer {
 		panic(fmt.Errorf("K<=0"))
 	}
 	m.NearestNeighbors.Fit(X)
-	// NSamples, Noutputs := Y.Dims()
-	// for o := 0; o < Noutputs; o++ {
-	// 	cl := make(map[float64]bool)
-	// 	for s := 0; s < NSamples; s++ {
-	// 		cl[Y.At(s, o)] = true
-	// 	}
-	// 	m.Classes = append(m.Classes,cl)
-	// }
+	NSamples, Noutputs := Y.Dims()
+	for o := 0; o < Noutputs; o++ {
+		clmap := make(map[float64]bool)
+		for s := 0; s < NSamples; s++ {
+			clmap[Y.At(s, o)] = true
+		}
+		clvalues := make([]float64, 0)
+		for cl := range clmap {
+			clvalues = append(clvalues, cl)
+		}
+		sort.Float64s(clvalues)
+		m.Classes = append(m.Classes, clvalues)
+	}
 	return m
 }
 
-// Predict ...
+// Predict  for KNeighborsClassifier
 func (m *KNeighborsClassifier) Predict(X, Y *mat.Dense) base.Transformer {
-	NX, _ := X.Dims()
+	return m._predict(X, Y, false)
+}
+
+// PredictProba for KNeighborsClassifier
+func (m *KNeighborsClassifier) PredictProba(X, Y *mat.Dense) base.Transformer {
+	return m._predict(X, Y, true)
+}
+
+func (m *KNeighborsClassifier) _predict(X, Y *mat.Dense, wantProba bool) base.Transformer {
 	_, outputs := m.Y.Dims()
+	if wantProba {
+		if outputs > 1 {
+			panic("PredictProba is undefined for multioutput classification")
+		}
+		if Y == nil {
+			panic("Y is unallocated")
+		}
+		_, Ycols := Y.Dims()
+		if Ycols != len(m.Classes[0]) {
+			panic(fmt.Errorf("PredictProba theres %d classes but Y has %d columns", len(m.Classes[0]), Ycols))
+		}
+	}
+	NX, _ := X.Dims()
 
 	NCPU := runtime.NumCPU()
 	isWeightDistance := m.Weight == "distance"
 	distances, indices := m.KNeighbors(X, m.K)
 
 	base.Parallelize(NCPU, NX, func(th, start, end int) {
-		var sumd2 float64
+		epsilon := 1e-15
 		weights := make([]float64, m.K)
+		sumweights := 0.
 		ys := make([]float64, m.K)
-		for ik := range weights {
-			weights[ik] = 1.
+		if !isWeightDistance {
+			for ik := range weights {
+				weights[ik] = 1.
+				sumweights += 1.
+			}
 		}
 		for sample := start; sample < end; sample++ {
 			// set Y(sample,output) to weighted average of K nearest
-			sumd2 = floats.Sum(distances.RawRowView(sample))
 
-			classw := make(map[float64]float64)
 			for o := 0; o < outputs; o++ {
+				classw := make(map[float64]float64)
+				if isWeightDistance {
+					sumweights = 0.
+				}
 				for ik := range ys {
 					cl := m.Y.At(int(indices.At(sample, ik)), o)
 					if isWeightDistance {
-						weights[ik] = 1. - distances.At(sample, ik)/sumd2
+						dist := distances.At(sample, ik)
+						weights[ik] = 1. / (epsilon + dist)
+						sumweights += weights[ik]
+
 					}
 					if clw, present := classw[cl]; present {
 						classw[cl] = clw + weights[ik]
@@ -93,9 +128,17 @@ func (m *KNeighborsClassifier) Predict(X, Y *mat.Dense) base.Transformer {
 						clwmax = cl
 					}
 				}
-				Y.Set(sample, o, clwmax)
-			}
+				if wantProba {
+					for icl, cl := range m.Classes[0] {
+						if clw, found := classw[cl]; found {
+							Y.Set(sample, icl, clw/sumweights)
+						}
+					}
+				} else {
+					Y.Set(sample, o, clwmax)
 
+				}
+			}
 		}
 	})
 	return m

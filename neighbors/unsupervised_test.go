@@ -32,7 +32,7 @@ func ExampleNearestNeighbors() {
 
 }
 
-func ExampleKNeighborsGraph() {
+func ExampleNearestNeighbors_KNeighborsGraph() {
 	X := mat.NewDense(3, 1, []float64{0, 3, 1})
 	neigh := NewNearestNeighbors()
 	neigh.Fit(X)

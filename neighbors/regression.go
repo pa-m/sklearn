@@ -8,7 +8,6 @@ import (
 	"github.com/pa-m/sklearn/base"
 	"github.com/pa-m/sklearn/metrics"
 
-	"github.com/gonum/floats"
 	"github.com/gonum/stat"
 	"gonum.org/v1/gonum/mat"
 )
@@ -56,11 +55,11 @@ func (m *KNeighborsRegressor) Predict(X, Y *mat.Dense) base.Regressor {
 	distances, indices := m.KNeighbors(X, m.K)
 
 	base.Parallelize(NCPU, NX, func(th, start, end int) {
-		var sumd2 float64
 		d2 := make([]float64, NFitSamples)
 		idx := make([]int, NFitSamples)
 		weights := make([]float64, m.K)
 		ys := make([]float64, m.K)
+		epsilon := 1e-15
 		for ik := range weights {
 			weights[ik] = 1.
 		}
@@ -68,12 +67,11 @@ func (m *KNeighborsRegressor) Predict(X, Y *mat.Dense) base.Regressor {
 			// sort idx to get first K nearest
 			sort.Slice(idx, func(i, j int) bool { return d2[idx[i]] < d2[idx[j]] })
 			// set Y(sample,output) to weighted average of K nearest
-			sumd2 = floats.Sum(distances.RawRowView(sample))
 			for o := 0; o < outputs; o++ {
 				for ik := range ys {
 					ys[ik] = m.Y.At(int(indices.At(sample, ik)), o)
 					if isWeightDistance {
-						weights[ik] = 1. - distances.At(sample, ik)/sumd2
+						weights[ik] = 1. / (epsilon + distances.At(sample, ik))
 					}
 				}
 				Y.Set(sample, o, stat.Mean(ys, weights))
