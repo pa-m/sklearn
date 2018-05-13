@@ -42,19 +42,7 @@ func (m *KNeighborsClassifier) Fit(X, Y *mat.Dense) base.Transformer {
 		panic(fmt.Errorf("K<=0"))
 	}
 	m.NearestNeighbors.Fit(X)
-	NSamples, Noutputs := Y.Dims()
-	for o := 0; o < Noutputs; o++ {
-		clmap := make(map[float64]bool)
-		for s := 0; s < NSamples; s++ {
-			clmap[Y.At(s, o)] = true
-		}
-		clvalues := make([]float64, 0)
-		for cl := range clmap {
-			clvalues = append(clvalues, cl)
-		}
-		sort.Float64s(clvalues)
-		m.Classes = append(m.Classes, clvalues)
-	}
+	m.Classes, _ = getClasses(Y)
 	return m
 }
 
@@ -158,5 +146,31 @@ func (m *KNeighborsClassifier) Score(X, Y *mat.Dense) float64 {
 	NSamples, NOutputs := Y.Dims()
 	Ypred := mat.NewDense(NSamples, NOutputs, nil)
 	m.Predict(X, Ypred)
-	return metrics.R2Score(Y, Ypred, nil, "").At(0, 0)
+	return metrics.AccuracyScore(Y, Ypred, true, nil)
+}
+
+func getClasses(Y mat.Matrix) (classes [][]float64, counts [][]int) {
+	NSamples, Noutputs := Y.Dims()
+	for o := 0; o < Noutputs; o++ {
+		clmap := make(map[float64]bool)
+		clcnt := make(map[float64]int)
+		for s := 0; s < NSamples; s++ {
+			cl := Y.At(s, o)
+			clmap[cl] = true
+			if cnt, present := clcnt[cl]; present {
+				clcnt[cl] = cnt + 1
+			} else {
+				clcnt[cl] = 1
+			}
+		}
+		clvalues := make([]float64, 0)
+		clcounts := make([]int, 0)
+		for cl := range clmap {
+			clvalues = append(clvalues, cl)
+			clcounts = append(clcounts, clcnt[cl])
+		}
+		sort.Float64s(clvalues)
+		classes = append(classes, clvalues)
+	}
+	return
 }
