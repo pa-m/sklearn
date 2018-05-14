@@ -1,8 +1,10 @@
 package neighbors
 
 import (
+	"math"
 	"runtime"
 	"sort"
+	"strings"
 
 	"github.com/pa-m/sklearn/base"
 
@@ -11,6 +13,7 @@ import (
 
 // NearestNeighbors is the unsupervised alog implementing search of k nearest neighbors
 // Algorithm is one of 'auto', 'ball_tree', 'kd_tree', 'brute' defaults to "auto"
+//
 // Metric = 'cityblock', 'cosine', 'euclidean', 'l1', 'l2', 'manhattan' defaults to euclidean (= minkowski with P=2)
 // P is power for 'minkowski'
 // NJobs: number of concurrent jobs. NJobs<0 means runtime.NumCPU()  default to -1
@@ -22,6 +25,7 @@ type NearestNeighbors struct {
 	// Runtime filled members
 	Distance func(a, b mat.Vector) float64
 	X, Y     *mat.Dense
+	Tree     *KDTree
 }
 
 // NewNearestNeighbors returns an *NearestNeighbors
@@ -31,8 +35,9 @@ func NewNearestNeighbors() *NearestNeighbors {
 
 // Fit for NearestNeighbors
 func (m *NearestNeighbors) Fit(X mat.Matrix) {
+	r, c := X.Dims()
 	switch m.Metric {
-	case "manhattan":
+	case "manhattan", "cityblock":
 		m.P = 1
 		m.Distance = MinkowskiDistance(m.P)
 	case "euclidean":
@@ -45,21 +50,29 @@ func (m *NearestNeighbors) Fit(X mat.Matrix) {
 		m.NJobs = runtime.NumCPU()
 	}
 	m.X = mat.DenseCopyOf(X)
+	useKDTree := strings.Contains(strings.ToLower(m.Algorithm), "tree") || (m.Algorithm == "auto" && r*c > 1000)
+	if useKDTree {
+		m.Tree = NewKDTree(X, 8)
+	}
 }
 
 // KNeighbors returns distances and indices of first NNeighbors
 func (m *NearestNeighbors) KNeighbors(X mat.Matrix, NNeighbors int) (distances, indices *mat.Dense) {
 	NSamples, NFeatures := X.Dims()
+	if m.Tree != nil {
+		return m.Tree.Query(X, NNeighbors, 1e-15, m.P, math.Inf(1))
+	}
 	distances = mat.NewDense(NSamples, NNeighbors, nil)
 	indices = mat.NewDense(NSamples, NNeighbors, nil)
 	base.Parallelize(m.NJobs, NSamples, func(th, start, end int) {
 		Xsample := mat.NewVecDense(NFeatures, nil)
+		NFitSamples, _ := m.X.Dims()
+		idx := make([]int, NFitSamples, NFitSamples)
+		sampleDistance := make([]float64, NFitSamples, NFitSamples)
+
 		for sample := start; sample < end; sample++ {
 
 			mat.Row(Xsample.RawVector().Data, sample, X)
-			NFitSamples, _ := m.X.Dims()
-			sampleDistance := make([]float64, NFitSamples, NFitSamples)
-			idx := make([]int, NFitSamples, NFitSamples)
 			base.Parallelize(m.NJobs, NFitSamples, func(th, start, end int) {
 				for ifs := start; ifs < end; ifs++ {
 					sampleDistance[ifs] = m.Distance(Xsample, m.X.RowView(ifs))

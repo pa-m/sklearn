@@ -20,6 +20,9 @@ func Parallelize(threads, NSamples int, f func(th, start, end int)) {
 			start, end := th*sampPerTh, (th+1)*sampPerTh
 			if end > NSamples {
 				end = NSamples
+				if end <= start {
+					break
+				}
 			}
 			wg.Add(1)
 			go func(th int) { f(th, start, end); wg.Done() }(th)

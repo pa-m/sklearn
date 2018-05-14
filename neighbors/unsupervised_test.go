@@ -2,6 +2,8 @@ package neighbors
 
 import (
 	"fmt"
+	"math"
+	"time"
 
 	"gonum.org/v1/gonum/mat"
 )
@@ -43,4 +45,33 @@ func ExampleNearestNeighbors_KNeighborsGraph() {
 	// ⎢0  1  1⎥
 	// ⎣1  0  1⎦
 
+}
+
+func ExampleNearestNeighbors_Tree() {
+	n := 10
+	X := mat.NewDense(n*n*n, 3, nil)
+	for sample := 0; sample < n*n*n; sample++ {
+		nf := float64(n)
+		x := float64(sample)
+		X.Set(sample, 0, math.Floor(x/nf/nf))
+		x -= nf * nf * X.At(sample, 0)
+		X.Set(sample, 1, math.Floor(x/nf))
+		x -= nf * X.At(sample, 1)
+		X.Set(sample, 2, x)
+	}
+	pts := mat.NewDense(1, 3, []float64{1.1, 5.4, 7.9})
+
+	for _, algo := range []string{"brute", "kd_tree"} {
+		neigh := NewNearestNeighbors()
+		neigh.Algorithm = algo
+		neigh.Fit(X)
+		start := time.Now()
+		distances, indices := neigh.KNeighbors(pts, 2)
+		fmt.Println("elapsed", algo, time.Since(start))
+
+		fmt.Printf("%.6f\n", mat.Formatted(distances.T()))
+		fmt.Println(mat.Formatted(indices.T()))
+		fmt.Println(mat.Formatted(X.RowView(int(indices.At(0, 0))).T()))
+		fmt.Println(mat.Formatted(X.RowView(int(indices.At(0, 1))).T()))
+	}
 }

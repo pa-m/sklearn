@@ -9,17 +9,49 @@ import (
 // Distance has Distance(Vector,Vector)float64
 type Distance func(a, b mat.Vector) float64
 
-// MinkowskiDistance ...
-func MinkowskiDistance(p float64) Distance {
-	return func(a, b mat.Vector) float64 {
-		if a.Len() == 1 {
-			return math.Abs(b.At(0, 0) - a.At(0, 0))
+// MinkowskiDistanceP ...
+func MinkowskiDistanceP(a, b mat.Vector, p float64) float64 {
+	if a.Len() == 1 {
+		return math.Abs(b.At(0, 0) - a.At(0, 0))
+	}
+	var dp float64
+	rva, isrva := a.(mat.RawVectorer)
+	rvb, isrvb := b.(mat.RawVectorer)
+	if math.IsInf(p, 1) {
+
+		if isrva && isrvb {
+			for araw, braw, j := rva.RawVector().Data, rvb.RawVector().Data, 0; j < len(araw); j++ {
+				dp = math.Max(dp, math.Abs(braw[j]-araw[j]))
+			}
+		} else {
+			for j := 0; j < b.Len(); j++ {
+				dp = math.Max(dp, math.Abs(b.AtVec(j)-a.AtVec(j)))
+			}
 		}
-		var dp float64
+		return dp
+	}
+	if isrva && isrvb {
+		for araw, braw, j := rva.RawVector().Data, rvb.RawVector().Data, 0; j < len(araw); j++ {
+			dp += math.Pow(math.Abs(braw[j]-araw[j]), p)
+		}
+	} else {
 		for j := 0; j < b.Len(); j++ {
 			dp += math.Pow(math.Abs(b.AtVec(j)-a.AtVec(j)), p)
 		}
-		return math.Pow(dp, 1./p)
+	}
+	return dp
+}
+
+// MinkowskiDistance ...
+func MinkowskiDistance(p float64) Distance {
+
+	return func(a, b mat.Vector) float64 {
+		d := MinkowskiDistanceP(a, b, p)
+		if !math.IsInf(p, 1) && p != 1. {
+			d = math.Pow(d, 1./p)
+		}
+		return d
+
 	}
 }
 
