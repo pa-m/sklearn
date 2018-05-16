@@ -62,7 +62,8 @@ func EuclideanDistance(a, b mat.Vector) float64 {
 	}
 	var d2 float64
 	for j := 0; j < b.Len(); j++ {
-		d2 += math.Pow(b.AtVec(j)-a.AtVec(j), 2)
+		x := b.AtVec(j) - a.AtVec(j)
+		d2 += x * x
 	}
 	return math.Sqrt(d2)
 }
