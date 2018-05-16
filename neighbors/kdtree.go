@@ -377,23 +377,21 @@ func (tr *KDTree) _query(X mat.Vector, k int, eps, p float64, distanceUpperBound
 		if node.IsLeaf() {
 			// brute-force
 			idx := node.(*LeafNode).idx
-			base.Parallelize(1, len(idx), func(th, start, end int) {
 
-				for iidx := start; iidx < end; iidx++ {
-					fitSample := idx[iidx]
-					ds := MinkowskiDistanceP(X, tr.Data.RowView(fitSample), p)
-					if ds < distanceUpperBound {
-						if len(neighbors) == k {
-							nHeappop()
-						}
-					}
-					nHeappush(nEle{float64: -ds, int: fitSample})
+			for _, fitSample := range idx {
+				ds := MinkowskiDistanceP(X, tr.Data.RowView(fitSample), p)
+				if ds < distanceUpperBound {
 					if len(neighbors) == k {
-						distanceUpperBound = -neighbors[0].float64
+						nHeappop()
 					}
-
 				}
-			})
+				nHeappush(nEle{float64: -ds, int: fitSample})
+				if len(neighbors) == k {
+					distanceUpperBound = -neighbors[0].float64
+				}
+
+			}
+
 		} else {
 			// # we don't push cells that are too far onto the queue at all,
 			// # but since the distance_upper_bound decreases, we might get

@@ -112,7 +112,7 @@ func (m *NearestNeighbors) KNeighborsGraph(X *mat.Dense, NNeighbors int, mode st
 	default:
 		source = distances
 	}
-	base.Parallelize(-1, NSamples, func(th, start, end int) {
+	base.Parallelize(m.NJobs, NSamples, func(th, start, end int) {
 		for sample := start; sample < end; sample++ {
 			for ik := 0; ik < NNeighbors; ik++ {
 				index := int(source.At(sample, ik))
