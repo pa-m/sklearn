@@ -164,8 +164,10 @@ func (m *NearestNeighbors) RadiusNeighbors(X *mat.Dense, radius float64) (distan
 		base.Parallelize(m.NJobs, NSamples, func(th, start, end int) {
 			for sample := start; sample < end; sample++ {
 				callback := func(ik int, dist float64, ind int) {
-					distances[sample] = append(distances[sample], dist)
-					indices[sample] = append(indices[sample], ind)
+					if dist <= radius {
+						distances[sample] = append(distances[sample], dist)
+						indices[sample] = append(indices[sample], ind)
+					}
 
 				}
 				m.Tree._query(X.RowView(sample), NFitSamples, 0, m.P, radius, callback)

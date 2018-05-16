@@ -23,7 +23,7 @@ func ExampleDBSCAN() {
 	X, _ := datasets.MakeBlobs(&datasets.MakeBlobsConfig{NSamples: NSamples, Centers: centers, ClusterStd: .4}) //RandomState: rand.New(rand.NewSource(0)),
 
 	X, _ = preprocessing.NewStandardScaler().FitTransform(X, nil)
-	db := NewDBSCAN(&DBSCANConfig{Eps: .3, MinSamples: 10, Algorithm: "brute"})
+	db := NewDBSCAN(&DBSCANConfig{Eps: .3, MinSamples: 10, Algorithm: "kd_tree"})
 	db.Fit(X, nil)
 	coreSampleMask := make([]bool, len(db.Labels))
 	for sample := range db.CoreSampleIndices {
@@ -40,7 +40,7 @@ func ExampleDBSCAN() {
 	}
 	fmt.Printf("Estimated number of clusters: %d\n", nclusters)
 
-	canPlot := false
+	canPlot := true
 	if canPlot {
 
 		// plot result
