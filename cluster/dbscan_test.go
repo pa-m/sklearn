@@ -40,7 +40,7 @@ func ExampleDBSCAN() {
 	}
 	fmt.Printf("Estimated number of clusters: %d\n", nclusters)
 
-	canPlot := true
+	canPlot := false
 	if canPlot {
 
 		// plot result
