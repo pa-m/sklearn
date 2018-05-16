@@ -1,10 +1,13 @@
 package datasets
 
 import (
+	"math"
 	"math/rand"
+	"runtime"
 	"sort"
 
 	"github.com/pa-m/sklearn/base"
+	"github.com/pa-m/sklearn/preprocessing"
 	"gonum.org/v1/gonum/mat"
 )
 
@@ -93,4 +96,91 @@ func MakeRegression(kwargs map[string]interface{}) (X, y, Coef *mat.Dense) {
 	return
 }
 
-// sklearn.datasets.make_classification(n_samples=100, n_features=20, n_informative=2, n_redundant=2, n_repeated=0, n_classes=2, n_clusters_per_class=2, weights=None, flip_y=0.01, class_sep=1.0, hypercube=True, shift=0.0, scale=1.0, shuffle=True, random_state=None)[source]
+// TODO sklearn.datasets.make_classification(n_samples=100, n_features=20, n_informative=2, n_redundant=2, n_repeated=0, n_classes=2, n_clusters_per_class=2, weights=None, flip_y=0.01, class_sep=1.0, hypercube=True, shift=0.0, scale=1.0, shuffle=True, random_state=None)[source]
+
+// MakeBlobsConfig is the struct of MakeBlobs params
+type MakeBlobsConfig struct {
+	NSamples    int
+	NFeatures   int
+	Centers     interface{} // integer or mat.Matrix(NCenters,NFeatures)
+	ClusterStd  float64
+	CenterBox   []float64
+	Shuffle     bool
+	RandomState *rand.Rand
+}
+
+// MakeBlobs Generate isotropic Gaussian blobs for clustering
+// config may be null or preintialised
+// config.Centers may be and int or a mat.Matrix
+// unlinke scikit-learn's make_blob, Shuffle is false by default
+func MakeBlobs(config *MakeBlobsConfig) (X, Y *mat.Dense) {
+	if config == nil {
+		config = &MakeBlobsConfig{}
+	}
+	if config.NSamples <= 0 {
+		config.NSamples = 100
+	}
+	if config.NFeatures <= 0 {
+		config.NFeatures = 2
+	}
+	var Centers *mat.Dense
+	randomizeCenters := true
+	switch c := config.Centers.(type) {
+	case int:
+		Centers = mat.NewDense(c, config.NFeatures, nil)
+	case mat.Matrix:
+		Centers = mat.DenseCopyOf(c)
+		randomizeCenters = false
+	default:
+		Centers = mat.NewDense(3, config.NFeatures, nil)
+	}
+
+	NCenters, _ := Centers.Dims()
+	if config.ClusterStd <= 0. {
+		config.ClusterStd = 1.
+	}
+	if config.CenterBox == nil {
+		config.CenterBox = []float64{-10, 10}
+	}
+	randNormFloat64 := rand.NormFloat64
+	randIntn := rand.Intn
+	if config.RandomState != nil {
+		randNormFloat64 = config.RandomState.NormFloat64
+		randIntn = config.RandomState.Intn
+	}
+	if randomizeCenters {
+		boxCenter := (config.CenterBox[0] + config.CenterBox[1]) / 2
+		boxRadius := math.Abs(config.CenterBox[1]-config.CenterBox[0]) / 2
+		Craw := Centers.RawMatrix()
+		for i := range Craw.Data {
+			for {
+				Craw.Data[i] = boxCenter + randNormFloat64()*boxRadius
+				if Craw.Data[i] >= config.CenterBox[0] && Craw.Data[i] < config.CenterBox[1] {
+					break
+				}
+			}
+		}
+	}
+
+	X = mat.NewDense(config.NSamples, config.NFeatures, nil)
+	Y = mat.NewDense(config.NSamples, 1, nil)
+	base.Parallelize(runtime.NumCPU(), config.NSamples, func(th, start, end int) {
+		Xg := X.RawMatrix()
+		for sample, xrowpos := start, start*Xg.Stride; sample < end; sample, xrowpos = sample+1, xrowpos+Xg.Stride {
+			cluster := randIntn(NCenters)
+			Y.Set(sample, 0, float64(cluster))
+			Cv := Centers.RowView(cluster)
+			Xv := mat.NewVecDense(Xg.Cols, Xg.Data[xrowpos:xrowpos+Xg.Cols])
+			Xrv := Xv.RawVector()
+			wantedNorm := randNormFloat64() * config.ClusterStd
+			for j := 0; j < config.NFeatures; j++ {
+				Xrv.Data[j] = randNormFloat64() * config.ClusterStd
+			}
+			Xv.AddScaledVec(Cv, wantedNorm/mat.Norm(Xv, 2), Xv)
+		}
+	})
+	if config.Shuffle {
+		X, Y = preprocessing.NewShuffler().FitTransform(X, Y)
+	}
+	return
+}

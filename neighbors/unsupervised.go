@@ -22,6 +22,7 @@ type NearestNeighbors struct {
 	Metric    string
 	P         float64
 	NJobs     int
+	LeafSize  int
 	// Runtime filled members
 	Distance func(a, b mat.Vector) float64
 	X, Y     *mat.Dense
@@ -52,7 +53,10 @@ func (m *NearestNeighbors) Fit(X mat.Matrix) {
 	m.X = mat.DenseCopyOf(X)
 	useKDTree := strings.Contains(strings.ToLower(m.Algorithm), "tree") || (m.Algorithm == "auto" && r*c > 1000)
 	if useKDTree {
-		m.Tree = NewKDTree(X, 8)
+		if m.LeafSize <= 0 {
+			m.LeafSize = 30
+		}
+		m.Tree = NewKDTree(X, m.LeafSize)
 	}
 }
 
@@ -119,5 +123,54 @@ func (m *NearestNeighbors) KNeighborsGraph(X *mat.Dense, NNeighbors int, mode st
 			}
 		}
 	})
+	return
+}
+
+// RadiusNeighbors Finds the neighbors within a given radius of a point or points.
+// Return the indices and distances of each point from the dataset
+// lying in a ball with size ``radius`` around the points of the query
+// array. Points lying on the boundary are included in the results.
+// The result points are *not* necessarily sorted by distance to their
+// query point.
+// Parameters
+// ----------
+// X : array-like, (n_samples, n_features), optional
+// 	The query point or points.
+// 	If not provided, neighbors of each indexed point are returned.
+// 	In this case, the query point is not considered its own neighbor.
+// radius : float
+// 	Limiting distance of neighbors to return.
+// 	(default is the value passed to the constructor).
+func (m *NearestNeighbors) RadiusNeighbors(X *mat.Dense, radius float64) (distances [][]float64, indices [][]int) {
+	NSamples, _ := X.Dims()
+	distances = make([][]float64, NSamples)
+	indices = make([][]int, NSamples)
+	NFitSamples, _ := m.X.Dims()
+	if m.Tree == nil {
+		Mdistances, Mindices := m.KNeighbors(X, NFitSamples)
+		base.Parallelize(m.NJobs, NSamples, func(th, start, end int) {
+			for sample := start; sample < end; sample++ {
+				for j := 0; j < NFitSamples; j++ {
+					d := Mdistances.At(sample, j)
+					if d > radius {
+						break
+					}
+					distances[sample] = append(distances[sample], d)
+					indices[sample] = append(indices[sample], int(Mindices.At(sample, j)))
+				}
+			}
+		})
+	} else {
+		base.Parallelize(m.NJobs, NSamples, func(th, start, end int) {
+			for sample := start; sample < end; sample++ {
+				callback := func(ik int, dist float64, ind int) {
+					distances[sample] = append(distances[sample], dist)
+					indices[sample] = append(indices[sample], ind)
+
+				}
+				m.Tree._query(X.RowView(sample), NFitSamples, 0, m.P, radius, callback)
+			}
+		})
+	}
 	return
 }
