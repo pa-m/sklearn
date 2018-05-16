@@ -6,8 +6,8 @@ import (
 	"runtime"
 	"sort"
 
-	"github.com/gonum/floats"
 	"github.com/pa-m/sklearn/base"
+	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
 )
 

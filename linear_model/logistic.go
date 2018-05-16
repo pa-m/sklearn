@@ -1,11 +1,10 @@
 package linearModel
 
 import (
-	"github.com/gonum/floats"
 	"github.com/pa-m/sklearn/base"
+	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/optimize"
-	//"gonum.org/v1/gonum/diff/fd"
 )
 
 // LogisticRegression WIP
