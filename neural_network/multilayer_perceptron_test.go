@@ -7,13 +7,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pa-m/sklearn/base"
 	"github.com/pa-m/sklearn/datasets"
 	"github.com/pa-m/sklearn/metrics"
-
-	"github.com/gonum/floats"
-	"github.com/pa-m/sklearn/base"
 	"github.com/pa-m/sklearn/preprocessing"
 
+	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
 )
 

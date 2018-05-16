@@ -8,8 +8,8 @@ import (
 	"github.com/pa-m/sklearn/base"
 	"github.com/pa-m/sklearn/metrics"
 
-	"github.com/gonum/stat"
 	"gonum.org/v1/gonum/mat"
+	"gonum.org/v1/gonum/stat"
 )
 
 // KNeighborsRegressor is a Regression based on k-nearest neighbors.

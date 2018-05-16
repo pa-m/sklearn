@@ -3,13 +3,12 @@ package preprocessing
 import (
 	"fmt"
 	_ "math"
+	"testing"
 
 	"github.com/pa-m/sklearn/base"
 
-	"github.com/gonum/floats"
+	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
-
-	"testing"
 )
 
 func TestMinMaxScaler(t *testing.T) {

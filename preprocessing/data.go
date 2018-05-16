@@ -7,7 +7,7 @@ import (
 
 	"github.com/pa-m/sklearn/base"
 
-	"github.com/gonum/floats"
+	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/stat"
 )
@@ -574,7 +574,8 @@ func DenseNormalize(X *mat.Dense, FitIntercept, Normalize bool) (XOffset, XScale
 		v := 0.
 		if Normalize {
 			for i := 0; i < nSamples; i++ {
-				v += math.Pow(X.At(i, j)-XOffset, 2)
+				x := X.At(i, j) - XOffset
+				v += x * x
 			}
 			v = math.Sqrt(v / float64(nSamples))
 		}
