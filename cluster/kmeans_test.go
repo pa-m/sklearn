@@ -17,12 +17,6 @@ import (
 	"gonum.org/v1/plot/vg/draw"
 )
 
-func canPlot() bool {
-	//hostname, _ := os.Hostname()
-	//return hostname == "pascal-PC"
-	return false
-
-}
 func TestKMeans(t *testing.T) {
 	NSamples := 99
 	X := mat.NewDense(NSamples, 2, nil)
@@ -46,7 +40,8 @@ func TestKMeans(t *testing.T) {
 	}
 
 	// v https://github.com/gonum/plot/wiki/Example-plots
-	if canPlot() {
+	canPlot := false
+	if canPlot {
 		p, err := plot.New()
 		if err != nil {
 			panic(err)
@@ -114,7 +109,8 @@ func ExampleKMeans() {
 	//fmt.Printf("elapsed %s s\n", time.Since(start))
 
 	// v https://github.com/gonum/plot/wiki/Example-plots
-	if canPlot() {
+	canPlot := false
+	if canPlot {
 		xplot, yplot := 0, 2
 		getData := func(value int) (scatterData plotter.XYs) {
 			for i := 0; i < NSamples; i++ {

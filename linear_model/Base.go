@@ -57,6 +57,7 @@ type LinearRegression struct {
 	LossFunction        Loss
 	ActivationFunction  Activation
 	Options             LinFitOptions
+	UseLeastSquares     bool
 }
 
 // NewLinearRegression create a *LinearRegression with defaults
@@ -68,6 +69,7 @@ func NewLinearRegression() *LinearRegression {
 	regr.Normalize = false
 	regr.ActivationFunction = base.Identity{}
 	regr.LossFunction = SquareLoss
+	regr.UseLeastSquares = true
 	return regr
 }
 
@@ -77,13 +79,19 @@ func (regr *LinearRegression) Fit(X0, Y0 *mat.Dense) base.Transformer {
 	regr.XOffset, regr.XScale = preprocessing.DenseNormalize(X, regr.FitIntercept, regr.Normalize)
 	Y := mat.DenseCopyOf(Y0)
 	YOffset, _ := preprocessing.DenseNormalize(Y, regr.FitIntercept, false)
-	opt := regr.Options
-	opt.Tol = regr.Tol
-	opt.Solver = regr.Optimizer
-	opt.Loss = regr.LossFunction
-	opt.Activation = regr.ActivationFunction
-	res := LinFit(X, Y, &opt)
-	regr.Coef = res.Theta
+	if false {
+		// use least squares
+		regr.Coef = &mat.Dense{}
+		regr.Coef.Solve(X, Y)
+	} else {
+		opt := regr.Options
+		opt.Tol = regr.Tol
+		opt.Solver = regr.Optimizer
+		opt.Loss = regr.LossFunction
+		opt.Activation = regr.ActivationFunction
+		res := LinFit(X, Y, &opt)
+		regr.Coef = res.Theta
+	}
 	regr.LinearModel.setIntercept(regr.XOffset, YOffset, regr.XScale)
 	return regr
 }
@@ -97,16 +105,20 @@ func (regr *LinearRegression) Predict(X, Y *mat.Dense) base.Regressor {
 // NewRidge creates a *Ridge with defaults
 func NewRidge() *LinearRegression {
 	regr := NewLinearRegression()
+	regr.LossFunction = SquareLoss
 	regr.Alpha = 1.
 	regr.L1Ratio = 0.
+	regr.UseLeastSquares = false
 	return regr
 }
 
 //NewLasso creates a *Lasso with defaults
 func NewLasso() *LinearRegression {
 	regr := NewLinearRegression()
+	regr.LossFunction = SquareLoss
 	regr.Alpha = 1e-3
 	regr.L1Ratio = 1.
+	regr.UseLeastSquares = false
 	return regr
 }
 
@@ -204,7 +216,6 @@ func (regr *SGDRegressor) Fit(X0, y0 *mat.Dense) base.Transformer {
 			tmp.Mul(X, regr.Coef.ColView(o)) // X dot coef
 			tmp.Sub(tmp, Y.ColView(o))       // Ydiff
 			gradmat := mat.NewDense(nFeatures, 1, nil)
-			chkdims(".", gradmat, X.T(), tmp)
 			gradmat.Mul(X.T(), tmp) // X dot Ydiff
 			al1 := regr.Alpha * regr.L1Ratio / float(nSamples)
 			al2 := regr.Alpha * (1. - regr.L1Ratio) / float(nSamples)
@@ -546,32 +557,6 @@ func LinFitGOM(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 
 var copyStruct = base.CopyStruct
 
-/*
-func copyStruct(m interface{}) interface{} {
-
-	mstruct := reflect.ValueOf(m)
-	if mstruct.Kind() == reflect.Ptr {
-		mstruct = mstruct.Elem()
-	}
-	m2 := reflect.New(mstruct.Type())
-	for i := 0; i < mstruct.NumField(); i++ {
-		c := m2.Elem().Type().Field(i).Name[0]
-		if m2.Elem().Field(i).CanSet() && c >= 'A' && c <= 'Z' {
-			m2.Elem().Field(i).Set(mstruct.Field(i))
-		}
-	}
-	return m2.Interface()
-}
-*/
-// SetIntercept
-// def _set_intercept(self, X_offset, y_offset, X_scale):
-// 		"""Set the intercept_
-// 		"""
-// 		if self.fit_intercept:
-// 				self.coef_ = self.coef_ / X_scale
-// 				self.intercept_ = y_offset - np.dot(X_offset, self.coef_.T)
-// 		else:
-// 				self.intercept_ = 0.
 func (regr *LinearModel) setIntercept(XOffset, YOffset, XScale mat.Matrix) {
 	_, nOutputs := regr.Coef.Dims()
 	if regr.Intercept == nil {
@@ -611,7 +596,6 @@ func chkdims(op string, R, X, Y mat.Matrix) {
 
 // DecisionFunction fills Y with X dot Coef+Intercept
 func (regr *LinearModel) DecisionFunction(X, Y *mat.Dense) {
-	chkdims(".", Y, X, regr.Coef)
 	Y.Mul(X, regr.Coef)
 	Y.Apply(func(j int, o int, v float64) float64 {
 

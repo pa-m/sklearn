@@ -114,11 +114,11 @@ func TestLogRegExamScore(t *testing.T) {
 
 	// test Fit with various base.Optimizer
 	var Optimizers = []string{
-		// "sgd",
-		// "adagrad",
-		// "rmsprop",
-		//"adadelta",
-		//"adam",
+	// "sgd",
+	// "adagrad",
+	// "rmsprop",
+	//"adadelta",
+	//"adam",
 	}
 
 	newOptimizer := func(name string) base.Optimizer {
@@ -143,6 +143,7 @@ func TestLogRegExamScore(t *testing.T) {
 		regr.Options.ThetaInitializer = func(Theta *mat.Dense) {
 			Theta.SetCol(0, []float64{-24, 0.2, 0.2})
 		}
+		regr.LossFunction = SquareLoss
 		regr.Options.GOMethodCreator = nil
 		//regr.Options.Recorder = printer
 		regr.Options.MiniBatchSize = nSamples
@@ -206,7 +207,6 @@ func TestLogRegMicrochipTest(t *testing.T) {
 	regr.L1Ratio = 0.
 
 	Ypred := mat.NewDense(nSamples, nOutputs, nil)
-	chkdims(".", Ypred, Xp, regr.Coef)
 	Ydiff := mat.NewDense(nSamples, nOutputs, nil)
 	grad := mat.NewDense(nFeatures, nOutputs, nil)
 

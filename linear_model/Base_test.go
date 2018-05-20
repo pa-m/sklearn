@@ -2,15 +2,22 @@ package linearModel
 
 import (
 	"fmt"
+	"image/color"
 	"math"
 	"math/rand"
+	"os"
+	"os/exec"
 	"testing"
 	"time"
 
 	"github.com/pa-m/sklearn/base"
+	"github.com/pa-m/sklearn/datasets"
 	"github.com/pa-m/sklearn/metrics"
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/optimize"
+	"gonum.org/v1/plot"
+	"gonum.org/v1/plot/plotter"
+	"gonum.org/v1/plot/vg"
 )
 
 type Problem struct {
@@ -35,6 +42,83 @@ func NewRandomLinearProblem(nSamples, nFeatures, nOutputs int) *Problem {
 	Ytrue.Product(X, TrueTheta)
 
 	return &Problem{X: X, Y: Ytrue}
+}
+
+func ExampleLinearRegression() {
+	// adapted from http://scikit-learn.org/stable/_downloads/plot_ols.ipynb
+
+	// # Load the diabetes dataset
+	diabetes := datasets.LoadDiabetes()
+
+	// # Use only one feature
+	NSamples, _ := diabetes.X.Dims()
+	diabetesX := diabetes.X.Slice(0, NSamples, 2, 3).(*mat.Dense)
+
+	// # Split the data into training/testing sets
+	diabetesXtrain := diabetesX.Slice(0, NSamples-20, 0, 1).(*mat.Dense)
+	diabetesXtest := diabetesX.Slice(NSamples-20, NSamples, 0, 1).(*mat.Dense)
+
+	// # Split the targets into training/testing sets
+	diabetesytrain := diabetes.Y.Slice(0, NSamples-20, 0, 1).(*mat.Dense)
+	diabetesytest := diabetes.Y.Slice(NSamples-20, NSamples, 0, 1).(*mat.Dense)
+
+	// # Create linear regression object
+	regr := NewLinearRegression()
+
+	// # Train the model using the training sets
+	regr.Fit(diabetesXtrain, diabetesytrain)
+
+	// # Make predictions using the testing set
+	NTestSamples := 20
+	diabetesypred := mat.NewDense(NTestSamples, 1, nil)
+	regr.Predict(diabetesXtest, diabetesypred)
+
+	// # The coefficients
+	fmt.Printf("Coefficients: %.3f\n", mat.Formatted(regr.Coef))
+	// # The mean squared error
+	fmt.Printf("Mean squared error: %.2f\n", metrics.MeanSquaredError(diabetesytest, diabetesypred, nil, "").At(0, 0))
+	// # Explained variance score: 1 is perfect prediction
+	fmt.Printf("Variance score: %.2f\n", metrics.R2Score(diabetesytest, diabetesypred, nil, "").At(0, 0))
+
+	//   # Plot outputs
+	canPlot := false
+	if canPlot {
+
+		// plot result
+		p, _ := plot.New()
+
+		xys := func(X, Y mat.Matrix) plotter.XYs {
+			var data plotter.XYs
+			NTestSamples, _ = X.Dims()
+			for sample := 0; sample < NTestSamples; sample++ {
+				data = append(data, struct{ X, Y float64 }{X.At(sample, 0), Y.At(sample, 0)})
+			}
+			return data
+		}
+		s, _ := plotter.NewScatter(xys(diabetesXtest, diabetesytest))
+		l, _ := plotter.NewLine(xys(diabetesXtest, diabetesypred))
+		l.Color = color.RGBA{0, 0, 255, 255}
+		p.Add(s, l)
+
+		// Save the plot to a PNG file.
+		pngfile := "/tmp/linearregression.png"
+		os.Remove(pngfile)
+		if err := p.Save(4*vg.Inch, 3*vg.Inch, pngfile); err != nil {
+			panic(err)
+		}
+		cmd := exec.Command("display", pngfile)
+		err := cmd.Start()
+		if err != nil {
+			fmt.Println(err.Error())
+		}
+		time.Sleep(200 * time.Millisecond)
+		os.Remove(pngfile)
+	}
+
+	// Output:
+	// Coefficients: [938.238]
+	// Mean squared error: 2548.07
+	// Variance score: 0.47
 }
 
 // Test differents normalize setup for LinearRegression
@@ -237,7 +321,7 @@ func TestLinFitGOM(t *testing.T) {
 		for _, normalize := range []bool{false, true} {
 			testSetup := fmt.Sprintf("%T %v", methodCreator(), normalize)
 			//fmt.Printf("-- TestLinearRegression normalize=%v --\n", normalize)
-			regr := NewLinearRegression()
+			regr := NewRidge()
 			regr.Alpha = 0.
 			regr.Normalize = normalize
 			regr.Options.GOMethodCreator = methodCreator
@@ -287,14 +371,14 @@ func TestLinFitGOM(t *testing.T) {
 
 }
 
-// TestBestRegressionImplementation test between base.Optimizer/BayesianRidge/Gorgonia
+// TestBestRegressionImplementation test between base.Optimizer/BayesianRidge
 func TestBestRegressionImplementation(t *testing.T) {
 	nSamples, nFeatures, nOutputs := 100, 5, 5
 	p := NewRandomLinearProblem(nSamples, nFeatures, nOutputs)
 	bestErr := make(map[string]float)
 	bestTime := time.Second * 86400
 	bestSetup := make(map[string]string)
-	for _, regr := range []base.Regressor{NewLinearRegression(), NewSGDRegressor(), NewBayesianRidge(), NewLinearRegressionGorgonia()} {
+	for _, regr := range []base.Regressor{NewLinearRegression(), NewSGDRegressor(), NewBayesianRidge(), NewLasso()} {
 		//for _, normalize := range []bool{false, true} {
 		testSetup := fmt.Sprintf("%T", regr)
 
