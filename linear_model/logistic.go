@@ -9,7 +9,7 @@ import (
 
 // LogisticRegression WIP
 type LogisticRegression struct {
-	LinearRegression
+	RegularizedRegression
 }
 
 // NewLogisticRegression create and init a *LogisticRegression

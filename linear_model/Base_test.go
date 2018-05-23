@@ -13,6 +13,7 @@ import (
 	"github.com/pa-m/sklearn/base"
 	"github.com/pa-m/sklearn/datasets"
 	"github.com/pa-m/sklearn/metrics"
+	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/optimize"
 	"gonum.org/v1/plot"
@@ -59,26 +60,26 @@ func ExampleLinearRegression() {
 	diabetesXtest := diabetesX.Slice(NSamples-20, NSamples, 0, 1).(*mat.Dense)
 
 	// # Split the targets into training/testing sets
-	diabetesytrain := diabetes.Y.Slice(0, NSamples-20, 0, 1).(*mat.Dense)
-	diabetesytest := diabetes.Y.Slice(NSamples-20, NSamples, 0, 1).(*mat.Dense)
+	diabetesYtrain := diabetes.Y.Slice(0, NSamples-20, 0, 1).(*mat.Dense)
+	diabetesYtest := diabetes.Y.Slice(NSamples-20, NSamples, 0, 1).(*mat.Dense)
 
 	// # Create linear regression object
 	regr := NewLinearRegression()
 
 	// # Train the model using the training sets
-	regr.Fit(diabetesXtrain, diabetesytrain)
+	regr.Fit(diabetesXtrain, diabetesYtrain)
 
 	// # Make predictions using the testing set
 	NTestSamples := 20
-	diabetesypred := mat.NewDense(NTestSamples, 1, nil)
-	regr.Predict(diabetesXtest, diabetesypred)
+	diabetesYpred := mat.NewDense(NTestSamples, 1, nil)
+	regr.Predict(diabetesXtest, diabetesYpred)
 
 	// # The coefficients
 	fmt.Printf("Coefficients: %.3f\n", mat.Formatted(regr.Coef))
 	// # The mean squared error
-	fmt.Printf("Mean squared error: %.2f\n", metrics.MeanSquaredError(diabetesytest, diabetesypred, nil, "").At(0, 0))
+	fmt.Printf("Mean squared error: %.2f\n", metrics.MeanSquaredError(diabetesYtest, diabetesYpred, nil, "").At(0, 0))
 	// # Explained variance score: 1 is perfect prediction
-	fmt.Printf("Variance score: %.2f\n", metrics.R2Score(diabetesytest, diabetesypred, nil, "").At(0, 0))
+	fmt.Printf("Variance score: %.2f\n", metrics.R2Score(diabetesYtest, diabetesYpred, nil, "").At(0, 0))
 
 	//   # Plot outputs
 	canPlot := false
@@ -95,8 +96,8 @@ func ExampleLinearRegression() {
 			}
 			return data
 		}
-		s, _ := plotter.NewScatter(xys(diabetesXtest, diabetesytest))
-		l, _ := plotter.NewLine(xys(diabetesXtest, diabetesypred))
+		s, _ := plotter.NewScatter(xys(diabetesXtest, diabetesYtest))
+		l, _ := plotter.NewLine(xys(diabetesXtest, diabetesYpred))
 		l.Color = color.RGBA{0, 0, 255, 255}
 		p.Add(s, l)
 
@@ -122,7 +123,7 @@ func ExampleLinearRegression() {
 }
 
 // Test differents normalize setup for LinearRegression
-func TestLinearRegression(t *testing.T) {
+func TestRidgeWithVariousOptimizer(t *testing.T) {
 	nSamples, nFeatures, nOutputs := 200, 2, 2
 	p := NewRandomLinearProblem(nSamples, nFeatures, nOutputs)
 
@@ -140,7 +141,7 @@ func TestLinearRegression(t *testing.T) {
 			//base.NewRMSPropOptimizer(),
 			base.NewAdadeltaOptimizer(), base.NewAdamOptimizer()} {
 			testSetup := fmt.Sprintf("%s %v", optimizer, normalize)
-			regr := NewLinearRegression()
+			regr := NewRidge()
 			regr.Alpha = 0.
 
 			regr.Normalize = normalize
@@ -174,7 +175,7 @@ func TestLinearRegression(t *testing.T) {
 				bestSetup["MAE"] = testSetup + fmt.Sprintf("(%g)", mae)
 			}
 			if math.Sqrt(mse) > regr.Tol {
-				t.Errorf("Test %T %s normalize=%v r2score=%g (%v) mse=%g mae=%g \n", regr, optimizer, normalize, r2score, metrics.R2Score(p.Y, Ypred, nil, "raw_values"), mse, mae)
+				t.Errorf("Test %T %s normalize=%v r2score=%g (%v) mse=%g mae=%g \n", regr, optimizer, normalize, r2score, mat.Formatted(metrics.R2Score(p.Y, Ypred, nil, "raw_values")), mse, mae)
 				t.Fail()
 			} else {
 				//fmt.Printf("Test %T %s ok normalize=%v r2score=%g  mse=%g mae=%g elapsed=%s\n", regr, optimizer, normalize, r2score, mse, mae, elapsed)
@@ -378,7 +379,7 @@ func TestBestRegressionImplementation(t *testing.T) {
 	bestErr := make(map[string]float)
 	bestTime := time.Second * 86400
 	bestSetup := make(map[string]string)
-	for _, regr := range []base.Regressor{NewLinearRegression(), NewSGDRegressor(), NewBayesianRidge(), NewLasso()} {
+	for _, regr := range []base.Regressor{NewRidge(), NewLasso(), NewSGDRegressor()} {
 		//for _, normalize := range []bool{false, true} {
 		testSetup := fmt.Sprintf("%T", regr)
 
@@ -423,4 +424,99 @@ func TestBestRegressionImplementation(t *testing.T) {
 	// Best setup is usually Method:&optimize.LBFGS,Normalize:false
 	fmt.Printf("Test Regression implementations BEST SETUP:%v\n\n", bestSetup)
 
+}
+
+func ExampleNewElasticNet() {
+	canPlot := false
+	// adapted from http://scikit-learn.org/stable/_downloads/plot_train_error_vs_test_error.ipynb
+
+	// Generate sample data
+	//NSamplesTrain, NSamplesTest, NFeatures := 75, 150, 500
+	NSamplesTrain, NSamplesTest, NFeatures := 75, 150, 500
+	rand.Seed(0)
+	coef := mat.NewDense(NFeatures, 1, nil)
+	// only the top 10% features are impacting the model
+	for feat := 0; feat < 50; feat++ {
+		coef.Set(feat, 0, rand.NormFloat64())
+	}
+	X := mat.NewDense(NSamplesTrain+NSamplesTest, NFeatures, nil)
+	{
+		x := X.RawMatrix().Data
+		for i := range x {
+			x[i] = rand.NormFloat64()
+		}
+	}
+	Y := &mat.Dense{}
+	Y.Mul(X, coef)
+	// Split train and test data
+	rowslice := func(X mat.RawMatrixer, start, end int) *mat.Dense {
+		rm := X.RawMatrix()
+		return mat.NewDense(end-start, rm.Cols, rm.Data[start*rm.Stride:end*rm.Stride])
+	}
+	Xtrain, Xtest := rowslice(X, 0, NSamplesTrain), rowslice(X, NSamplesTrain, NSamplesTrain+NSamplesTest)
+	Ytrain, Ytest := rowslice(Y, 0, NSamplesTrain), rowslice(Y, NSamplesTrain, NSamplesTrain+NSamplesTest)
+	// Compute train and test errors
+	//nalphas := 60
+	nalphas := 20
+	logalphas := make([]float64, nalphas)
+	for i := range logalphas {
+		logalphas[i] = -5 + 8*float64(i)/float64(nalphas)
+	}
+	trainErrors := make([]float64, nalphas)
+	testErrors := make([]float64, nalphas)
+	for ialpha, logalpha := range logalphas {
+		//fmt.Println("ialpha=", ialpha)
+		enet := NewElasticNet()
+		enet.L1Ratio = 0.7
+		enet.Alpha = math.Pow(10, logalpha)
+		//enet.Tol = 1e-15
+		//enet.Optimizer = base.NewAdadeltaOptimizer()
+		//enet.Options.GOMethodCreator = func() optimize.Method { return &optimize.CG{} }
+		enet.Fit(Xtrain, Ytrain)
+		trainErrors[ialpha] = enet.Score(Xtrain, Ytrain)
+		score := enet.Score(Xtest, Ytest)
+		testErrors[ialpha] = score
+	}
+	iAlphaOptim := floats.MaxIdx(testErrors)
+	alphaOptim := math.Pow(10, logalphas[iAlphaOptim])
+	fmt.Printf("Optimal regularization parameter : %.6f", alphaOptim)
+	//   # Plot outputs
+
+	if canPlot {
+
+		// plot result
+		p, _ := plot.New()
+
+		xys := func(X, Y []float64) plotter.XYs {
+			var data plotter.XYs
+
+			for i := range X {
+				data = append(data, struct{ X, Y float64 }{X[i], Y[i]})
+			}
+			return data
+		}
+		s, _ := plotter.NewLine(xys(logalphas, trainErrors))
+		s.Color = color.RGBA{0, 0, 255, 255}
+		l, _ := plotter.NewLine(xys(logalphas, testErrors))
+		l.Color = color.RGBA{255, 128, 0, 255}
+		p.Add(s, l)
+		p.Legend.Add("train", s)
+		p.Legend.Add("test", l)
+
+		// Save the plot to a PNG file.
+		pngfile := "/tmp/elasticnet.png"
+		os.Remove(pngfile)
+		if err := p.Save(4*vg.Inch, 3*vg.Inch, pngfile); err != nil {
+			panic(err)
+		}
+		cmd := exec.Command("display", pngfile)
+		err := cmd.Start()
+		if err != nil {
+			fmt.Println(err.Error())
+		}
+		time.Sleep(200 * time.Millisecond)
+		os.Remove(pngfile)
+	}
+	// Output:
+	// Optimal regularization parameter : 0.630957
 }

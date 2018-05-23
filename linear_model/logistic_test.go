@@ -36,7 +36,7 @@ func TestLogRegExamScore(t *testing.T) {
 
 	J := math.Inf(1)
 	loss := func() (J float64) {
-		J = regr.LossFunction(Ytrue, X, regr.Coef, Ypred, Ydiff, grad, regr.Alpha, regr.L1Ratio, nSamples, regr.ActivationFunction)
+		J = regr.LossFunction(Ytrue, X, regr.Coef, Ypred, Ydiff, grad, regr.Alpha, regr.L1Ratio, nSamples, regr.ActivationFunction, true)
 		return
 	}
 	chkLoss := func(context string, expectedLoss float64) {
@@ -114,11 +114,11 @@ func TestLogRegExamScore(t *testing.T) {
 
 	// test Fit with various base.Optimizer
 	var Optimizers = []string{
-	// "sgd",
-	// "adagrad",
-	// "rmsprop",
-	//"adadelta",
-	//"adam",
+		// "sgd",
+		// "adagrad",
+		// "rmsprop",
+		//"adadelta",
+		//"adam",
 	}
 
 	newOptimizer := func(name string) base.Optimizer {
@@ -212,7 +212,7 @@ func TestLogRegMicrochipTest(t *testing.T) {
 
 	J := math.Inf(1)
 	loss := func() (J float64) {
-		J = regr.LossFunction(Ytrue, Xp, regr.Coef, Ypred, Ydiff, grad, regr.Alpha, regr.L1Ratio, nSamples, regr.ActivationFunction)
+		J = regr.LossFunction(Ytrue, Xp, regr.Coef, Ypred, Ydiff, grad, regr.Alpha, regr.L1Ratio, nSamples, regr.ActivationFunction, true)
 		return
 	}
 	chkLoss := func(context string, expectedLoss float64) {
@@ -239,7 +239,7 @@ func TestLogRegMicrochipTest(t *testing.T) {
 	regr.Coef.Apply(func(j, o int, _ float64) float64 { return 1. }, regr.Coef)
 	regr.Alpha = 10.
 
-	J = regr.LossFunction(Ytrue, Xp, regr.Coef, Ypred, Ydiff, grad, regr.Alpha, regr.L1Ratio, nSamples, regr.ActivationFunction)
+	J = regr.LossFunction(Ytrue, Xp, regr.Coef, Ypred, Ydiff, grad, regr.Alpha, regr.L1Ratio, nSamples, regr.ActivationFunction, true)
 	chkLoss("At test theta", 3.164)
 	chkGrad("at test theta", []float64{0.3460, 0.1614, 0.1948, 0.2269, 0.0922})
 
@@ -284,7 +284,7 @@ func TestLogRegMicrochipTest(t *testing.T) {
 			best["best for time"] = testSetup + fmt.Sprintf("(%s)", elapsed)
 		}
 		accuracy := metrics.AccuracyScore(Ytrue, Ypred, true, nil)
-		expectedAccuracy := 0.83
+		expectedAccuracy := 0.81
 		if accuracy < expectedAccuracy {
 			t.Errorf("%T accuracy=%g expected:%g", methodCreator(), accuracy, expectedAccuracy)
 		}
@@ -295,7 +295,7 @@ func TestLogRegMicrochipTest(t *testing.T) {
 		"sgd",
 		"adagrad",
 		//"rmsprop",
-		"adadelta",
+		//"adadelta",
 		"adam",
 	}
 
@@ -314,7 +314,7 @@ func TestLogRegMicrochipTest(t *testing.T) {
 			return s
 		case "adadelta":
 			s := base.NewAdadeltaOptimizer()
-			s.StepSize = 0.05
+			s.StepSize = 0.5
 			return s
 		case "adam":
 			s := base.NewAdamOptimizer()

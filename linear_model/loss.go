@@ -17,7 +17,8 @@ import (
 // Ypred,Ydiff,Ytmp are temporary matrices passed in here to avoid reallocations. nothing to initialize for them except storage
 // Alpha and L1Ratio are for regularization
 // Loss derivative is dJWrtTheta=dJWrth*dhWrtz*X
-type Loss func(Ytrue, X, Theta mat.Matrix, Ypred, Ydiff, grad *mat.Dense, Alpha, L1Ratio float64, nSamples int, activation Activation) (J float64)
+// featurestart is 1 instead of 0 when first feature is ones
+type Loss func(Ytrue, X mat.Matrix, Theta, Ypred, Ydiff, grad *mat.Dense, Alpha, L1Ratio float64, nSamples int, activation Activation, disableRegularizationOfFirstFeature bool) (J float64)
 
 // LossFunctions is the map of implemented loss functions
 var LossFunctions = map[string]Loss{"square": SquareLoss, "log": LogLoss, "cross-entropy": CrossEntropyLoss}
@@ -29,7 +30,7 @@ var LossFunctions = map[string]Loss{"square": SquareLoss, "log": LogLoss, "cross
 // J: mat.Pow(h-y,2)/2
 // grad:  hprime*(h-y)
 //
-func SquareLoss(Ytrue, X, Theta mat.Matrix, Ypred, Ydiff, grad *mat.Dense, Alpha, L1Ratio float64, nSamples int, activation Activation) (J float64) {
+func SquareLoss(Ytrue, X mat.Matrix, Theta, Ypred, Ydiff, grad *mat.Dense, Alpha, L1Ratio float64, nSamples int, activation Activation, disableRegularizationOfFirstFeature bool) (J float64) {
 	Ypred.Mul(X, Theta)
 	Ypred.Apply(func(i, o int, xtheta float64) float64 { return activation.F(xtheta) }, Ypred)
 	Ydiff.Sub(Ypred, Ytrue)
@@ -54,25 +55,9 @@ func SquareLoss(Ytrue, X, Theta mat.Matrix, Ypred, Ydiff, grad *mat.Dense, Alpha
 			}, Theta)
 		}
 	}
-	// add regularization to cost and grad
 	if Alpha > 0. {
-		L1, L2 := 0., 0.
-		if grad != nil {
-			grad.Apply(func(j, o int, g float64) float64 {
-				// here we count feature 0 (not ones) in regularization
-				if j >= 0 {
-					c := Theta.At(j, o)
-
-					L1 += math.Abs(c)
-					L2 += c * c
-					g += Alpha * (L1Ratio*sgn(c) + (1.-L1Ratio)*c)
-				}
-				return g
-			}, grad)
-		}
-		J += Alpha * (L1Ratio*L1 + (1.-L1Ratio)*L2)
+		J += regularization(Theta, grad, Alpha, L1Ratio, disableRegularizationOfFirstFeature)
 	}
-
 	J /= 2. * float64(nSamples)
 	if grad != nil {
 		grad.Scale(1./float64(nSamples), grad)
@@ -81,7 +66,7 @@ func SquareLoss(Ytrue, X, Theta mat.Matrix, Ypred, Ydiff, grad *mat.Dense, Alpha
 }
 
 // LogLoss for one versus rest classifiers
-func LogLoss(Ytrue, X, Theta mat.Matrix, Ypred, Ydiff, grad *mat.Dense, Alpha, L1Ratio float64, nSamples int, activation Activation) (J float64) {
+func LogLoss(Ytrue, X mat.Matrix, Theta, Ypred, Ydiff, grad *mat.Dense, Alpha, L1Ratio float64, nSamples int, activation Activation, disableRegularizationOfFirstFeature bool) (J float64) {
 	Ypred.Mul(X, Theta)
 	Ypred.Apply(func(i, o int, xtheta float64) float64 { return activation.F(xtheta) }, Ypred)
 	Ydiff.Sub(Ypred, Ytrue)
@@ -118,20 +103,7 @@ func LogLoss(Ytrue, X, Theta mat.Matrix, Ypred, Ydiff, grad *mat.Dense, Alpha, L
 
 	// add regularization to cost and grad
 	if Alpha > 0. {
-		L1, L2 := 0., 0.
-		if grad != nil {
-			grad.Apply(func(j, o int, g float64) float64 {
-				// we dont count feature 0 (ones) in regularization
-				if j > 0 {
-					c := Theta.At(j, o)
-					L1 += math.Abs(c)
-					L2 += c * c / 2.
-					g += Alpha * (L1Ratio*sgn(c) + (1.-L1Ratio)*c)
-				}
-				return g
-			}, grad)
-		}
-		J += Alpha * (L1Ratio*L1 + (1.-L1Ratio)*L2)
+		J += regularization(Theta, grad, Alpha, L1Ratio, disableRegularizationOfFirstFeature)
 	}
 	J /= float64(nSamples)
 	if grad != nil {
@@ -147,7 +119,7 @@ func LogLoss(Ytrue, X, Theta mat.Matrix, Ypred, Ydiff, grad *mat.Dense, Alpha, L
 // J: -y*math.Log(h)-(1.-y)*log(1.-h)
 // grad:  hprime*(-y/h + (1-y)/(1-h))
 //
-func CrossEntropyLoss(Ytrue, X, Theta mat.Matrix, Ypred, Ydiff, grad *mat.Dense, Alpha, L1Ratio float64, nSamples int, activation Activation) (J float64) {
+func CrossEntropyLoss(Ytrue, X mat.Matrix, Theta, Ypred, Ydiff, grad *mat.Dense, Alpha, L1Ratio float64, nSamples int, activation Activation, disableRegularizationOfFirstFeature bool) (J float64) {
 	Ypred.Mul(X, Theta)
 	Ypred.Apply(func(i, o int, xtheta float64) float64 { return panicIfNaN(activation.F(xtheta)) }, Ypred)
 	Ydiff.Sub(Ypred, Ytrue)
@@ -199,28 +171,39 @@ func CrossEntropyLoss(Ytrue, X, Theta mat.Matrix, Ypred, Ydiff, grad *mat.Dense,
 	}
 	// add regularization to cost and grad
 	if Alpha > 0. {
+		//J += regularization(Theta, grad, Alpha, L1Ratio, disableRegularizationOfFirstFeature)
+		rmt := Theta.RawMatrix()
 		L1, L2 := 0., 0.
+		jstart := 0
+		if disableRegularizationOfFirstFeature {
+			jstart++
+		}
+		for j, trowpos := jstart, jstart*rmt.Stride; j < rmt.Rows; j, trowpos = j+1, trowpos+rmt.Stride {
+			for o := 0; o < rmt.Cols; o++ {
+				c := rmt.Data[trowpos+o]
+				L1 += math.Abs(c)
+				L2 += c * c / 2
+			}
+		}
+
 		if grad != nil {
-			grad.Apply(func(j, o int, g float64) float64 {
-				// we dont count feature 0 (ones) in regularization
-				if j > 0 || o > 0 {
-					c := Theta.At(j, o)
-					L1 += math.Abs(c)
-					L2 += c * c / 2.
-					g += Alpha * (L1Ratio*sgn(c) + (1.-L1Ratio)*c)
+			rmg := grad.RawMatrix()
+			for j, trowpos, growpos := jstart, jstart*rmt.Stride, jstart*rmg.Stride; j < rmt.Rows; j, trowpos, growpos = j+1, trowpos+rmt.Stride, growpos+rmg.Stride {
+				for o := 0; o < rmt.Cols; o++ {
+					c := rmt.Data[trowpos+o]
+					rmg.Data[growpos+o] += Alpha * (L1Ratio*sgn(c) + (1.-L1Ratio)*c)
 				}
-				return g
-			}, grad)
+			}
 		}
 		//fmt.Printf("J=1/%d * { %g + %g * ( %g*%g +%g*%g) }\n", nSamples, J, Alpha, L1Ratio, L1, 1.-L1Ratio, L2)
 		J += Alpha * (L1Ratio*L1 + (1.-L1Ratio)*L2)
-		//fmt.Printf("=%g\n", J)
+
 	}
 	J /= float64(nSamples)
-	//fmt.Printf("/%d =>%g\n", nSamples, J)
 	if grad != nil {
 		grad.Scale(1./float64(nSamples), grad)
 	}
+	//fmt.Printf("/%d =>%g\n", nSamples, J)
 	return
 }
 
@@ -261,4 +244,51 @@ func panicIfNaN(v float64) float64 {
 		panic("NaN")
 	}
 	return v
+}
+
+func regularization(Theta, grad *mat.Dense, Alpha, L1Ratio float64, disableRegularizationOfFirstFeature bool) float64 {
+	JRegul := 0.
+	// add regularization to cost and grad
+	if Alpha > 0. {
+		NFeatures, NOutputs := Theta.Dims()
+		jstart := 0
+		if disableRegularizationOfFirstFeature {
+			jstart++
+		}
+		for j := jstart; j < NFeatures; j++ {
+			featureL1 := 0.
+			for o := 0; o < NOutputs; o++ {
+				t := Theta.At(j, o)
+				if L1Ratio > 0. && NOutputs == 1 {
+					featureL1 += math.Abs(t)
+				}
+				if L1Ratio < 1. {
+					JRegul += (1. - L1Ratio) * t * t
+				}
+			}
+			if L1Ratio > 0. && NOutputs > 1 {
+				featureL1 = mat.Norm(Theta.RowView(j), 2)
+			}
+			JRegul += L1Ratio * featureL1
+		}
+		if grad != nil {
+			for j := jstart; j < NFeatures; j++ {
+				featureL1 := mat.Norm(Theta.RowView(j), 2)
+				for o := 0; o < NOutputs; o++ {
+					g := grad.At(j, o)
+					t := Theta.At(j, o)
+					if L1Ratio > 0. {
+						g += L1Ratio * t / featureL1
+					}
+					if L1Ratio < 1. {
+						g += (1. - L1Ratio) * t
+					}
+					grad.Set(j, o, g)
+				}
+			}
+
+		}
+		JRegul *= Alpha
+	}
+	return JRegul
 }

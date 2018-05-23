@@ -52,24 +52,24 @@ type LinearModel struct {
 //     Independent term in the linear model.
 type LinearRegression struct {
 	LinearModel
+}
+
+// RegularizedRegression is a common structure for Lasso and Ridge
+type RegularizedRegression struct {
+	LinearRegression
 	Optimizer           base.Optimizer
 	Tol, Alpha, L1Ratio float64
 	LossFunction        Loss
 	ActivationFunction  Activation
 	Options             LinFitOptions
-	UseLeastSquares     bool
 }
 
 // NewLinearRegression create a *LinearRegression with defaults
 // implemented as a per-output optimization of (possibly regularized) square-loss a base.Optimizer (defaults to Adam)
 func NewLinearRegression() *LinearRegression {
-	regr := &LinearRegression{Tol: 1e-6}
-	regr.Optimizer = base.NewAdamOptimizer()
+	regr := &LinearRegression{}
 	regr.FitIntercept = true
-	regr.Normalize = false
-	regr.ActivationFunction = base.Identity{}
-	regr.LossFunction = SquareLoss
-	regr.UseLeastSquares = true
+
 	return regr
 }
 
@@ -79,16 +79,27 @@ func (regr *LinearRegression) Fit(X0, Y0 *mat.Dense) base.Transformer {
 	regr.XOffset, regr.XScale = preprocessing.DenseNormalize(X, regr.FitIntercept, regr.Normalize)
 	Y := mat.DenseCopyOf(Y0)
 	YOffset, _ := preprocessing.DenseNormalize(Y, regr.FitIntercept, false)
-	if false {
-		// use least squares
-		regr.Coef = &mat.Dense{}
-		regr.Coef.Solve(X, Y)
-	} else {
+	// use least squares
+	regr.Coef = &mat.Dense{}
+	regr.Coef.Solve(X, Y)
+	regr.LinearModel.setIntercept(regr.XOffset, YOffset, regr.XScale)
+	return regr
+}
+
+// Fit fits Coef for a LinearRegression
+func (regr *RegularizedRegression) Fit(X0, Y0 *mat.Dense) base.Transformer {
+	X := mat.DenseCopyOf(X0)
+	regr.XOffset, regr.XScale = preprocessing.DenseNormalize(X, regr.FitIntercept, regr.Normalize)
+	Y := mat.DenseCopyOf(Y0)
+	YOffset, _ := preprocessing.DenseNormalize(Y, regr.FitIntercept, false)
+	{
 		opt := regr.Options
 		opt.Tol = regr.Tol
 		opt.Solver = regr.Optimizer
 		opt.Loss = regr.LossFunction
 		opt.Activation = regr.ActivationFunction
+		opt.Alpha = regr.Alpha
+		opt.L1Ratio = regr.L1Ratio
 		res := LinFit(X, Y, &opt)
 		regr.Coef = res.Theta
 	}
@@ -102,23 +113,36 @@ func (regr *LinearRegression) Predict(X, Y *mat.Dense) base.Regressor {
 	return regr
 }
 
-// NewRidge creates a *Ridge with defaults
-func NewRidge() *LinearRegression {
-	regr := NewLinearRegression()
+// NewRidge creates a *RegularizedRegression with Alpha=1. and L1Ratio=0
+func NewRidge() *RegularizedRegression {
+	regr := &RegularizedRegression{}
+	regr.FitIntercept = true
+	regr.Tol = 1e-6
 	regr.LossFunction = SquareLoss
 	regr.Alpha = 1.
 	regr.L1Ratio = 0.
-	regr.UseLeastSquares = false
 	return regr
 }
 
-//NewLasso creates a *Lasso with defaults
-func NewLasso() *LinearRegression {
-	regr := NewLinearRegression()
+//NewLasso creates a *RegularizedRegression with Alpha=1 and L1Ratio = 1
+func NewLasso() *RegularizedRegression {
+	regr := &RegularizedRegression{}
+	regr.FitIntercept = true
+	regr.Tol = 1e-6
 	regr.LossFunction = SquareLoss
-	regr.Alpha = 1e-3
+	regr.Alpha = 1.
 	regr.L1Ratio = 1.
-	regr.UseLeastSquares = false
+	return regr
+}
+
+// NewElasticNet creates a *RegularizedRegression with Alpha=1 and L1Ratio=0.5
+func NewElasticNet() *RegularizedRegression {
+	regr := &RegularizedRegression{}
+	regr.FitIntercept = true
+	regr.Tol = 1e-6
+	regr.LossFunction = SquareLoss
+	regr.Alpha = 1.
+	regr.L1Ratio = .5
 	return regr
 }
 
@@ -304,13 +328,14 @@ type LinFitOptions struct {
 	// Alpha is regularization factor for Ridge,Lasso
 	Alpha float64
 	// L1Ratio is the part of L1 regularization 0 for ridge,1 for Lasso
-	L1Ratio          float64
-	Loss             Loss
-	Activation       Activation
-	GOMethodCreator  func() optimize.Method
-	ThetaInitializer func(Theta *mat.Dense)
-	Recorder         optimize.Recorder
-	PerOutputFit     bool
+	L1Ratio                             float64
+	Loss                                Loss
+	Activation                          Activation
+	GOMethodCreator                     func() optimize.Method
+	ThetaInitializer                    func(Theta *mat.Dense)
+	Recorder                            optimize.Recorder
+	PerOutputFit                        bool
+	DisableRegularizationOfFirstFeature bool
 }
 
 // LinFitResult is the result or LinFit
@@ -337,11 +362,6 @@ func LinFit(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 	if opts.GOMethodCreator == nil && opts.Solver == nil {
 		opts.GOMethodCreator = func() optimize.Method { return &optimize.LBFGS{} }
 	}
-	// if _, isGOM := opts.Solver.(optimize.Method); isGOM && opts.GOMethod == nil && (opts.MiniBatchSize == 0 || opts.MiniBatchSize == nSamples) {
-	// 	fmt.Printf("USE %s as optimize.Method\n\n", opts.Solver)
-	// 	opts.GOMethod = opts.Solver.(optimize.Method)
-	// }
-
 	if opts.GOMethodCreator != nil {
 		opts.PerOutputFit = true
 		return LinFitGOM(X, Ytrue, opts)
@@ -404,7 +424,8 @@ func LinFit(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 			&optimize.Stats{MajorIterations: epoch, FuncEvaluations: epoch, GradEvaluations: epoch, Runtime: time.Since(start)})
 	}
 	for epoch = 1; epoch <= opts.Epochs && !converged; epoch++ {
-		base.MatShuffle(X, Ytrue)
+		shuffler := preprocessing.NewShuffler()
+		Xs, Ys := shuffler.FitTransform(X, Ytrue)
 		for miniBatch := 0; miniBatch*miniBatchSize < nSamples; miniBatch++ {
 			miniBatchStart = miniBatch * miniBatchSize
 			miniBatchEnd := miniBatchStart + miniBatchSize
@@ -414,13 +435,13 @@ func LinFit(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 			miniBatchRows := miniBatchEnd - miniBatchStart
 
 			J = opts.Loss(
-				Ytrue.Slice(miniBatchStart, miniBatchEnd, 0, nOutputs),
-				X.Slice(miniBatchStart, miniBatchEnd, 0, nFeatures),
+				Ys.Slice(miniBatchStart, miniBatchEnd, 0, nOutputs),
+				Xs.Slice(miniBatchStart, miniBatchEnd, 0, nFeatures),
 				Theta,
 				YpredMini.Slice(0, miniBatchRows, 0, nOutputs).(*mat.Dense),
 				YdiffMini.Slice(0, miniBatchRows, 0, nOutputs).(*mat.Dense),
 				grad,
-				opts.Alpha, opts.L1Ratio, nSamples, opts.Activation)
+				opts.Alpha, opts.L1Ratio, nSamples, opts.Activation, opts.DisableRegularizationOfFirstFeature)
 			s.UpdateParams(grad)
 		}
 		J = opts.Loss(
@@ -430,7 +451,7 @@ func LinFit(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 			Ypred,
 			Ydiff,
 			grad,
-			opts.Alpha, opts.L1Ratio, nSamples, opts.Activation)
+			opts.Alpha, opts.L1Ratio, nSamples, opts.Activation, opts.DisableRegularizationOfFirstFeature)
 		if J < JBest {
 			JBest = J
 			copy(thetaSliceBest, thetaSlice)
@@ -501,23 +522,23 @@ func LinFitGOM(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 			Ypred := mat.NewDense(nSamples, 1, nil)
 			Ydiff := mat.NewDense(nSamples, 1, nil)
 			thetao := make([]float64, nFeatures, nFeatures)
-
 			p := optimize.Problem{
 				Func: func(thetao []float64) float64 {
-					J := opts.Loss(Ytrue.ColView(o), X, mat.NewDense(nFeatures, 1, thetao), Ypred, Ydiff, nil, opts.Alpha, opts.L1Ratio, nSamples, opts.Activation)
+					J := opts.Loss(Ytrue.ColView(o), X, mat.NewDense(nFeatures, 1, thetao), Ypred, Ydiff, nil, opts.Alpha, opts.L1Ratio, nSamples, opts.Activation, opts.DisableRegularizationOfFirstFeature)
 					return J
 				},
 				Grad: func(gradSlice, thetao []float64) {
-					opts.Loss(Ytrue.ColView(o), X, mat.NewDense(nFeatures, 1, thetao), Ypred, Ydiff, mat.NewDense(nFeatures, 1, gradSlice), opts.Alpha, opts.L1Ratio, nSamples, opts.Activation)
-
+					opts.Loss(Ytrue.ColView(o), X, mat.NewDense(nFeatures, 1, thetao), Ypred, Ydiff, mat.NewDense(nFeatures, 1, gradSlice), opts.Alpha, opts.L1Ratio, nSamples, opts.Activation, opts.DisableRegularizationOfFirstFeature)
+					//floats.Scale(float64(nSamples), gradSlice)
 				},
 			}
 			mat.Col(thetao, o, thetaM)
 			ret, err := optimize.Local(p, thetao, fSettings(), opts.GOMethodCreator())
+			//fmt.Printf("output %d F:%v Grad:%v Status:%s\n", o, ret.F, mat.Norm(mat.NewVecDense(nFeatures, ret.Gradient), math.Inf(1)), ret.Status)
 			chanret <- fitOutputRes{o: o, ret: ret, err: err}
 		}
-		for o := 0; o < nOutputs; o++ {
-			go fitOutput(o, chanret)
+		for o1 := 0; o1 < nOutputs; o1++ {
+			go fitOutput(o1, chanret)
 		}
 
 		for o1 := 0; o1 < nOutputs; o1++ {
@@ -537,11 +558,11 @@ func LinFitGOM(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 		p := optimize.Problem{
 			Func: func(theta []float64) float64 {
 
-				J := opts.Loss(Ytrue, X, mat.NewDense(nFeatures, nOutputs, theta), Ypred, Ydiff, nil, opts.Alpha, opts.L1Ratio, nSamples, opts.Activation)
+				J := opts.Loss(Ytrue, X, mat.NewDense(nFeatures, nOutputs, theta), Ypred, Ydiff, nil, opts.Alpha, opts.L1Ratio, nSamples, opts.Activation, opts.DisableRegularizationOfFirstFeature)
 				return J
 			},
 			Grad: func(gradSlice, theta []float64) {
-				opts.Loss(Ytrue, X, mat.NewDense(nFeatures, nOutputs, theta), Ypred, Ydiff, mat.NewDense(nFeatures, nOutputs, gradSlice), opts.Alpha, opts.L1Ratio, nSamples, opts.Activation)
+				opts.Loss(Ytrue, X, mat.NewDense(nFeatures, nOutputs, theta), Ypred, Ydiff, mat.NewDense(nFeatures, nOutputs, gradSlice), opts.Alpha, opts.L1Ratio, nSamples, opts.Activation, opts.DisableRegularizationOfFirstFeature)
 			},
 		}
 		ret, err = optimize.Local(p, theta, fSettings(), opts.GOMethodCreator())
@@ -605,8 +626,7 @@ func (regr *LinearModel) DecisionFunction(X, Y *mat.Dense) {
 
 // Score returns R2Score between Y and X dot Coef+Intercept
 func (regr *LinearModel) Score(X, Y *mat.Dense) float64 {
-	nSamples, nOutputs := Y.Dims()
-	Ypred := mat.NewDense(nSamples, nOutputs, nil)
+	Ypred := &mat.Dense{}
 	regr.DecisionFunction(X, Ypred)
 	return metrics.R2Score(Y, Ypred, nil, "").At(0, 0)
 }

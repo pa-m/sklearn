@@ -355,22 +355,3 @@ func (*SGDOptimizer) Needs() struct {
 		Hessian:  false,
 	}
 }
-
-type matDense struct {
-	*mat.Dense
-	data []float64
-}
-
-func matDenseNew(r, c int, data []float64) *matDense {
-	if data != nil && r*c != len(data) {
-		panic("ErrShape")
-	}
-	if data == nil {
-		data = make([]float64, r*c)
-	}
-	return &matDense{mat.NewDense(r, c, data), data}
-}
-func (m *matDense) Dims() (r, c int)        { r, c = m.Dense.Dims(); return }
-func (m *matDense) AT(i, j int) float64     { return m.Dense.At(i, j) }
-func (m *matDense) T() mat.Matrix           { return m.Dense.T() }
-func (m *matDense) Set(i, j int, v float64) { m.Dense.Set(i, j, v) }
