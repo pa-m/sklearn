@@ -1,6 +1,7 @@
 package cluster
 
 import (
+	"flag"
 	"fmt"
 	"image/color"
 	"os"
@@ -14,6 +15,8 @@ import (
 	"gonum.org/v1/plot/plotter"
 	"gonum.org/v1/plot/vg"
 )
+
+var visualDebug = flag.Bool("visual", false, "output images for benchmarks and test data")
 
 func ExampleDBSCAN() {
 	// adapted from http://scikit-learn.org/stable/_downloads/plot_dbscan.ipynb
@@ -40,8 +43,7 @@ func ExampleDBSCAN() {
 	}
 	fmt.Printf("Estimated number of clusters: %d\n", nclusters)
 
-	canPlot := false
-	if canPlot {
+	if *visualDebug {
 
 		// plot result
 		p, err := plot.New()
@@ -77,7 +79,7 @@ func ExampleDBSCAN() {
 
 		}
 		// Save the plot to a PNG file.
-		pngfile := "/tmp/plt.png"
+		pngfile := "/tmp/ExampleDBSCAN.png"
 		os.Remove(pngfile)
 		if err := p.Save(4*vg.Inch, 4*vg.Inch, pngfile); err != nil {
 			panic(err)

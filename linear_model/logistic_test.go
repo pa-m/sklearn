@@ -1,6 +1,7 @@
 package linearModel
 
 import (
+	"flag"
 	"fmt"
 	"image/color"
 	"math"
@@ -21,6 +22,8 @@ import (
 	"gonum.org/v1/plot/vg"
 	"gonum.org/v1/plot/vg/draw"
 )
+
+var visualDebug = flag.Bool("visual", false, "output images for benchmarks and test data")
 
 func TestLogRegExamScore(t *testing.T) {
 	X, Ytrue := datasets.LoadExamScore()
@@ -331,25 +334,39 @@ func ExampleLogisticRegression() {
 	fmt.Printf("Accuracy:%.2f", metrics.AccuracyScore(YTrueClasses, Ypred, false, nil))
 
 	// Put the result into a color plot
-	canPlot := false
-	if canPlot {
+	if *visualDebug {
 		// Plot the decision boundary. For that, we will assign a color to each point in the mesh [x_min, x_max]x[y_min, y_max].
 		var xmin, xmax = mat.Min(X.ColView(0)) - .5, mat.Max(X.ColView(0)) + .5
 
 		var ymin, ymax = mat.Min(X.ColView(1)) - .5, mat.Max(X.ColView(1)) + .5
 
 		// xx, yy = np.meshgrid(np.arange(x_min, x_max, h), np.arange(y_min, y_max, h))
-		var xx, yy []float64
-		for y := ymin; y <= ymax; y += h {
-			for x := xmin; x <= xmax; x += h {
-				xx = append(xx, x)
-				yy = append(yy, y)
+		nparange := func(min, max, h float64) []float64 {
+			c := make([]float64, 0)
+			for v := min; v <= max; v += h {
+				c = append(c, v)
 			}
+			return c
 		}
-		Xgrid := mat.NewDense(len(xx), 2, nil)
-		Xgrid.SetCol(0, xx)
-		Xgrid.SetCol(1, yy)
-		Z := mat.NewDense(len(xx), 1, nil)
+		npmeshgrid := func(xrange, yrange []float64) (xx, yy []float64) {
+			for y := ymin; y <= ymax; y += h {
+				for x := xmin; x <= xmax; x += h {
+					xx = append(xx, x)
+					yy = append(yy, y)
+				}
+			}
+			return
+		}
+		npc := func(c ...[]float64) (XZ *mat.Dense) {
+			XZ = mat.NewDense(len(c[0]), len(c), nil)
+			for j, src := range c {
+				XZ.SetCol(j, src)
+			}
+			return
+		}
+		var xx, yy = npmeshgrid(nparange(xmin, xmax, h), nparange(ymin, ymax, h))
+		Xgrid := npc(xx, yy)
+		Z := &mat.Dense{}
 		logreg.Predict(Xgrid, Z)
 
 		plt, _ := plot.New()
@@ -380,7 +397,7 @@ func ExampleLogisticRegression() {
 		plt.X.Label.Text = ds.FeatureNames[0]
 		plt.Y.Label.Text = ds.FeatureNames[1]
 		// Save the plot to a PNG file.
-		pngfile := "/tmp/plt.png"
+		pngfile := "/tmp/ExampleLogisticRegression.png"
 		os.Remove(pngfile)
 		if err := plt.Save(7*vg.Inch, 7*vg.Inch, pngfile); err != nil {
 			panic(err)
