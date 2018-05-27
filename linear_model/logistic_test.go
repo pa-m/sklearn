@@ -2,7 +2,10 @@ package linearModel
 
 import (
 	"fmt"
+	"image/color"
 	"math"
+	"os"
+	"os/exec"
 	"testing"
 	"time"
 
@@ -13,6 +16,10 @@ import (
 	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/optimize"
+	"gonum.org/v1/plot"
+	"gonum.org/v1/plot/plotter"
+	"gonum.org/v1/plot/vg"
+	"gonum.org/v1/plot/vg/draw"
 )
 
 func TestLogRegExamScore(t *testing.T) {
@@ -20,19 +27,20 @@ func TestLogRegExamScore(t *testing.T) {
 	nSamples, nFeatures := X.Dims()
 	preprocessing.InsertOnes(X)
 	nFeatures++
-	_, nOutputs := Ytrue.Dims()
 	regr := NewLogisticRegression()
 	regr.FitIntercept = false // Fintintercept=false because we already added ones columns instead
 
+	Ytrue = regr.EncodeLabels(Ytrue)
+	_, NClasses := Ytrue.Dims()
 	// we allocate Coef here because we use it for loss and grad tests before Fit
-	regr.Coef = mat.NewDense(nFeatures, nOutputs, nil)
+	regr.Coef = mat.NewDense(nFeatures, NClasses, nil)
 
 	// Alpha=0 here because following test values require no regularization
 	regr.Alpha = 0.
 
-	Ypred := mat.NewDense(nSamples, nOutputs, nil)
-	Ydiff := mat.NewDense(nSamples, nOutputs, nil)
-	grad := mat.NewDense(nFeatures, nOutputs, nil)
+	Ypred := &mat.Dense{}
+	Ydiff := &mat.Dense{}
+	grad := &mat.Dense{}
 
 	J := math.Inf(1)
 	loss := func() (J float64) {
@@ -113,45 +121,17 @@ func TestLogRegExamScore(t *testing.T) {
 	}
 
 	// test Fit with various base.Optimizer
-	var Optimizers = []string{
-		// "sgd",
-		// "adagrad",
-		// "rmsprop",
-		//"adadelta",
-		//"adam",
-	}
 
-	newOptimizer := func(name string) base.Optimizer {
-
-		switch name {
-		case "adadelta":
-			s := base.NewAdadeltaOptimizer()
-			s.StepSize = 0.05
-			return s
-		case "adam":
-			s := base.NewAdamOptimizer()
-			s.StepSize = .1
-			return s
-		default:
-			s := base.NewOptimizer(name)
-			return s
-		}
-	}
-
+	var Optimizers = []string{"sgd", "adagrad", "rmsprop", "adadelta", "adam"}
 	for _, optimizer := range Optimizers {
 		testSetup := optimizer
 		regr.Options.ThetaInitializer = func(Theta *mat.Dense) {
 			Theta.SetCol(0, []float64{-24, 0.2, 0.2})
 		}
-		regr.LossFunction = SquareLoss
-		regr.Options.GOMethodCreator = nil
-		//regr.Options.Recorder = printer
 		regr.Options.MiniBatchSize = nSamples
-		regr.Optimizer = newOptimizer(optimizer)
-		// if opti, ok := regr.Optimizer.(*base.SGDOptimizer); ok {
-		// 	opti.StepSize = 1e-5
-		// }
+		regr.Solver = optimizer
 		//regr.Options.Epochs = 1e5
+
 		start := time.Now()
 		regr.Fit(X, Ytrue)
 		elapsed := time.Since(start)
@@ -169,12 +149,6 @@ func TestLogRegExamScore(t *testing.T) {
 		}
 	}
 	fmt.Println("LogisticRegression BEST SETUP:", best)
-
-	regr.PredictProba(X, Ypred)
-
-	regr.PredictProba(X, Ypred)
-	// fmt.Println("acc:", metrics.AccuracyScore(Ytrue, Ypred, true, nil))
-	// fmt.Println("ok")
 }
 
 func TestLogRegMicrochipTest(t *testing.T) {
@@ -299,51 +273,25 @@ func TestLogRegMicrochipTest(t *testing.T) {
 		"adam",
 	}
 
-	newOptimizer := func(name string) base.Optimizer {
-
-		switch name {
-		case "sgd":
-			s := base.NewSGDOptimizer()
-			s.StepSize = 0.95
-			s.Momentum = .98
-			return s
-		case "rmsprop":
-			s := base.NewRMSPropOptimizer()
-			s.StepSize = .95
-			s.RMSPropGamma = .5
-			return s
-		case "adadelta":
-			s := base.NewAdadeltaOptimizer()
-			s.StepSize = 0.5
-			return s
-		case "adam":
-			s := base.NewAdamOptimizer()
-			s.StepSize = .1
-			return s
-		default:
-			s := base.NewOptimizer(name)
-			return s
-		}
-	}
-
 	for _, optimizer := range Optimizers {
 		testSetup := optimizer
 		regr.Options.ThetaInitializer = func(Theta *mat.Dense) {
-			Theta.Apply(func(j, o int, _ float64) float64 { return 0. }, Theta)
+			Theta.Scale(0, Theta)
 		}
 		regr.Options.GOMethodCreator = nil
 		//regr.Options.Recorder = printer
 		regr.Options.MiniBatchSize = nSamples
-		regr.Optimizer = newOptimizer(optimizer)
-		// if opti, ok := regr.Optimizer.(*base.SGDOptimizer); ok {
-		// 	opti.StepSize = 1e-5
-		// }
+		regr.Solver = optimizer
+		regr.SolverConfigure = func(op base.Optimizer) {
+			if optimizer == "sgd" {
+				op.(*base.SGDOptimizer).StepSize = .25
+			}
+		}
 		//regr.Options.Epochs = 1e5
 		start := time.Now()
 		regr.Fit(Xp, Ytrue)
 		elapsed := time.Since(start)
 		J = loss()
-		fmt.Println(testSetup, "elapsed time", elapsed, "loss", J)
 
 		if J < bestLoss {
 			bestLoss = J
@@ -354,13 +302,98 @@ func TestLogRegMicrochipTest(t *testing.T) {
 			best["best for time"] = testSetup + fmt.Sprintf("(%s)", elapsed)
 		}
 		accuracy := metrics.AccuracyScore(Ytrue, Ypred, true, nil)
-		expectedAccuracy := 0.80
+		//fmt.Println("acc:", testSetup, accuracy)
+		expectedAccuracy := 0.82
 		if accuracy < expectedAccuracy {
-			t.Errorf("%s accuracy=%g expected:%g", regr.Optimizer, accuracy, expectedAccuracy)
+			t.Errorf("%s accuracy=%g expected:%g", regr.Solver, accuracy, expectedAccuracy)
 		}
 	}
 	fmt.Println("LogisticRegression BEST SETUP:", best)
+}
 
-	// fmt.Println("acc:", metrics.AccuracyScore(Ytrue, Ypred, nil, "uniform_average").At(0, 0))
-	// fmt.Println("ok")
+func ExampleLogisticRegression() {
+	// adapted from http://scikit-learn.org/stable/_downloads/plot_iris_logistic.ipynb
+	ds := datasets.LoadIris()
+	nSamples := len(ds.Target)
+	// we only take the first two features.
+	X, YTrueClasses := ds.X.Slice(0, nSamples, 0, 2).(*mat.Dense), ds.Y
+	h := .02 // step size in the mesh
+	_ = h
+	logreg := NewLogisticRegression()
+	C := 1e5
+	logreg.Alpha = 1. / C
+
+	// we create an instance of our Classifier and fit the data.
+	logreg.Fit(X, YTrueClasses)
+
+	Ypred := &mat.Dense{}
+	logreg.Predict(X, Ypred)
+	fmt.Printf("Accuracy:%.2f", metrics.AccuracyScore(YTrueClasses, Ypred, false, nil))
+
+	// Put the result into a color plot
+	canPlot := false
+	if canPlot {
+		// Plot the decision boundary. For that, we will assign a color to each point in the mesh [x_min, x_max]x[y_min, y_max].
+		var xmin, xmax = mat.Min(X.ColView(0)) - .5, mat.Max(X.ColView(0)) + .5
+
+		var ymin, ymax = mat.Min(X.ColView(1)) - .5, mat.Max(X.ColView(1)) + .5
+
+		// xx, yy = np.meshgrid(np.arange(x_min, x_max, h), np.arange(y_min, y_max, h))
+		var xx, yy []float64
+		for y := ymin; y <= ymax; y += h {
+			for x := xmin; x <= xmax; x += h {
+				xx = append(xx, x)
+				yy = append(yy, y)
+			}
+		}
+		Xgrid := mat.NewDense(len(xx), 2, nil)
+		Xgrid.SetCol(0, xx)
+		Xgrid.SetCol(1, yy)
+		Z := mat.NewDense(len(xx), 1, nil)
+		logreg.Predict(Xgrid, Z)
+
+		plt, _ := plot.New()
+		xys := func(X, Y mat.Matrix, cls int) (xy plotter.XYs) {
+			imax, _ := Y.Dims()
+			for i := 0; i < imax; i++ {
+				if int(Y.At(i, 0)) == cls {
+					xy = append(xy, struct{ X, Y float64 }{X.At(i, 0), X.At(i, 1)})
+				}
+			}
+			return
+		}
+		colors1 := []color.RGBA{{166, 206, 227, 255}, {253, 191, 111, 255}, {177, 89, 40, 255}}
+		for cls := 0; cls <= 2; cls++ {
+			s, _ := plotter.NewScatter(xys(Xgrid, Z, cls))
+			s.GlyphStyle.Shape = draw.BoxGlyph{}
+			s.GlyphStyle.Color = colors1[cls]
+			s.GlyphStyle.Radius = 1
+			plt.Add(s)
+
+			s1, _ := plotter.NewScatter(xys(X, YTrueClasses, cls))
+			s1.GlyphStyle.Shape = draw.CircleGlyph{}
+			s1.GlyphStyle.Radius = 4
+			s1.GlyphStyle.Color = colors1[cls]
+			plt.Add(s1)
+			plt.Legend.Add(ds.TargetNames[cls], s1)
+		}
+		plt.X.Label.Text = ds.FeatureNames[0]
+		plt.Y.Label.Text = ds.FeatureNames[1]
+		// Save the plot to a PNG file.
+		pngfile := "/tmp/plt.png"
+		os.Remove(pngfile)
+		if err := plt.Save(7*vg.Inch, 7*vg.Inch, pngfile); err != nil {
+			panic(err)
+		}
+		cmd := exec.Command("display", pngfile)
+		err := cmd.Start()
+		if err != nil {
+			fmt.Println(err.Error())
+		}
+		time.Sleep(200 * time.Millisecond)
+		os.Remove(pngfile)
+
+	}
+	// Output:
+	// Accuracy:93.00
 }

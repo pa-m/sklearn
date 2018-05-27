@@ -30,6 +30,15 @@ var Solvers = map[string]OptimCreator{
 	"adam":     func() Optimizer { return NewAdamOptimizer() },
 }
 
+// NewSolver returns an OptimCreator
+func NewSolver(name string) OptimCreator {
+	s, ok := Solvers[name]
+	if !ok {
+		panic(fmt.Errorf("NewSolver called with unknown name %s", name))
+	}
+	return s
+}
+
 // GOMethodCreator is a func that creates a gonum/optimize.Method
 type GOMethodCreator func() optimize.Method
 

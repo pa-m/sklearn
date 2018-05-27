@@ -2,7 +2,7 @@ package linearModel
 
 import (
 	"github.com/pa-m/sklearn/base"
-	"gonum.org/v1/gonum/floats"
+	"github.com/pa-m/sklearn/preprocessing"
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/optimize"
 )
@@ -10,6 +10,7 @@ import (
 // LogisticRegression WIP
 type LogisticRegression struct {
 	RegularizedRegression
+	OneHotEncoder *preprocessing.OneHotEncoder
 }
 
 // NewLogisticRegression create and init a *LogisticRegression
@@ -26,26 +27,46 @@ func NewLogisticRegression() *LogisticRegression {
 	return regr
 }
 
-// PredictProba predicts probabolity of y=1 for X using Coef
+// EncodeLabels applies a onehotencoder if Ytrue has only one column
+func (regr *LogisticRegression) EncodeLabels(Ytrue *mat.Dense) *mat.Dense {
+	Y := Ytrue
+	_, nOutputs := Ytrue.Dims()
+	if nOutputs == 1 {
+		regr.OneHotEncoder = preprocessing.NewOneHotEncoder()
+		_, Y = regr.OneHotEncoder.FitTransform(nil, Ytrue)
+	}
+	return Y
+}
+
+// Fit for LogisticRegression
+func (regr *LogisticRegression) Fit(X, Ycls *mat.Dense) base.Transformer {
+	Y := regr.EncodeLabels(Ycls)
+	return regr.RegularizedRegression.Fit(X, Y)
+}
+
+// PredictProba predicts probability of y=1 for X using Coef
 func (regr *LogisticRegression) PredictProba(X, Y *mat.Dense) {
 	regr.DecisionFunction(X, Y)
 	Y.Apply(func(i int, o int, y float64) float64 {
-		return (base.Sigmoid{}).F(y)
+		return regr.ActivationFunction.F(y)
 	}, Y)
 }
 
 // Predict predicts y for X using Coef
-func (regr *LogisticRegression) Predict(X, Y *mat.Dense) {
+func (regr *LogisticRegression) Predict(X, Ycls *mat.Dense) {
+	var Y = Ycls
+	if regr.OneHotEncoder != nil {
+		Y = &mat.Dense{}
+	}
 	regr.PredictProba(X, Y)
-	nSamples, nOutputs := Y.Dims()
-	for i := 0; i < nSamples; i++ {
-		o1 := floats.MaxIdx(Y.RawRowView(i))
-		for o := 0; o < nOutputs; o++ {
-			v := 0.
-			if o == o1 {
-				v = 1.
-			}
-			Y.Set(i, o, v)
+	//nSamples, nOutputs := Y.Dims()
+	if regr.OneHotEncoder != nil {
+		_, Ycls1 := regr.OneHotEncoder.InverseTransform(nil, Y)
+		if Ycls.IsZero() {
+			Ycls.SetRawMatrix(Ycls1.RawMatrix())
+		} else {
+			Ycls.Copy(Ycls1)
 		}
+
 	}
 }

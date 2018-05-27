@@ -639,12 +639,24 @@ func (m *OneHotEncoder) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
 	Xout = X
 	columns := 0
 	for output := 0; output < nOutputs; output++ {
-		columns += m.NumClasses[output]
+		ovo := m.NumClasses[output] <= 2
+		if ovo {
+			columns++
+		} else {
+			columns += m.NumClasses[output]
+		}
 	}
 	Yout = mat.NewDense(nSamples, columns, nil)
 	baseColumn := 0
 	for output := 0; output < nOutputs; output++ {
-
+		ovo := m.NumClasses[output] <= 2
+		if ovo {
+			for sample := 0; sample < nSamples; sample++ {
+				Yout.Set(sample, baseColumn, Y.At(sample, output))
+			}
+			baseColumn++
+			break
+		}
 		for sample := 0; sample < nSamples; sample++ {
 			yint := int(Y.At(sample, output)) - m.Min[output]
 			//fmt.Printf("sample %d output %d baseColumn %d nClasses %d y %g min:%d yint %d\n", sample, output, baseColumn, m.NumClasses[output], Y.At(sample, output), m.Min[output], yint)
@@ -668,6 +680,14 @@ func (m *OneHotEncoder) InverseTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense
 	Yout = mat.NewDense(nSamples, nOutputs, nil)
 	baseColumn := 0
 	for output := 0; output < nOutputs; output++ {
+		ovo := m.NumClasses[output] <= 2
+		if ovo {
+			for sample := 0; sample < nSamples; sample++ {
+				Yout.Set(sample, output, Y.At(sample, baseColumn))
+			}
+			baseColumn++
+			break
+		}
 
 		for sample := 0; sample < nSamples; sample++ {
 			yint := floats.MaxIdx(Y.RawRowView(sample)[baseColumn:baseColumn+m.NumClasses[output]]) + m.Min[output]
@@ -699,12 +719,12 @@ func (m *Shuffler) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
 	for i, srcxpos, srcypos := 0, 0, 0; i < len(m.Perm); i, srcxpos, srcypos = i+1, srcxpos+xmat.Stride, srcypos+ymat.Stride {
 		if m.Perm[i] > i {
 			dstxpos, dstypos = m.Perm[i]*xmat.Stride, m.Perm[i]*ymat.Stride
-			for j = 0; j < xmat.Stride; j++ {
+			for j = 0; j < xmat.Cols; j++ {
 				v = xmat.Data[srcxpos+j]
 				xmat.Data[srcxpos+j] = xmat.Data[dstxpos+j]
 				xmat.Data[dstxpos+j] = v
 			}
-			for j = 0; j < ymat.Stride; j++ {
+			for j = 0; j < ymat.Cols; j++ {
 				v = ymat.Data[srcypos+j]
 				ymat.Data[srcypos+j] = ymat.Data[dstypos+j]
 				ymat.Data[dstypos+j] = v

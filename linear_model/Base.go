@@ -57,7 +57,8 @@ type LinearRegression struct {
 // RegularizedRegression is a common structure for Lasso and Ridge
 type RegularizedRegression struct {
 	LinearRegression
-	Optimizer           base.Optimizer
+	Solver              string
+	SolverConfigure     func(base.Optimizer)
 	Tol, Alpha, L1Ratio float64
 	LossFunction        Loss
 	ActivationFunction  Activation
@@ -95,7 +96,8 @@ func (regr *RegularizedRegression) Fit(X0, Y0 *mat.Dense) base.Transformer {
 	{
 		opt := regr.Options
 		opt.Tol = regr.Tol
-		opt.Solver = regr.Optimizer
+		opt.Solver = regr.Solver
+		opt.SolverConfigure = regr.SolverConfigure
 		opt.Loss = regr.LossFunction
 		opt.Activation = regr.ActivationFunction
 		opt.Alpha = regr.Alpha
@@ -324,7 +326,8 @@ func unused(...interface{}) {}
 type LinFitOptions struct {
 	Epochs, MiniBatchSize int
 	Tol                   float64
-	Solver                base.Optimizer
+	Solver                string
+	SolverConfigure       func(base.Optimizer)
 	// Alpha is regularization factor for Ridge,Lasso
 	Alpha float64
 	// L1Ratio is the part of L1 regularization 0 for ridge,1 for Lasso
@@ -359,7 +362,7 @@ func initRecorder(recorder optimize.Recorder) (err error) {
 func LinFit(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 	nSamples, nFeatures := X.Dims()
 	_, nOutputs := Ytrue.Dims()
-	if opts.GOMethodCreator == nil && opts.Solver == nil {
+	if opts.GOMethodCreator == nil && opts.Solver == "" {
 		opts.GOMethodCreator = func() optimize.Method { return &optimize.LBFGS{} }
 	}
 	if opts.GOMethodCreator != nil {
@@ -405,7 +408,10 @@ func LinFit(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 	Ypred := mat.NewDense(nSamples, nOutputs, nil)
 	Ydiff := mat.NewDense(nSamples, nOutputs, nil)
 
-	s := opts.Solver
+	s := base.NewSolver(opts.Solver)()
+	if opts.SolverConfigure != nil {
+		opts.SolverConfigure(s)
+	}
 	s.SetTheta(Theta)
 	rmse := math.Inf(1.)
 	J := math.Inf(1.)

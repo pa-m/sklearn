@@ -131,21 +131,24 @@ func TestRidgeWithVariousOptimizer(t *testing.T) {
 	bestTime := time.Second * 86400
 	bestSetup := make(map[string]string)
 
-	sgd := base.NewSGDOptimizer()
-	sgd.StepSize = .05
 	for _, normalize := range []bool{false} { //true
 
-		for _, optimizer := range []base.Optimizer{
-			sgd,
-			//base.NewAdagradOptimizer(),
-			//base.NewRMSPropOptimizer(),
-			base.NewAdadeltaOptimizer(), base.NewAdamOptimizer()} {
-			testSetup := fmt.Sprintf("%s %v", optimizer, normalize)
+		for _, solver := range []string{"sgd", "adadelta", "adam"} {
+			testSetup := fmt.Sprintf("%s %v", solver, normalize)
 			regr := NewRidge()
+			//regr.Options.PerOutputFit = true
 			regr.Alpha = 0.
 
 			regr.Normalize = normalize
-			regr.Optimizer = optimizer
+			regr.Solver = solver
+			regr.SolverConfigure = func(optimizer base.Optimizer) {
+				switch solver {
+				case "sgd":
+					optimizer.(*base.SGDOptimizer).StepSize = .05
+				case "adadelta":
+					optimizer.(*base.SGDOptimizer).StepSize = .1
+				}
+			}
 			start := time.Now()
 			regr.Fit(p.X, p.Y)
 			elapsed := time.Since(start)
@@ -175,7 +178,7 @@ func TestRidgeWithVariousOptimizer(t *testing.T) {
 				bestSetup["MAE"] = testSetup + fmt.Sprintf("(%g)", mae)
 			}
 			if math.Sqrt(mse) > regr.Tol {
-				t.Errorf("Test %T %s normalize=%v r2score=%g (%v) mse=%g mae=%g \n", regr, optimizer, normalize, r2score, mat.Formatted(metrics.R2Score(p.Y, Ypred, nil, "raw_values")), mse, mae)
+				t.Errorf("Test %T %s normalize=%v r2score=%g (%v) mse=%g mae=%g \n", regr, solver, normalize, r2score, mat.Formatted(metrics.R2Score(p.Y, Ypred, nil, "raw_values")), mse, mae)
 				t.Fail()
 			} else {
 				//fmt.Printf("Test %T %s ok normalize=%v r2score=%g  mse=%g mae=%g elapsed=%s\n", regr, optimizer, normalize, r2score, mse, mae, elapsed)
@@ -445,6 +448,7 @@ func ExampleNewElasticNet() {
 		for i := range x {
 			x[i] = rand.NormFloat64()
 		}
+
 	}
 	Y := &mat.Dense{}
 	Y.Mul(X, coef)
