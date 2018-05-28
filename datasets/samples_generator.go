@@ -8,7 +8,9 @@ import (
 
 	"github.com/pa-m/sklearn/base"
 	"github.com/pa-m/sklearn/preprocessing"
+	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
+	"gonum.org/v1/gonum/stat/distmv"
 )
 
 // MakeRegression Generate a random regression problem
@@ -151,6 +153,7 @@ func MakeBlobs(config *MakeBlobsConfig) (X, Y *mat.Dense) {
 	if randomizeCenters {
 		boxCenter := (config.CenterBox[0] + config.CenterBox[1]) / 2
 		boxRadius := math.Abs(config.CenterBox[1]-config.CenterBox[0]) / 2
+
 		Craw := Centers.RawMatrix()
 		for i := range Craw.Data {
 			for {
@@ -165,18 +168,20 @@ func MakeBlobs(config *MakeBlobsConfig) (X, Y *mat.Dense) {
 	X = mat.NewDense(config.NSamples, config.NFeatures, nil)
 	Y = mat.NewDense(config.NSamples, 1, nil)
 	base.Parallelize(runtime.NumCPU(), config.NSamples, func(th, start, end int) {
-		Xg := X.RawMatrix()
-		for sample, xrowpos := start, start*Xg.Stride; sample < end; sample, xrowpos = sample+1, xrowpos+Xg.Stride {
+		mu := make([]float64, config.NFeatures)
+		sigma := mat.NewSymDense(config.NFeatures, nil)
+
+		for i := 0; i < config.NFeatures; i++ {
+			sigma.SetSym(i, i, 1)
+		}
+		sigma.ScaleSym(config.ClusterStd*config.ClusterStd, sigma)
+		normal, _ := distmv.NewNormal(mu, sigma, nil)
+		_ = normal
+		for sample := start; sample < end; sample++ {
 			cluster := randIntn(NCenters)
 			Y.Set(sample, 0, float64(cluster))
-			Cv := Centers.RowView(cluster)
-			Xv := mat.NewVecDense(Xg.Cols, Xg.Data[xrowpos:xrowpos+Xg.Cols])
-			Xrv := Xv.RawVector()
-			wantedNorm := randNormFloat64() * config.ClusterStd
-			for j := 0; j < config.NFeatures; j++ {
-				Xrv.Data[j] = randNormFloat64() * config.ClusterStd
-			}
-			Xv.AddScaledVec(Cv, wantedNorm/mat.Norm(Xv, 2), Xv)
+			normal.Rand(X.RawRowView(sample))
+			floats.Add(X.RawRowView(sample), Centers.RawRowView(cluster))
 		}
 	})
 	if config.Shuffle {

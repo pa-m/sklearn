@@ -14,6 +14,7 @@ import (
 	"gonum.org/v1/plot"
 	"gonum.org/v1/plot/plotter"
 	"gonum.org/v1/plot/vg"
+	"gonum.org/v1/plot/vg/draw"
 )
 
 var visualDebug = flag.Bool("visual", false, "output images for benchmarks and test data")
@@ -74,6 +75,7 @@ func ExampleDBSCAN() {
 				color0 = color.RGBA{0, 0, 176, 255}
 			}
 			s.GlyphStyle.Color = color0
+			s.GlyphStyle.Shape = draw.CircleGlyph{}
 			p.Add(s)
 			//p.Legend.Add(fmt.Sprintf("scatter %d", cl), s)
 
@@ -81,7 +83,7 @@ func ExampleDBSCAN() {
 		// Save the plot to a PNG file.
 		pngfile := "/tmp/ExampleDBSCAN.png"
 		os.Remove(pngfile)
-		if err := p.Save(4*vg.Inch, 4*vg.Inch, pngfile); err != nil {
+		if err := p.Save(6*vg.Inch, 4*vg.Inch, pngfile); err != nil {
 			panic(err)
 		}
 		cmd := exec.Command("display", pngfile)
