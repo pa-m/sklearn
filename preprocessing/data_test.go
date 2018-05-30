@@ -169,25 +169,37 @@ func ExampleInsertOnes() {
 	// X [1 7 8 9 10 11]
 }
 
-func TestOneHotEncoder(t *testing.T) {
-	nSamples, nOutputs := 2, 1
-	Y := mat.NewDense(nSamples, nOutputs, []float64{1, 10})
-	ohe := NewOneHotEncoder()
-	ohe.Fit(nil, Y)
-	//fmt.Printf("%#v\n", ohe)
-	if ohe.Min[0] != 1 {
-		t.Fail()
-	}
-	if ohe.NumClasses[0] != 10 {
-		t.Fail()
-	}
-	_, Y1 := ohe.Transform(nil, Y)
-	_, Y2 := ohe.InverseTransform(nil, Y1)
-	Yd := mat.NewDense(nSamples, nOutputs, nil)
-	Yd.Sub(Y, Y2)
-	if mat.Norm(Yd, 2) > 1e-4 {
-		t.Fail()
-	}
+/*
+		>>> from sklearn.preprocessing import OneHotEncoder
+	>>> enc = OneHotEncoder()
+	>>> enc.fit([[0, 0, 3], [1, 1, 0], [0, 2, 1], [1, 0, 2]])
+	OneHotEncoder(categorical_features='all', dtype=<... 'numpy.float64'>,
+	       handle_unknown='error', n_values='auto', sparse=True)
+	>>> enc.n_values_
+	array([2, 3, 4])
+	>>> enc.feature_indices_
+	array([0, 2, 5, 9])
+	>>> enc.transform([[0, 1, 1]]).toarray()
+	array([[ 1.,  0.,  0.,  1.,  0.,  0.,  1.,  0.,  0.]])
+*/
+
+func ExampleOneHotEncoder() {
+	// adapted from example in http://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.OneHotEncoder.html#sklearn.preprocessing.OneHotEncoder
+	enc := NewOneHotEncoder()
+	X, Y := mat.NewDense(4, 3, []float64{0, 0, 3, 1, 1, 0, 0, 2, 1, 1, 0, 2}), (*mat.Dense)(nil)
+	enc.Fit(X, Y)
+	fmt.Println(enc.NValues)
+	fmt.Println(enc.FeatureIndices)
+	X0 := mat.NewDense(1, 3, []float64{0, 1, 1})
+	X1, _ := enc.Transform(X0, nil)
+	fmt.Println(mat.Formatted(X1))
+	X2, _ := enc.InverseTransform(X1, nil)
+	fmt.Println(mat.Formatted(X2))
+	// Output:
+	// [2 3 4]
+	// [0 2 5 9]
+	// [1  0  0  1  0  0  1  0  0]
+	// [0  1  1]
 }
 
 func ExampleShuffler() {
@@ -218,4 +230,21 @@ func TestTransformer(t *testing.T) {
 	f(NewOneHotEncoder())
 	f(NewPolynomialFeatures(2))
 	f(NewShuffler())
+}
+
+func ExampleLabelBinarizer() {
+	X, Y := (*mat.Dense)(nil), mat.NewDense(5, 1, []float64{1, 2, 6, 4, 2})
+	lb := &LabelBinarizer{}
+	lb.Fit(X, Y)
+	fmt.Println(lb.Classes)
+
+	_, Yout := lb.Transform(nil, mat.NewDense(2, 1, []float64{1, 6}))
+	fmt.Println(mat.Formatted(Yout))
+	_, Y2 := lb.InverseTransform(nil, Yout)
+	fmt.Println(mat.Formatted(Y2.T()))
+	// Output:
+	// [[1 2 4 6]]
+	// ⎡1  0  0  0⎤
+	// ⎣0  0  0  1⎦
+	// [1  6]
 }

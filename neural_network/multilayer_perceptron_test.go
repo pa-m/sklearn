@@ -243,7 +243,7 @@ func TestMLPClassifierMicrochip(t *testing.T) {
 func TestMnist(t *testing.T) {
 	X, Y := datasets.LoadMnist()
 
-	X, Yohe := preprocessing.NewOneHotEncoder().Fit(X, Y).Transform(X, Y)
+	X, Yohe := (&preprocessing.LabelBinarizer{}).FitTransform(X, Y)
 	//fmt.Println(base.MatDimsString(Yohe))
 	Theta1, Theta2 := datasets.LoadMnistWeights()
 	mlp := NewMLPClassifier([]int{25}, "logistic", "adam", 0.)
@@ -268,7 +268,6 @@ func TestMnist(t *testing.T) {
 	if !floats.EqualWithinAbs(0.383770, J, 1e-6) {
 		t.Errorf("Expected cost: %g, got %g", 0.383770, J)
 	}
-
 }
 
 func BenchmarkMnist(b *testing.B) {

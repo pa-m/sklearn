@@ -33,8 +33,8 @@ func TestLogRegExamScore(t *testing.T) {
 	regr := NewLogisticRegression()
 	regr.FitIntercept = false // Fintintercept=false because we already added ones columns instead
 
-	Ytrue = regr.EncodeLabels(Ytrue)
-	_, NClasses := Ytrue.Dims()
+	Ybin := regr.EncodeLabels(Ytrue)
+	_, NClasses := Ybin.Dims()
 	// we allocate Coef here because we use it for loss and grad tests before Fit
 	regr.Coef = mat.NewDense(nFeatures, NClasses, nil)
 
@@ -47,7 +47,7 @@ func TestLogRegExamScore(t *testing.T) {
 
 	J := math.Inf(1)
 	loss := func() (J float64) {
-		J = regr.LossFunction(Ytrue, X, regr.Coef, Ypred, Ydiff, grad, regr.Alpha, regr.L1Ratio, nSamples, regr.ActivationFunction, true)
+		J = regr.LossFunction(Ybin, X, regr.Coef, Ypred, Ydiff, grad, regr.Alpha, regr.L1Ratio, nSamples, regr.ActivationFunction, true)
 		return
 	}
 	chkLoss := func(context string, expectedLoss float64) {
@@ -107,7 +107,7 @@ func TestLogRegExamScore(t *testing.T) {
 		regr.Options.GOMethodCreator = methodCreator
 		//regr.Options.Recorder = printer
 		start := time.Now()
-		regr.Fit(X, Ytrue)
+		regr.Fit(X, Ybin)
 		elapsed := time.Since(start)
 		J = loss()
 
@@ -136,7 +136,7 @@ func TestLogRegExamScore(t *testing.T) {
 		//regr.Options.Epochs = 1e5
 
 		start := time.Now()
-		regr.Fit(X, Ytrue)
+		regr.Fit(X, Ybin)
 		elapsed := time.Since(start)
 		J = loss()
 

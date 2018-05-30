@@ -604,7 +604,10 @@ func InsertOnes(X *mat.Dense) {
 }
 
 // OneHotEncoder ...
-type OneHotEncoder struct{ NumClasses, Min []int }
+type OneHotEncoder struct {
+	NValues, FeatureIndices []int
+	Values                  [][]float64
+}
 
 // NewOneHotEncoder creates a *OneHotEncoder
 func NewOneHotEncoder() *OneHotEncoder {
@@ -613,56 +616,65 @@ func NewOneHotEncoder() *OneHotEncoder {
 
 // Fit ...
 func (m *OneHotEncoder) Fit(X, Y *mat.Dense) Transformer {
-	nSamples, nOutputs := Y.Dims()
-	m.NumClasses = make([]int, nOutputs)
-	m.Min = make([]int, nOutputs)
-	for output := 0; output < nOutputs; output++ {
-		for sample := 0; sample < nSamples; sample++ {
-			yint := int(Y.At(sample, output))
-			if sample == 0 || yint < m.Min[output] {
-				m.Min[output] = yint
-			}
+	NSamples, NFeatures := X.Dims()
+	m.NValues = make([]int, NFeatures)
+	m.FeatureIndices = make([]int, NFeatures+1)
+	m.Values = make([][]float64, NFeatures)
+	for feature := 0; feature < NFeatures; feature++ {
+		cmap := make(map[float64]bool)
+		for sample := 0; sample < NSamples; sample++ {
+			val := X.At(sample, feature)
+			cmap[val] = true
 		}
-		for sample := 0; sample < nSamples; sample++ {
-			yint := int(Y.At(sample, output))
-			if sample == 0 || yint-m.Min[output]+1 >= m.NumClasses[output] {
-				m.NumClasses[output] = yint - m.Min[output] + 1
-			}
+		m.NValues[feature] = len(cmap)
+		m.FeatureIndices[feature+1] = m.FeatureIndices[feature] + len(cmap)
+		vals := make([]float64, len(cmap))
+		ival := 0
+		for v := range cmap {
+			vals[ival] = v
+			ival++
 		}
+		sort.Float64s(vals)
+		m.Values[feature] = vals
 	}
 	return m
 }
 
 // Transform transform Y labels to one hot encoded format
 func (m *OneHotEncoder) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
-	nSamples, nOutputs := Y.Dims()
-	Xout = X
+	NSamples, nfeatures := X.Dims()
+	Yout = Y
 	columns := 0
-	for output := 0; output < nOutputs; output++ {
-		ovo := m.NumClasses[output] <= 2
+	for feature := 0; feature < nfeatures; feature++ {
+		ovo := false
 		if ovo {
 			columns++
 		} else {
-			columns += m.NumClasses[output]
+			columns += m.NValues[feature]
 		}
 	}
-	Yout = mat.NewDense(nSamples, columns, nil)
+	Xout = mat.NewDense(NSamples, columns, nil)
 	baseColumn := 0
-	for output := 0; output < nOutputs; output++ {
-		ovo := m.NumClasses[output] <= 2
+	for feature := 0; feature < nfeatures; feature++ {
+		ovo := false
 		if ovo {
-			for sample := 0; sample < nSamples; sample++ {
-				Yout.Set(sample, baseColumn, Y.At(sample, output))
+			for sample := 0; sample < NSamples; sample++ {
+				v := Y.At(sample, feature)
+				Yout.Set(sample, baseColumn, v)
 			}
 			baseColumn++
 			break
 		}
-		for sample := 0; sample < nSamples; sample++ {
-			yint := int(Y.At(sample, output)) - m.Min[output]
-			//fmt.Printf("sample %d output %d baseColumn %d nClasses %d y %g min:%d yint %d\n", sample, output, baseColumn, m.NumClasses[output], Y.At(sample, output), m.Min[output], yint)
-			Yout.Set(sample, baseColumn+yint, 1.)
+		cmap := make(map[float64]int)
+		for i, v := range m.Values[feature] {
+			cmap[v] = i
 		}
-		baseColumn += m.NumClasses[output]
+		for sample := 0; sample < NSamples; sample++ {
+			v := X.At(sample, feature)
+			//fmt.Printf("sample %d feature %d baseColumn %d nClasses %d y %g min:%d yint %d\n", sample, feature, baseColumn, m.NumClasses[feature], Y.At(sample, feature), m.Min[feature], yint)
+			Xout.Set(sample, baseColumn+cmap[v], 1.)
+		}
+		baseColumn += m.NValues[feature]
 	}
 	return
 }
@@ -674,26 +686,17 @@ func (m *OneHotEncoder) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
 
 // InverseTransform compute Yout classes from one hot encoded format
 func (m *OneHotEncoder) InverseTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
-	nSamples, _ := Y.Dims()
-	nOutputs := len(m.NumClasses)
-	Xout = X
-	Yout = mat.NewDense(nSamples, nOutputs, nil)
-	baseColumn := 0
-	for output := 0; output < nOutputs; output++ {
-		ovo := m.NumClasses[output] <= 2
-		if ovo {
-			for sample := 0; sample < nSamples; sample++ {
-				Yout.Set(sample, output, Y.At(sample, baseColumn))
-			}
-			baseColumn++
-			break
-		}
+	nSamples, _ := X.Dims()
+	nFeatures := len(m.NValues)
+	Yout = Y
+	Xout = mat.NewDense(nSamples, nFeatures, nil)
 
+	for feature := 0; feature < nFeatures; feature++ {
+		cstart, cend := m.FeatureIndices[feature], m.FeatureIndices[feature+1]
 		for sample := 0; sample < nSamples; sample++ {
-			yint := floats.MaxIdx(Y.RawRowView(sample)[baseColumn:baseColumn+m.NumClasses[output]]) + m.Min[output]
-			Yout.Set(sample, output, float64(yint))
+			classNo := floats.MaxIdx(X.RawRowView(sample)[cstart:cend])
+			Xout.Set(sample, feature, float64(classNo))
 		}
-		baseColumn += m.NumClasses[output]
 	}
 	return
 
@@ -763,4 +766,120 @@ func (m *Shuffler) InverseTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
 	}
 
 	return X, Y
+}
+
+// Binarizer Binarize data (set feature values to 0 or 1) according to a threshold
+type Binarizer struct{ Threshold float64 }
+
+// Fit for binarizer does nothing
+func (m *Binarizer) Fit(X, Y *mat.Dense) Transformer {
+	return m
+}
+
+// Transform for Binarizer
+func (m *Binarizer) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	rmx := X.RawMatrix()
+	Xout = mat.NewDense(rmx.Rows, rmx.Cols, nil)
+	rmXout := Xout.RawMatrix()
+	Yout = Y
+	for r, xpos := 0, 0; r < rmx.Rows; r, xpos = r+1, xpos+rmx.Stride {
+		for c := 0; c < rmx.Cols; c++ {
+
+			if rmx.Data[xpos+c] > m.Threshold {
+				rmXout.Data[xpos+c] = 1
+			} else {
+				rmXout.Data[xpos+c] = 0
+			}
+		}
+	}
+	return
+}
+
+// FitTransform for Binarizer
+func (m *Binarizer) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	Xout, Yout = m.Fit(X, Y).Transform(X, Y)
+	return
+}
+
+// LabelBinarizer Binarize labels in a one-vs-all fashion
+type LabelBinarizer struct {
+	NegLabel, PosLabel float64
+	Classes            [][]float64
+}
+
+// Fit for binarizer does nothing
+func (m *LabelBinarizer) Fit(X, Y *mat.Dense) Transformer {
+	if m.PosLabel == m.NegLabel {
+		m.PosLabel += 1.
+	}
+	y := Y.RawMatrix()
+	m.Classes = make([][]float64, y.Cols)
+	for j := 0; j < y.Cols; j++ {
+		cmap := make(map[float64]bool)
+		for i, yi := 0, 0; i < y.Rows; i, yi = i+1, yi+y.Stride {
+			yval := y.Data[yi+j]
+			if _, present := cmap[yval]; present {
+				continue
+			}
+			cmap[yval] = true
+			m.Classes[j] = append(m.Classes[j], yval)
+		}
+		sort.Float64s(m.Classes[j])
+	}
+	return m
+}
+
+// Transform for LabelBinarizer
+func (m *LabelBinarizer) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	Xout = X
+	NSamples, _ := Y.Dims()
+	NOutputs := 0
+	for _, classes := range m.Classes {
+		NOutputs += len(classes)
+	}
+
+	Yout = mat.NewDense(NSamples, NOutputs, nil)
+	y, yo := Y.RawMatrix(), Yout.RawMatrix()
+	baseCol := 0
+	for j := 0; j < y.Cols; j++ {
+		cmap := make(map[float64]int)
+		for classNo, val := range m.Classes[j] {
+			cmap[val] = classNo
+		}
+		for i, yi, yo0 := 0, 0, 0; i < y.Rows; i, yi, yo0 = i+1, yi+y.Stride, yo0+yo.Stride {
+			val := y.Data[yi+j]
+			if classNo, ok := cmap[val]; ok {
+				yo.Data[yo0+baseCol+classNo] = m.PosLabel
+			} else {
+				yo.Data[yo0+baseCol+classNo] = m.NegLabel
+			}
+		}
+		baseCol += len(m.Classes[j])
+	}
+	return
+}
+
+// InverseTransform for LabelBinarizer
+func (m *LabelBinarizer) InverseTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	Xout = X
+	NSamples, _ := Y.Dims()
+	NOutputs := len(m.Classes)
+
+	Yout = mat.NewDense(NSamples, NOutputs, nil)
+	y, yo := Y.RawMatrix(), Yout.RawMatrix()
+	for j, baseCol := 0, 0; baseCol < y.Cols; j, baseCol = j+1, baseCol+len(m.Classes[j]) {
+		for i, yi, yo0 := 0, 0, 0; i < y.Rows; i, yi, yo0 = i+1, yi+y.Stride, yo0+yo.Stride {
+			classNo := floats.MaxIdx(y.Data[yi+baseCol : yi+baseCol+len(m.Classes[j])])
+
+			yo.Data[yo0+j] = m.Classes[j][classNo]
+		}
+		baseCol += len(m.Classes[j])
+	}
+	return
+}
+
+// FitTransform for Binarizer
+func (m *LabelBinarizer) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	Xout, Yout = m.Fit(X, Y).Transform(X, Y)
+	return
 }
