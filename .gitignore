@@ -4,3 +4,4 @@ coverage.txt
 .vscode
 *.bak
 *.test
+_*.sh

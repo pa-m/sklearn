@@ -8,24 +8,25 @@ Very partial port of scikit-learn to [go](http://golang.org)
 [![GoDoc](https://godoc.org/github.com/pa-m/sklearn?status.svg)](https://godoc.org/github.com/pa-m/sklearn)
 
 
-for now, ported only some estimators including
-
-- LinearRegression
-- LogisticRegression
-- [bayesian ridge regression](http://scikit-learn.org/stable/modules/generated/sklearn.linear_model.BayesianRidge.html)
-- MLPRegressor
-- MLPClassifier
-
-You'll also find
-
-- some metrics MeanSquaredError,MeanAbsoluteError,R2Score,AccuracyScore, ...
-- some preprocessing MinMaxScaler,StandardScaler,OneHotEncoder,PolynomialFeatures
-- Pipeline and MakePipeline
-- some interpolation stuff like in scipy.interpolate: interp1d,interp2d,CubicSpline
-- all estimators can use  following
-    - solvers:  sgd,adagrad,rmsprop,adadelta,adam + all gonum/optimize methods
-    - loss functions: square,cross-entropy
-    - activation functions: identity,logistic,tanh,relu
+## Examples
+### cluster
+[DBSCAN](https://godoc.org/github.com/pa-m/sklearn/cluster#example-DBSCAN) [KMeans](https://godoc.org/github.com/pa-m/sklearn/cluster#example-KMeans) 
+### datasets
+[LoadIris](https://godoc.org/github.com/pa-m/sklearn/datasets#example-LoadIris) [LoadBreastCancer](https://godoc.org/github.com/pa-m/sklearn/datasets#example-LoadBreastCancer) [LoadDiabetes](https://godoc.org/github.com/pa-m/sklearn/datasets#example-LoadDiabetes) [LoadBoston](https://godoc.org/github.com/pa-m/sklearn/datasets#example-LoadBoston) [LoadExamScore](https://godoc.org/github.com/pa-m/sklearn/datasets#example-LoadExamScore) [LoadMicroChipTest](https://godoc.org/github.com/pa-m/sklearn/datasets#example-LoadMicroChipTest) [LoadMnist](https://godoc.org/github.com/pa-m/sklearn/datasets#example-LoadMnist) [LoadMnistWeights](https://godoc.org/github.com/pa-m/sklearn/datasets#example-LoadMnistWeights) [MakeRegression](https://godoc.org/github.com/pa-m/sklearn/datasets#example-MakeRegression) [MakeBlobs](https://godoc.org/github.com/pa-m/sklearn/datasets#example-MakeBlobs) 
+### interpolate
+[CubicSpline](https://godoc.org/github.com/pa-m/sklearn/interpolate#example-CubicSpline) [Interp1d](https://godoc.org/github.com/pa-m/sklearn/interpolate#example-Interp1d) [Interp2d](https://godoc.org/github.com/pa-m/sklearn/interpolate#example-Interp2d) 
+### linear_model
+[LinearRegression](https://godoc.org/github.com/pa-m/sklearn/linear_model#example-LinearRegression) [NewElasticNet](https://godoc.org/github.com/pa-m/sklearn/linear_model#example-NewElasticNet) [BayesianRidge](https://godoc.org/github.com/pa-m/sklearn/linear_model#example-BayesianRidge) [LogisticRegression](https://godoc.org/github.com/pa-m/sklearn/linear_model#example-LogisticRegression) 
+### metrics
+[AccuracyScore](https://godoc.org/github.com/pa-m/sklearn/metrics#example-AccuracyScore) 
+### neighbors
+[KNeighborsClassifier](https://godoc.org/github.com/pa-m/sklearn/neighbors#example-KNeighborsClassifier) [MinkowskiDistance](https://godoc.org/github.com/pa-m/sklearn/neighbors#example-MinkowskiDistance) [EuclideanDistance](https://godoc.org/github.com/pa-m/sklearn/neighbors#example-EuclideanDistance) [KDTree](https://godoc.org/github.com/pa-m/sklearn/neighbors#example-KDTree) [NearestCentroid](https://godoc.org/github.com/pa-m/sklearn/neighbors#example-NearestCentroid) [KNeighborsRegressor](https://godoc.org/github.com/pa-m/sklearn/neighbors#example-KNeighborsRegressor) [NearestNeighbors](https://godoc.org/github.com/pa-m/sklearn/neighbors#example-NearestNeighbors) [NearestNeighbors_KNeighborsGraph](https://godoc.org/github.com/pa-m/sklearn/neighbors#example-NearestNeighbors_KNeighborsGraph) [NearestNeighbors_Tree](https://godoc.org/github.com/pa-m/sklearn/neighbors#example-NearestNeighbors_Tree) 
+### neural_network
+[MLPClassifier](https://godoc.org/github.com/pa-m/sklearn/neural_network#example-MLPClassifier) 
+### pipeline
+[Pipeline](https://godoc.org/github.com/pa-m/sklearn/pipeline#example-Pipeline) 
+### preprocessing
+[InsertOnes](https://godoc.org/github.com/pa-m/sklearn/preprocessing#example-InsertOnes) [OneHotEncoder](https://godoc.org/github.com/pa-m/sklearn/preprocessing#example-OneHotEncoder) [Shuffler](https://godoc.org/github.com/pa-m/sklearn/preprocessing#example-Shuffler) [LabelBinarizer](https://godoc.org/github.com/pa-m/sklearn/preprocessing#example-LabelBinarizer) [FunctionTransformer](https://godoc.org/github.com/pa-m/sklearn/preprocessing#example-FunctionTransformer) [PCA](https://godoc.org/github.com/pa-m/sklearn/preprocessing#example-PCA)
 
 All of this is 
 - a personal project to get a deeper understanding of how all of this magic works
