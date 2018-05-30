@@ -800,3 +800,78 @@ func (m *Binarizer) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
 	Xout, Yout = m.Fit(X, Y).Transform(X, Y)
 	return
 }
+
+// MaxAbsScaler ...
+type MaxAbsScaler struct {
+	Scale, MaxAbs []float64
+	NSamplesSeen  int
+}
+
+// NewMaxAbsScaler ...
+func NewMaxAbsScaler() *MaxAbsScaler { return &MaxAbsScaler{} }
+
+// Fit for MaxAbsScaler ...
+func (m *MaxAbsScaler) Fit(X, Y *mat.Dense) base.Transformer {
+	Xmat := X.RawMatrix()
+	m.MaxAbs = make([]float64, Xmat.Cols, Xmat.Cols)
+	m.Scale = make([]float64, Xmat.Cols, Xmat.Cols)
+	return m.PartialFit(X, Y)
+}
+
+// PartialFit for MaxAbsScaler ...
+func (m *MaxAbsScaler) PartialFit(X, Y *mat.Dense) base.Transformer {
+	Xmat := X.RawMatrix()
+	for jX := 0; jX < Xmat.Rows*Xmat.Stride; jX = jX + Xmat.Stride {
+		for i, v := range Xmat.Data[jX : jX+Xmat.Cols] {
+			if v < 0. {
+				v = -v
+			}
+			if v > m.MaxAbs[i] {
+				m.MaxAbs[i] = v
+			}
+		}
+	}
+	for i, v := range m.MaxAbs {
+		if v > 0. {
+			m.Scale[i] = v
+		} else {
+			m.Scale[i] = 1.
+		}
+	}
+	m.NSamplesSeen += Xmat.Rows
+	return m
+}
+
+// Transform for MaxAbsScaler ...
+func (m *MaxAbsScaler) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	Xmat := X.RawMatrix()
+	Xout = mat.NewDense(Xmat.Rows, Xmat.Cols, nil)
+	Xoutmat := Xout.RawMatrix()
+	for jX, jXout := 0, 0; jX < Xmat.Rows*Xmat.Stride; jX, jXout = jX+Xmat.Stride, jXout+Xoutmat.Stride {
+		for i, v := range Xmat.Data[jX : jX+Xmat.Cols] {
+			Xoutmat.Data[jXout+i] = v / m.Scale[i]
+		}
+	}
+	Yout = Y
+	return
+}
+
+// FitTransform for MaxAbsScaler ...
+func (m *MaxAbsScaler) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	Xout, Yout = m.Fit(X, Y).Transform(X, Y)
+	return
+}
+
+// InverseTransform for MaxAbsScaler ...
+func (m *MaxAbsScaler) InverseTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	Xmat := X.RawMatrix()
+	Xout = mat.NewDense(Xmat.Rows, Xmat.Cols, nil)
+	Xoutmat := Xout.RawMatrix()
+	for jX, jXout := 0, 0; jX < Xmat.Rows*Xmat.Stride; jX, jXout = jX+Xmat.Stride, jXout+Xoutmat.Stride {
+		for i, v := range Xmat.Data[jX : jX+Xmat.Cols] {
+			Xoutmat.Data[jXout+i] = v * m.Scale[i]
+		}
+	}
+	Yout = Y
+	return
+}

@@ -8,7 +8,7 @@ import (
 )
 
 func ExampleInputer() {
-	X := mat.NewDense(5, 2, []float64{1, 2, 3, 4, math.NaN(), 6, 7, 8, 2, 10})
+	X := mat.NewDense(5, 2, []float64{1, 2, 3, 4, math.NaN(), 6, 7, 8, 7, 10})
 	fmt.Println("replacing X.At(2,0) with...")
 	for _, s := range []string{"mean", "median", "most_frequent"} {
 		X1, _ := (&Inputer{Strategy: s}).Transform(X, nil)
@@ -16,23 +16,24 @@ func ExampleInputer() {
 
 	}
 	// Output:
-	// replacing X.At(2,0) with...
+	// 	replacing X.At(2,0) with...
 	// mean
-	// ⎡   1     2⎤
-	// ⎢   3     4⎥
-	// ⎢3.25     6⎥
-	// ⎢   7     8⎥
-	// ⎣   2    10⎦
+	// ⎡  1    2⎤
+	// ⎢  3    4⎥
+	// ⎢4.5    6⎥
+	// ⎢  7    8⎥
+	// ⎣  7   10⎦
 	// median
 	// ⎡ 1   2⎤
 	// ⎢ 3   4⎥
-	// ⎢ 2   6⎥
+	// ⎢ 3   6⎥
 	// ⎢ 7   8⎥
-	// ⎣ 2  10⎦
+	// ⎣ 7  10⎦
 	// most_frequent
 	// ⎡ 1   2⎤
 	// ⎢ 3   4⎥
 	// ⎢ 7   6⎥
 	// ⎢ 7   8⎥
-	// ⎣ 2  10⎦
+	// ⎣ 7  10⎦
+
 }

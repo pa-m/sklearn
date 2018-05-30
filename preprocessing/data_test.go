@@ -231,3 +231,24 @@ func TestTransformer(t *testing.T) {
 	f(NewPolynomialFeatures(2))
 	f(NewShuffler())
 }
+
+func ExampleMaxAbsScaler() {
+	mas := NewMaxAbsScaler()
+	X0 := mat.NewDense(2, 3, []float64{1, 2, 0, 3, 4, 0})
+	X1, _ := mas.FitTransform(X0, nil)
+	X2, _ := mas.InverseTransform(X1, nil)
+	fmt.Println("MaxAbs", mas.MaxAbs)
+	fmt.Println("Scale", mas.Scale)
+	fmt.Printf("Scaled:\n%g\n", mat.Formatted(X1))
+	fmt.Printf("Unscaled:\n%g\n", mat.Formatted(X2))
+	// Output:
+	// MaxAbs [3 4 0]
+	// Scale [3 4 1]
+	// Scaled:
+	// ⎡0.3333333333333333                 0.5                   0⎤
+	// ⎣                 1                   1                   0⎦
+	// Unscaled:
+	// ⎡1  2  0⎤
+	// ⎣3  4  0⎦
+
+}
