@@ -231,20 +231,3 @@ func TestTransformer(t *testing.T) {
 	f(NewPolynomialFeatures(2))
 	f(NewShuffler())
 }
-
-func ExampleLabelBinarizer() {
-	X, Y := (*mat.Dense)(nil), mat.NewDense(5, 1, []float64{1, 2, 6, 4, 2})
-	lb := &LabelBinarizer{}
-	lb.Fit(X, Y)
-	fmt.Println(lb.Classes)
-
-	_, Yout := lb.Transform(nil, mat.NewDense(2, 1, []float64{1, 6}))
-	fmt.Println(mat.Formatted(Yout))
-	_, Y2 := lb.InverseTransform(nil, Yout)
-	fmt.Println(mat.Formatted(Y2.T()))
-	// Output:
-	// [[1 2 4 6]]
-	// ⎡1  0  0  0⎤
-	// ⎣0  0  0  1⎦
-	// [1  6]
-}

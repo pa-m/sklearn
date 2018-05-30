@@ -603,7 +603,7 @@ func InsertOnes(X *mat.Dense) {
 	X.Clone(X1)
 }
 
-// OneHotEncoder ...
+// OneHotEncoder Encode categorical integer features using a one-hot aka one-of-K scheme.
 type OneHotEncoder struct {
 	NValues, FeatureIndices []int
 	Values                  [][]float64
@@ -797,89 +797,6 @@ func (m *Binarizer) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
 
 // FitTransform for Binarizer
 func (m *Binarizer) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
-	Xout, Yout = m.Fit(X, Y).Transform(X, Y)
-	return
-}
-
-// LabelBinarizer Binarize labels in a one-vs-all fashion
-type LabelBinarizer struct {
-	NegLabel, PosLabel float64
-	Classes            [][]float64
-}
-
-// Fit for binarizer does nothing
-func (m *LabelBinarizer) Fit(X, Y *mat.Dense) Transformer {
-	if m.PosLabel == m.NegLabel {
-		m.PosLabel += 1.
-	}
-	y := Y.RawMatrix()
-	m.Classes = make([][]float64, y.Cols)
-	for j := 0; j < y.Cols; j++ {
-		cmap := make(map[float64]bool)
-		for i, yi := 0, 0; i < y.Rows; i, yi = i+1, yi+y.Stride {
-			yval := y.Data[yi+j]
-			if _, present := cmap[yval]; present {
-				continue
-			}
-			cmap[yval] = true
-			m.Classes[j] = append(m.Classes[j], yval)
-		}
-		sort.Float64s(m.Classes[j])
-	}
-	return m
-}
-
-// Transform for LabelBinarizer
-func (m *LabelBinarizer) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
-	Xout = X
-	NSamples, _ := Y.Dims()
-	NOutputs := 0
-	for _, classes := range m.Classes {
-		NOutputs += len(classes)
-	}
-
-	Yout = mat.NewDense(NSamples, NOutputs, nil)
-	y, yo := Y.RawMatrix(), Yout.RawMatrix()
-	baseCol := 0
-	for j := 0; j < y.Cols; j++ {
-		cmap := make(map[float64]int)
-		for classNo, val := range m.Classes[j] {
-			cmap[val] = classNo
-		}
-		for i, yi, yo0 := 0, 0, 0; i < y.Rows; i, yi, yo0 = i+1, yi+y.Stride, yo0+yo.Stride {
-			val := y.Data[yi+j]
-			if classNo, ok := cmap[val]; ok {
-				yo.Data[yo0+baseCol+classNo] = m.PosLabel
-			} else {
-				yo.Data[yo0+baseCol+classNo] = m.NegLabel
-			}
-		}
-		baseCol += len(m.Classes[j])
-	}
-	return
-}
-
-// InverseTransform for LabelBinarizer
-func (m *LabelBinarizer) InverseTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
-	Xout = X
-	NSamples, _ := Y.Dims()
-	NOutputs := len(m.Classes)
-
-	Yout = mat.NewDense(NSamples, NOutputs, nil)
-	y, yo := Y.RawMatrix(), Yout.RawMatrix()
-	for j, baseCol := 0, 0; baseCol < y.Cols; j, baseCol = j+1, baseCol+len(m.Classes[j]) {
-		for i, yi, yo0 := 0, 0, 0; i < y.Rows; i, yi, yo0 = i+1, yi+y.Stride, yo0+yo.Stride {
-			classNo := floats.MaxIdx(y.Data[yi+baseCol : yi+baseCol+len(m.Classes[j])])
-
-			yo.Data[yo0+j] = m.Classes[j][classNo]
-		}
-		baseCol += len(m.Classes[j])
-	}
-	return
-}
-
-// FitTransform for Binarizer
-func (m *LabelBinarizer) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
 	Xout, Yout = m.Fit(X, Y).Transform(X, Y)
 	return
 }
