@@ -26,7 +26,8 @@ Very partial port of scikit-learn to [go](http://golang.org)
 ### pipeline
 [Pipeline](https://godoc.org/github.com/pa-m/sklearn/pipeline#example-Pipeline) 
 ### preprocessing
-[AddDummyFeature](https://godoc.org/github.com/pa-m/sklearn/preprocessing#example-AddDummyFeature) [OneHotEncoder](https://godoc.org/github.com/pa-m/sklearn/preprocessing#example-OneHotEncoder) [Shuffler](https://godoc.org/github.com/pa-m/sklearn/preprocessing#example-Shuffler) [LabelBinarizer](https://godoc.org/github.com/pa-m/sklearn/preprocessing#example-LabelBinarizer) [FunctionTransformer](https://godoc.org/github.com/pa-m/sklearn/preprocessing#example-FunctionTransformer) [PCA](https://godoc.org/github.com/pa-m/sklearn/preprocessing#example-PCA)
+[AddDummyFeature](https://godoc.org/github.com/pa-m/sklearn/preprocessing#example-AddDummyFeature) [OneHotEncoder](https://godoc.org/github.com/pa-m/sklearn/preprocessing#example-OneHotEncoder) [Shuffler](https://godoc.org/github.com/pa-m/sklearn/preprocessing#example-Shuffler) [MaxAbsScaler](https://godoc.org/github.com/pa-m/sklearn/preprocessing#example-MaxAbsScaler) [Binarizer](https://godoc.org/github.com/pa-m/sklearn/preprocessing#example-Binarizer) [Normalizer](https://godoc.org/github.com/pa-m/sklearn/preprocessing#example-Normalizer) [Scale](https://godoc.org/github.com/pa-m/sklearn/preprocessing#example-Scale) [MinMaxScaler](https://godoc.org/github.com/pa-m/sklearn/preprocessing#example-MinMaxScaler) [KernelCenterer](https://godoc.org/github.com/pa-m/sklearn/preprocessing#example-KernelCenterer) [FunctionTransformer](https://godoc.org/github.com/pa-m/sklearn/preprocessing#example-FunctionTransformer) [Imputer](https://godoc.org/github.com/pa-m/sklearn/preprocessing#example-Imputer) [LabelBinarizer](https://godoc.org/github.com/pa-m/sklearn/preprocessing#example-LabelBinarizer) [MultiLabelBinarizer](https://godoc.org/github.com/pa-m/sklearn/preprocessing#example-MultiLabelBinarizer) [PCA](https://godoc.org/github.com/pa-m/sklearn/preprocessing#example-PCA)
+
 
 All of this is 
 - a personal project to get a deeper understanding of how all of this magic works
@@ -39,4 +40,3 @@ Many thanks to gonum and scikit-learn contributors
 
 PRs are welcome
 
-Best regards

@@ -286,3 +286,53 @@ func ExampleNormalizer() {
 	// ⎣ 0.000   0.707  -0.707⎦
 
 }
+
+func ExampleScale() {
+	// adapted from http://scikit-learn.org/stable/modules/preprocessing.html#standardization-or-mean-removal-and-variance-scaling
+	Xtrain := mat.NewDense(3, 3, []float64{1, -1, 2, 2, 0, 0, 0, 1, -1})
+	Xscaled := Scale(Xtrain)
+	fmt.Printf("Xscaled\n%.3f\n", mat.Formatted(Xscaled))
+	mean := Mean(Xscaled)
+	std := (NumpyLike{}).Std(Xscaled)
+	fmt.Printf("mean:%g\nstd:%.3f\n", mat.Formatted(mean), mat.Formatted(std))
+	// Output:
+	// Xscaled
+	// ⎡ 0.000  -1.225   1.336⎤
+	// ⎢ 1.225   0.000  -0.267⎥
+	// ⎣-1.225   1.225  -1.069⎦
+	// mean:[0  0  0]
+	// std:[1.000  1.000  1.000]
+
+}
+
+func ExampleMinMaxScaler() {
+	// adapted from http://scikit-learn.org/stable/modules/preprocessing.html#standardization-or-mean-removal-and-variance-scaling
+	Xtrain := mat.NewDense(3, 3, []float64{1, -1, 2, 2, 0, 0, 0, 1, -1})
+	minMaxScaler := NewMinMaxScaler([]float64{0, 1})
+	Xtrainminmax, _ := minMaxScaler.FitTransform(Xtrain, nil)
+	fmt.Printf("Xtrainminmax:\n%.3f\n", mat.Formatted(Xtrainminmax))
+	// Output:
+	// 	Xtrainminmax:
+	// ⎡0.500  0.000  1.000⎤
+	// ⎢1.000  0.500  0.333⎥
+	// ⎣0.000  1.000  0.000⎦
+
+}
+
+func ExampleKernelCenterer() {
+	K := mat.NewDense(3, 3, []float64{1, 2, 3, 4, 5, 6, 7, 8, 9})
+	kc := NewKernelCenterer()
+	kc.Fit(K, nil)
+	K1, _ := kc.Transform(K, nil)
+	fmt.Printf("KFitRows:%.3f\n", kc.KFitRows)
+	fmt.Printf("KFitAll:%.3f\n", kc.KFitAll)
+	fmt.Printf("Centered:\n%.3f\n", mat.Formatted(K1))
+	// Output:
+	// 	KFitRows:[4.000 5.000 6.000]
+	// KFitAll:5.000
+	// Centered:
+	// ⎡0.000  0.000  0.000⎤
+	// ⎢0.000  0.000  0.000⎥
+	// ⎣0.000  0.000  0.000⎦
+
+}

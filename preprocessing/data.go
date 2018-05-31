@@ -188,6 +188,74 @@ func (scaler *StandardScaler) InverseTransform(X, Y *mat.Dense) (Xout, Yout *mat
 	return Xout, Y
 }
 
+// Scale provides a quick and easy way to perform this operation on a single array-like dataset
+func Scale(X *mat.Dense) *mat.Dense {
+	Xout, _ := (&StandardScaler{}).FitTransform(X, nil)
+	return Xout
+}
+
+// MeanStdDev for mat.Matrix
+func MeanStdDev(X mat.Matrix) (mean, std *mat.Dense) {
+	m, n := X.Dims()
+	mean, std = mat.NewDense(1, n, nil), mat.NewDense(1, n, nil)
+	base.Parallelize(-1, n, func(th, start, end int) {
+		tmp := make([]float64, m, m)
+		for col := start; col < end; col++ {
+			mat.Col(tmp, col, X)
+			meancol, stdcol := stat.MeanStdDev(tmp, nil)
+			mean.Set(0, col, meancol)
+			std.Set(0, col, stdcol*float64(n-1)/float64(n))
+		}
+	})
+
+	return
+}
+
+// Mean for mat.Matrix
+func Mean(X mat.Matrix) (mean *mat.Dense) {
+	m, n := X.Dims()
+	mean = mat.NewDense(1, n, nil)
+	base.Parallelize(-1, n, func(th, start, end int) {
+		tmp := make([]float64, m, m)
+		for col := start; col < end; col++ {
+			mat.Col(tmp, col, X)
+			meancol := stat.Mean(tmp, nil)
+			mean.Set(0, col, meancol)
+		}
+	})
+	return
+}
+
+// NumpyLike is a namespace for numpy-like var and std
+type NumpyLike struct{}
+
+// Var for NumpyLike
+func (NumpyLike) Var(X mat.Matrix) *mat.Dense {
+	m, n := X.Dims()
+	mean := Mean(X)
+	variance := mat.NewDense(1, n, nil)
+	base.Parallelize(-1, n, func(th, start, end int) {
+		tmp := make([]float64, m, m)
+		for col := start; col < end; col++ {
+			mat.Col(tmp, col, X)
+			floats.AddConst(-mean.At(0, col), tmp)
+			floats.Mul(tmp, tmp)
+			variance.Set(0, col, floats.Sum(tmp)/float64(n))
+		}
+	})
+	return variance
+}
+
+// Std for NumpyLike
+func (m NumpyLike) Std(X mat.Matrix) *mat.Dense {
+	tmp := m.Var(X)
+	rm := tmp.RawMatrix()
+	for i := 0; i < rm.Cols; i++ {
+		rm.Data[i] = math.Sqrt(rm.Data[i])
+	}
+	return tmp
+}
+
 //======================================================================
 
 // RobustScaler scales data by removing centering around the Median and
@@ -918,5 +986,59 @@ func (m *Normalizer) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
 // InverseTransform for Normalizer ...
 func (m *Normalizer) InverseTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
 	Xout, Yout = X, Y
+	return
+}
+
+// KernelCenterer Center a kernel matrix
+type KernelCenterer struct {
+	KFitAll  float64
+	KFitRows []float64
+}
+
+// NewKernelCenterer ...
+func NewKernelCenterer() *KernelCenterer { return &KernelCenterer{} }
+
+// Fit for KernelCenterer ...
+func (m *KernelCenterer) Fit(X, Y *mat.Dense) base.Transformer {
+	r, c := X.Dims()
+	m.KFitRows = make([]float64, c, c)
+
+	for col := 0; col < c; col++ {
+		Xmat := X.RawMatrix()
+		s := 0.
+		for jX := 0; jX < Xmat.Rows*Xmat.Stride; jX = jX + Xmat.Stride {
+			s += Xmat.Data[jX+col]
+		}
+		m.KFitRows[col] = s / float64(r)
+	}
+
+	m.KFitAll = floats.Sum(m.KFitRows) / float64(r)
+	return m
+}
+
+// Transform for KernelCenterer ...
+func (m *KernelCenterer) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	r, _ := X.Dims()
+	KPredCols := make([]float64, r, r)
+	base.Parallelize(-1, r, func(th, start, end int) {
+		for i := start; i < end; i++ {
+			KPredCols[i] = floats.Sum(X.RawRowView(i)) / float64(len(m.KFitRows))
+		}
+	})
+	Xmat := X.RawMatrix()
+	Xout = mat.NewDense(Xmat.Cols, Xmat.Cols, nil)
+	Xoutmat := Xout.RawMatrix()
+	for j, jX, jXout := 0, 0, 0; j < Xmat.Rows; j, jX, jXout = j+1, jX+Xmat.Stride, jXout+Xoutmat.Stride {
+		for i, v := range Xmat.Data[jX : jX+Xmat.Cols] {
+			Xoutmat.Data[jXout+i] = v - m.KFitRows[i] - KPredCols[j] + m.KFitAll
+		}
+	}
+	Yout = Y
+	return
+}
+
+// FitTransform for KernelCenterer ...
+func (m *KernelCenterer) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	Xout, Yout = m.Fit(X, Y).Transform(X, Y)
 	return
 }
