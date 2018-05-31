@@ -252,3 +252,25 @@ func ExampleMaxAbsScaler() {
 	// ⎣ 3  -4   0⎦
 
 }
+
+func ExampleBinarizer() {
+	// adapted from http://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.Binarizer.html#sklearn.preprocessing.Binarizer
+	X := mat.NewDense(3, 3, []float64{1, -1, 2, 2, 0, 0, 0, 1, -1})
+	binarizer := NewBinarizer()
+	binarizer.Fit(X, nil) // fit does nothing
+	X1, _ := binarizer.Transform(X, nil)
+	fmt.Println(mat.Formatted(X1))
+
+	// It is possible to adjust the threshold of the binarizer:
+	binarizer.Threshold = 1.1
+	X1, _ = binarizer.Transform(X, nil)
+	fmt.Println(mat.Formatted(X1))
+	// Output:
+	// ⎡1  0  1⎤
+	// ⎢1  0  0⎥
+	// ⎣0  1  0⎦
+	// ⎡0  0  1⎤
+	// ⎢1  0  0⎥
+	// ⎣0  0  0⎦
+
+}

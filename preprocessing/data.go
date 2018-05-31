@@ -771,6 +771,9 @@ func (m *Shuffler) InverseTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
 // Binarizer Binarize data (set feature values to 0 or 1) according to a threshold
 type Binarizer struct{ Threshold float64 }
 
+// NewBinarizer ...
+func NewBinarizer() *Binarizer { return &Binarizer{} }
+
 // Fit for binarizer does nothing
 func (m *Binarizer) Fit(X, Y *mat.Dense) Transformer {
 	return m

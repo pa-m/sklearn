@@ -9,21 +9,20 @@ import (
 	"gonum.org/v1/gonum/stat"
 )
 
-// Inputer ...
+// Imputer ...
 // Stragegy is mean|median|most_frequent. default to mean
-type Inputer struct{ Strategy string }
+type Imputer struct {
+	Strategy      string
+	MissingValues []float64
+}
 
-// NewInputer ...
-func NewInputer() *Inputer { return &Inputer{} }
+// NewImputer ...
+func NewImputer() *Imputer { return &Imputer{} }
 
-// Fit for Inputer ...
-func (m *Inputer) Fit(X, Y *mat.Dense) base.Transformer { return m }
-
-// Transform for Inputer ...
-func (m *Inputer) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+// Fit for Imputer ...
+func (m *Imputer) Fit(X, Y *mat.Dense) base.Transformer {
 	Xmat := X.RawMatrix()
-	Xout, Yout = mat.NewDense(Xmat.Rows, Xmat.Cols, nil), Y
-	Xmat, Xoutmat := X.RawMatrix(), Xout.RawMatrix()
+	m.MissingValues = make([]float64, Xmat.Cols, Xmat.Cols)
 	base.Parallelize(-1, Xmat.Cols, func(th, start, end int) {
 		tmp := make([]float64, Xmat.Rows, Xmat.Rows)
 		var def, v float64
@@ -45,6 +44,23 @@ func (m *Inputer) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
 			default:
 				def = stat.Mean(tmp, nil)
 			}
+			m.MissingValues[i] = def
+		}
+
+	})
+	return m
+}
+
+// Transform for Imputer ...
+func (m *Imputer) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	Xmat := X.RawMatrix()
+	Xout, Yout = mat.NewDense(Xmat.Rows, Xmat.Cols, nil), Y
+	Xmat, Xoutmat := X.RawMatrix(), Xout.RawMatrix()
+	base.Parallelize(-1, Xmat.Cols, func(th, start, end int) {
+		var v, def float64
+
+		for i := start; i < end; i++ {
+			def = m.MissingValues[i]
 			for jX, jXout := 0, 0; jX < Xmat.Rows*Xmat.Stride; jX, jXout = jX+Xmat.Stride, jXout+Xoutmat.Stride {
 				v = Xmat.Data[jX+i]
 				if math.IsNaN(v) {
@@ -59,14 +75,14 @@ func (m *Inputer) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
 	return
 }
 
-// FitTransform for Inputer ...
-func (m *Inputer) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+// FitTransform for Imputer ...
+func (m *Imputer) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
 	Xout, Yout = m.Fit(X, Y).Transform(X, Y)
 	return
 }
 
-// InverseTransform for Inputer ...
-func (m *Inputer) InverseTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+// InverseTransform for Imputer ...
+func (m *Imputer) InverseTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
 	Xout, Yout = X, Y
 	return
 }
