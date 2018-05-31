@@ -878,3 +878,45 @@ func (m *MaxAbsScaler) InverseTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense)
 	Yout = Y
 	return
 }
+
+// Normalizer Normalize samples individually to unit norm.
+// Norm is l1|l2|max. l2 by default
+type Normalizer struct{ Norm string }
+
+// NewNormalizer ...
+func NewNormalizer() *Normalizer { return &Normalizer{} }
+
+// Fit for Normalizer ...
+func (m *Normalizer) Fit(X, Y *mat.Dense) base.Transformer { return m }
+
+// Transform for Normalizer ...
+func (m *Normalizer) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	NSamples, NFeatures := X.Dims()
+	Xout = mat.NewDense(NSamples, NFeatures, nil)
+	var norm = 2.
+	switch m.Norm {
+	case "l1":
+		norm = 1.
+	case "max":
+		norm = math.Inf(1)
+	}
+	for i := 0; i < NSamples; i++ {
+		v := X.RowView(i)
+		floats.AddScaled(Xout.RawRowView(i), 1./mat.Norm(v, norm), v.(mat.RawVectorer).RawVector().Data)
+
+	}
+	Yout = Y
+	return
+}
+
+// FitTransform for Normalizer ...
+func (m *Normalizer) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	Xout, Yout = m.Fit(X, Y).Transform(X, Y)
+	return
+}
+
+// InverseTransform for Normalizer ...
+func (m *Normalizer) InverseTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	Xout, Yout = X, Y
+	return
+}
