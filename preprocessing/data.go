@@ -590,8 +590,8 @@ func DenseNormalize(X *mat.Dense, FitIntercept, Normalize bool) (XOffset, XScale
 	return XOffset, XScale
 }
 
-// InsertOnes insert a column of ones to fit intercept
-func InsertOnes(X *mat.Dense) {
+// AddDummyFeature insert a column of ones to fit intercept
+func AddDummyFeature(X *mat.Dense) {
 	nSamples, nFeatures := X.Dims()
 	X1 := mat.NewDense(nSamples, nFeatures+1, nil)
 	X1.Apply(func(i, j int, _ float64) float64 {

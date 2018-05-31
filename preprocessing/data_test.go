@@ -159,9 +159,9 @@ func TestPolynomialFeatures(t *testing.T) {
 
 }
 
-func ExampleInsertOnes() {
+func ExampleAddDummyFeature() {
 	X := mat.NewDense(2, 5, []float64{2, 3, 4, 5, 6, 7, 8, 9, 10, 11})
-	InsertOnes(X)
+	AddDummyFeature(X)
 	fmt.Printf("X %v\n", X.RawRowView(0))
 	fmt.Printf("X %v\n", X.RawRowView(1))
 	// Output:

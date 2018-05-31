@@ -26,7 +26,7 @@ Very partial port of scikit-learn to [go](http://golang.org)
 ### pipeline
 [Pipeline](https://godoc.org/github.com/pa-m/sklearn/pipeline#example-Pipeline) 
 ### preprocessing
-[InsertOnes](https://godoc.org/github.com/pa-m/sklearn/preprocessing#example-InsertOnes) [OneHotEncoder](https://godoc.org/github.com/pa-m/sklearn/preprocessing#example-OneHotEncoder) [Shuffler](https://godoc.org/github.com/pa-m/sklearn/preprocessing#example-Shuffler) [LabelBinarizer](https://godoc.org/github.com/pa-m/sklearn/preprocessing#example-LabelBinarizer) [FunctionTransformer](https://godoc.org/github.com/pa-m/sklearn/preprocessing#example-FunctionTransformer) [PCA](https://godoc.org/github.com/pa-m/sklearn/preprocessing#example-PCA)
+[AddDummyFeature](https://godoc.org/github.com/pa-m/sklearn/preprocessing#example-AddDummyFeature) [OneHotEncoder](https://godoc.org/github.com/pa-m/sklearn/preprocessing#example-OneHotEncoder) [Shuffler](https://godoc.org/github.com/pa-m/sklearn/preprocessing#example-Shuffler) [LabelBinarizer](https://godoc.org/github.com/pa-m/sklearn/preprocessing#example-LabelBinarizer) [FunctionTransformer](https://godoc.org/github.com/pa-m/sklearn/preprocessing#example-FunctionTransformer) [PCA](https://godoc.org/github.com/pa-m/sklearn/preprocessing#example-PCA)
 
 All of this is 
 - a personal project to get a deeper understanding of how all of this magic works

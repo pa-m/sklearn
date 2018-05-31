@@ -28,7 +28,7 @@ var visualDebug = flag.Bool("visual", false, "output images for benchmarks and t
 func TestLogRegExamScore(t *testing.T) {
 	X, Ytrue := datasets.LoadExamScore()
 	nSamples, nFeatures := X.Dims()
-	preprocessing.InsertOnes(X)
+	preprocessing.AddDummyFeature(X)
 	nFeatures++
 	regr := NewLogisticRegression()
 	regr.FitIntercept = false // Fintintercept=false because we already added ones columns instead
