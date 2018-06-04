@@ -13,7 +13,6 @@ import (
 	"github.com/pa-m/sklearn/base"
 	"github.com/pa-m/sklearn/datasets"
 	"github.com/pa-m/sklearn/metrics"
-	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/optimize"
 	"gonum.org/v1/plot"
@@ -429,98 +428,19 @@ func TestBestRegressionImplementation(t *testing.T) {
 
 }
 
-func ExampleNewElasticNet() {
-	canPlot := false
-	// adapted from http://scikit-learn.org/stable/_downloads/plot_train_error_vs_test_error.ipynb
-
-	// Generate sample data
-	//NSamplesTrain, NSamplesTest, NFeatures := 75, 150, 500
-	NSamplesTrain, NSamplesTest, NFeatures := 75, 150, 500
-	rand.Seed(0)
-	coef := mat.NewDense(NFeatures, 1, nil)
-	// only the top 10% features are impacting the model
-	for feat := 0; feat < 50; feat++ {
-		coef.Set(feat, 0, rand.NormFloat64())
-	}
-	X := mat.NewDense(NSamplesTrain+NSamplesTest, NFeatures, nil)
-	{
-		x := X.RawMatrix().Data
-		for i := range x {
-			x[i] = rand.NormFloat64()
-		}
-
-	}
+func ExampleSetIntercept() {
+	X := mat.NewDense(3, 2, []float64{1, 2, 3, 7, 3, 6})
+	W := mat.NewDense(2, 2, []float64{5, 6, 7, 8})
 	Y := &mat.Dense{}
-	Y.Mul(X, coef)
-	// Split train and test data
-	rowslice := func(X mat.RawMatrixer, start, end int) *mat.Dense {
-		rm := X.RawMatrix()
-		return mat.NewDense(end-start, rm.Cols, rm.Data[start*rm.Stride:end*rm.Stride])
-	}
-	Xtrain, Xtest := rowslice(X, 0, NSamplesTrain), rowslice(X, NSamplesTrain, NSamplesTrain+NSamplesTest)
-	Ytrain, Ytest := rowslice(Y, 0, NSamplesTrain), rowslice(Y, NSamplesTrain, NSamplesTrain+NSamplesTest)
-	// Compute train and test errors
-	//nalphas := 60
-	nalphas := 20
-	logalphas := make([]float64, nalphas)
-	for i := range logalphas {
-		logalphas[i] = -5 + 8*float64(i)/float64(nalphas)
-	}
-	trainErrors := make([]float64, nalphas)
-	testErrors := make([]float64, nalphas)
-	for ialpha, logalpha := range logalphas {
-		//fmt.Println("ialpha=", ialpha)
-		enet := NewElasticNet()
-		enet.L1Ratio = 0.7
-		enet.Alpha = math.Pow(10, logalpha)
-		//enet.Tol = 1e-15
-		//enet.Optimizer = base.NewAdadeltaOptimizer()
-		//enet.Options.GOMethodCreator = func() optimize.Method { return &optimize.CG{} }
-		enet.Fit(Xtrain, Ytrain)
-		trainErrors[ialpha] = enet.Score(Xtrain, Ytrain)
-		score := enet.Score(Xtest, Ytest)
-		testErrors[ialpha] = score
-	}
-	iAlphaOptim := floats.MaxIdx(testErrors)
-	alphaOptim := math.Pow(10, logalphas[iAlphaOptim])
-	fmt.Printf("Optimal regularization parameter : %.6f", alphaOptim)
-	//   # Plot outputs
-
-	if canPlot {
-
-		// plot result
-		p, _ := plot.New()
-
-		xys := func(X, Y []float64) plotter.XYs {
-			var data plotter.XYs
-
-			for i := range X {
-				data = append(data, struct{ X, Y float64 }{X[i], Y[i]})
-			}
-			return data
-		}
-		s, _ := plotter.NewLine(xys(logalphas, trainErrors))
-		s.Color = color.RGBA{0, 0, 255, 255}
-		l, _ := plotter.NewLine(xys(logalphas, testErrors))
-		l.Color = color.RGBA{255, 128, 0, 255}
-		p.Add(s, l)
-		p.Legend.Add("train", s)
-		p.Legend.Add("test", l)
-
-		// Save the plot to a PNG file.
-		pngfile := "/tmp/elasticnet.png"
-		os.Remove(pngfile)
-		if err := p.Save(4*vg.Inch, 3*vg.Inch, pngfile); err != nil {
-			panic(err)
-		}
-		cmd := exec.Command("display", pngfile)
-		err := cmd.Start()
-		if err != nil {
-			fmt.Println(err.Error())
-		}
-		time.Sleep(200 * time.Millisecond)
-		os.Remove(pngfile)
-	}
+	Y.Mul(X, W)
+	Y.Add(Y, mat.NewDense(3, 2, []float64{10, 10, 10, 10, 10, 10}))
+	lm := NewLinearRegression()
+	lm.Fit(X, Y)
+	fmt.Printf("%.2f\n", mat.Formatted(lm.Coef))
+	fmt.Printf("%.2f\n", mat.Formatted(lm.Intercept))
 	// Output:
-	// Optimal regularization parameter : 0.630957
+	// ⎡5.00  6.00⎤
+	// ⎣7.00  8.00⎦
+	// [10.00  10.00]
+
 }

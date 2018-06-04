@@ -54,12 +54,14 @@ type LinearRegression struct {
 	LinearModel
 }
 
-// RegularizedRegression is a common structure for Lasso and Ridge
+// RegularizedRegression is a common structure for ElasticNet,Lasso and Ridge
 type RegularizedRegression struct {
 	LinearRegression
 	Solver              string
 	SolverConfigure     func(base.Optimizer)
 	Tol, Alpha, L1Ratio float64
+	MaxIter             int
+	Random, Positive    bool
 	LossFunction        Loss
 	ActivationFunction  Activation
 	Options             LinFitOptions
@@ -123,28 +125,6 @@ func NewRidge() *RegularizedRegression {
 	regr.LossFunction = SquareLoss
 	regr.Alpha = 1.
 	regr.L1Ratio = 0.
-	return regr
-}
-
-//NewLasso creates a *RegularizedRegression with Alpha=1 and L1Ratio = 1
-func NewLasso() *RegularizedRegression {
-	regr := &RegularizedRegression{}
-	regr.FitIntercept = true
-	regr.Tol = 1e-6
-	regr.LossFunction = SquareLoss
-	regr.Alpha = 1.
-	regr.L1Ratio = 1.
-	return regr
-}
-
-// NewElasticNet creates a *RegularizedRegression with Alpha=1 and L1Ratio=0.5
-func NewElasticNet() *RegularizedRegression {
-	regr := &RegularizedRegression{}
-	regr.FitIntercept = true
-	regr.Tol = 1e-6
-	regr.LossFunction = SquareLoss
-	regr.Alpha = 1.
-	regr.L1Ratio = .5
 	return regr
 }
 
@@ -589,6 +569,7 @@ func (regr *LinearModel) setIntercept(XOffset, YOffset, XScale mat.Matrix) {
 	if regr.Intercept == nil {
 		regr.Intercept = mat.NewDense(1, nOutputs, nil)
 	}
+
 	regr.Coef.Apply(func(j, o int, coef float64) float64 { return coef / XScale.At(0, j) }, regr.Coef)
 	if regr.FitIntercept {
 		regr.Intercept.Mul(XOffset, regr.Coef)
