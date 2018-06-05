@@ -1,7 +1,6 @@
 package linearModel
 
 import (
-	"fmt"
 	"math"
 	"math/rand"
 
@@ -142,9 +141,9 @@ func enetCoordinateDescent(w *mat.VecDense, alpha, beta float64, X *mat.Dense, Y
 			l1norm = blas64.Asum(NFeatures, w.RawVector())
 			RY.MulElemVec(R, Y)
 			gap += (alpha*l1norm - cons*mat.Sum(RY)) + .5*beta*(1.+cons*cons)*wNorm2rv.Data[0]
-			fmt.Printf("R:\n%4f\nW:\n%.4f\nXtA:\n%4f\n", mat.Formatted(R), mat.Formatted(w), mat.Formatted(XtA))
-			fmt.Println("dwmax", dwmax, "wmax", wmax, "dwtol", dwtol)
-			fmt.Println(nIter, gap, "l1reg", alpha, "l2reg", beta, "l21norm", l1norm, "sumRY", cons*mat.Sum(RY), "dualNormXtA", dualNormXtA, "RNorm", math.Sqrt(RNorm2rv.Data[0]), "gap", gap)
+			// fmt.Printf("R:\n%.6f\nW:\n%.6f\nXtA:\n%.6f\n", mat.Formatted(R.T()), mat.Formatted(w.T()), mat.Formatted(XtA.T()))
+			// fmt.Println("dwmax", dwmax, "wmax", wmax, "dwtol", dwtol)
+			// fmt.Println(nIter, gap, "l1reg", alpha, "l2reg", beta, "l21norm", l1norm, "sumRY", cons*mat.Sum(RY), "dualNormXtA", dualNormXtA, "RNorm", math.Sqrt(RNorm2rv.Data[0]), "gap", gap)
 
 			if gap < tol {
 				// # return if we reached desired tolerance

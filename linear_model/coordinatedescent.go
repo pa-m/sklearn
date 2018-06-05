@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/pa-m/sklearn/base"
-	"github.com/pa-m/sklearn/preprocessing"
 	"gonum.org/v1/gonum/mat"
 )
 
@@ -21,10 +20,8 @@ type ElasticNetRegression struct {
 
 // Fit ElasticNetRegression with coordinate descent
 func (regr *ElasticNetRegression) Fit(X0, Y0 *mat.Dense) base.Transformer {
-	X := mat.DenseCopyOf(X0)
-	regr.XOffset, regr.XScale = preprocessing.DenseNormalize(X, regr.FitIntercept, regr.Normalize)
-	Y := mat.DenseCopyOf(Y0)
-	YOffset, _ := preprocessing.DenseNormalize(Y, regr.FitIntercept, false)
+	var X, Y, YOffset *mat.Dense
+	X, Y, regr.XOffset, YOffset, regr.XScale = PreprocessData(X0, Y0, regr.FitIntercept, regr.Normalize, nil)
 	NSamples, NFeatures := X.Dims()
 	_, NOutputs := Y.Dims()
 

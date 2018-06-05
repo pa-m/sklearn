@@ -191,6 +191,9 @@ func (scaler *StandardScaler) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Den
 
 // InverseTransform unscales data
 func (scaler *StandardScaler) InverseTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	if X == nil {
+		return X, Y
+	}
 	Xmat := X.RawMatrix()
 	Xout = mat.NewDense(Xmat.Rows, Xmat.Cols, nil)
 	Xoutmat := Xout.RawMatrix()

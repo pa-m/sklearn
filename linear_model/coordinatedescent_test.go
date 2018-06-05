@@ -9,7 +9,6 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/pa-m/sklearn/preprocessing"
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/plot"
 	"gonum.org/v1/plot/plotter"
@@ -49,7 +48,7 @@ func ExampleNewMultiTaskLasso() {
 	// [0.10606602  0.10606602]
 }
 
-func ExampleNewLasso() {
+func _ExampleNewLasso() {
 	// example adapted from one in https://github.com/scikit-learn/scikit-learn/blob/0.19.1/sklearn/linear_model/coordinate_descent.py
 	clf := NewLasso()
 	clf.Alpha = .1
@@ -160,7 +159,7 @@ func ExampleNewElasticNet() {
 	// Output:
 }
 
-func ExampleNewLasso_Sin() {
+func ExampleNewLasso() {
 	// adapted from https://www.analyticsvidhya.com/blog/2016/01/complete-tutorial-ridge-lasso-regression-python/ §4
 	NSamples, NFeatures := 60, 15
 	X, Y := mat.NewDense(NSamples, NFeatures, nil), mat.NewDense(60, 1, nil)
@@ -183,19 +182,18 @@ func ExampleNewLasso_Sin() {
 	m.Normalize = true
 	m.Alpha = 1e-5
 	m.L1Ratio = 1
-	m.MaxIter = 5788
+	m.MaxIter = 1e5
 	m.Tol = 1e-4
 
-	sc := preprocessing.NewStandardScaler()
-	X1, _ := sc.FitTransform(X, nil)
-	m.Fit(X1, Y)
+	m.Fit(X, Y)
 	Ypred := &mat.Dense{}
 	m.Predict(X, Ypred)
 	rss := &mat.VecDense{}
 	rss.SubVec(Ypred.ColView(0), Y.ColView(0))
 	rss.MulElemVec(rss, rss)
-	fmt.Println("gap", m.CDResult.Gap, "Eps", m.CDResult.Eps, "nIter", m.CDResult.NIter)
-	fmt.Printf("rss=%.3f %.2g %.2g\n", mat.Sum(rss), mat.Formatted(m.Intercept.T()), mat.Formatted(m.Coef.T()))
+	//fmt.Println("gap", m.CDResult.Gap, "Eps", m.CDResult.Eps, "nIter", m.CDResult.NIter)
+	fmt.Printf("rss=%.4f intercept=%.4f coef=%.4f\n", mat.Sum(rss), mat.Formatted(m.Intercept.T()), mat.Formatted(m.Coef.T()))
 	// Output:
-	// 0.015  0.057  1.237  -0.393  -0.013  0.000  0.001  0.000  0.000  0.000  0.000  -0.000  -0.000  -0.000  -0.000  -0.000  -0.000
+	// rss=0.0149 intercept=[0.0570] coef=[ 1.2368  -0.3934  -0.0127   0.0000   0.0007   0.0001   0.0000   0.0000   0.0000  -0.0000  -0.0000  -0.0000  -0.0000  -0.0000  -0.0000]
+
 }

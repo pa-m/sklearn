@@ -610,3 +610,63 @@ func (regr *LinearModel) Score(X, Y *mat.Dense) float64 {
 	regr.DecisionFunction(X, Ypred)
 	return metrics.R2Score(Y, Ypred, nil, "").At(0, 0)
 }
+
+// PreprocessData center and normalize data
+func PreprocessData(X, Y *mat.Dense, FitIntercept, Normalize bool, SampleWeight *mat.VecDense) (Xout, Yout, XOffset, YOffset, XScale *mat.Dense) {
+	Xmat := X.RawMatrix()
+	Ymat := Y.RawMatrix()
+	Xout = mat.NewDense(Xmat.Rows, Xmat.Cols, nil)
+	Xoutmat := Xout.RawMatrix()
+
+	Yout = Y
+	XOffset = mat.NewDense(1, Xmat.Cols, nil)
+	XOffsetmat := XOffset.RawMatrix()
+	YOffset = mat.NewDense(1, Ymat.Cols, nil)
+	YOffsetmat := YOffset.RawMatrix()
+	XScale = mat.NewDense(1, Xmat.Cols, nil)
+	XScalemat := XScale.RawMatrix()
+	for i := range YOffsetmat.Data[0:YOffsetmat.Cols] {
+		YOffsetmat.Data[i] = 1
+	}
+	base.Parallelize(-1, Xmat.Cols, func(th, start, end int) {
+		for feature := start; feature < end; feature++ {
+			xcol := X.ColView(feature)
+			if FitIntercept {
+				mean := mat.Sum(xcol) / float64(Xmat.Rows)
+
+				for jX, jXout := 0, 0; jX < Xmat.Rows*Xmat.Stride; jX, jXout = jX+Xmat.Stride, jXout+Xoutmat.Stride {
+					Xoutmat.Data[jXout+feature] = Xmat.Data[jX+feature] - mean
+				}
+				scale := 1.
+				if Normalize {
+					scale = mat.Norm(Xout.ColView(feature), 2)
+					if scale != 0. {
+						for jXout := 0; jXout < Xoutmat.Rows*Xoutmat.Stride; jXout = jXout + Xoutmat.Stride {
+							Xoutmat.Data[jXout+feature] /= scale
+						}
+					}
+
+				}
+				XOffsetmat.Data[feature] = mean
+				XScalemat.Data[feature] = scale
+
+			}
+		}
+	})
+	if FitIntercept {
+		Yout = mat.NewDense(Ymat.Rows, Ymat.Cols, nil)
+		base.Parallelize(-1, Ymat.Cols, func(th, start, end int) {
+			for output := start; output < end; output++ {
+				ycol := Y.ColView(output)
+				mean := mat.Sum(ycol) / float64(Ymat.Rows)
+				YOffsetmat.Data[output] = mean
+				Youtmat := Yout.RawMatrix()
+				for jY, jYout := 0, 0; jY < Ymat.Rows*Ymat.Stride; jY, jYout = jY+Ymat.Stride, jYout+Youtmat.Stride {
+					Youtmat.Data[jYout+output] = Ymat.Data[jY+output] - mean
+
+				}
+			}
+		})
+	}
+	return
+}
