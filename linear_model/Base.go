@@ -54,21 +54,25 @@ type LinearRegression struct {
 	LinearModel
 }
 
+// CDResult is the coordinate descent specific part in the regression result
+type CDResult struct {
+	Gap, Eps float64
+	NIter    int
+}
+
 // RegularizedRegression is a common structure for ElasticNet,Lasso and Ridge
 type RegularizedRegression struct {
 	LinearRegression
 	Solver              string
 	SolverConfigure     func(base.Optimizer)
 	Tol, Alpha, L1Ratio float64
-	MaxIter             int
-	Random, Positive    bool
 	LossFunction        Loss
 	ActivationFunction  Activation
 	Options             LinFitOptions
 }
 
 // NewLinearRegression create a *LinearRegression with defaults
-// implemented as a per-output optimization of (possibly regularized) square-loss a base.Optimizer (defaults to Adam)
+// implemented as mat.Dense.Solve
 func NewLinearRegression() *LinearRegression {
 	regr := &LinearRegression{}
 	regr.FitIntercept = true
@@ -114,17 +118,6 @@ func (regr *RegularizedRegression) Fit(X0, Y0 *mat.Dense) base.Transformer {
 // Predict predicts y for X using Coef
 func (regr *LinearRegression) Predict(X, Y *mat.Dense) base.Regressor {
 	regr.DecisionFunction(X, Y)
-	return regr
-}
-
-// NewRidge creates a *RegularizedRegression with Alpha=1. and L1Ratio=0
-func NewRidge() *RegularizedRegression {
-	regr := &RegularizedRegression{}
-	regr.FitIntercept = true
-	regr.Tol = 1e-6
-	regr.LossFunction = SquareLoss
-	regr.Alpha = 1.
-	regr.L1Ratio = 0.
 	return regr
 }
 

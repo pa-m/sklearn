@@ -1,22 +1,24 @@
 package linearModel
 
 import (
+	"fmt"
 	"math"
 	"math/rand"
 
+	"gonum.org/v1/gonum/blas/blas64"
 	"gonum.org/v1/gonum/mat"
 )
 
 // coordinate descent algorithm for Elastic-Net
 // v https://github.com/scikit-learn/scikit-learn/blob/a24c8b464d094d2c468a16ea9f8bf8d42d949f84/sklearn/linear_model/cd_fast.pyx
-func enetCoordinateDescent(w *mat.VecDense, alpha, beta float64, X *mat.Dense, Y *mat.VecDense, maxIter int, tol float64, rng *rand.Rand, random, positive bool) (gap, tolyy float64, nIter int) {
+func enetCoordinateDescent(w *mat.VecDense, alpha, beta float64, X *mat.Dense, Y *mat.VecDense, maxIter int, tol float64, rng *rand.Rand, random, positive bool) *CDResult {
 	/*
 	   coordinate descent algorithm
 	       for Elastic-Net regression
 	       We minimize
 	       (1/2) * norm(y - X w, 2)^2 + alpha norm(w, 1) + (beta/2) norm(w, 2)^2
 	*/
-	gap = tol + 1.
+	gap := tol + 1.
 	dwtol := tol
 
 	_, NFeatures := X.Dims()
@@ -40,17 +42,21 @@ func enetCoordinateDescent(w *mat.VecDense, alpha, beta float64, X *mat.Dense, Y
 		Y2.MulElemVec(Y, Y)
 		tol *= mat.Sum(Y2)
 	}
-
+	var nIter int
 	var wii, dwii, wmax, dwmax, dualNormXtA, cons, l1norm float64
 	tmp := &mat.VecDense{}
 	XtA := &mat.VecDense{}
-	RNorm2 := &mat.VecDense{}
-	wNorm2 := &mat.VecDense{}
+	XtArv := XtA.RawVector()
+
+	RNorm2, wNorm2 := &mat.VecDense{}, &mat.VecDense{}
+	RNorm2rv, wNorm2rv := RNorm2.RawVector(), wNorm2.RawVector()
 	RY := &mat.VecDense{}
 
 	fsign := func(x float64) float64 {
-		if x >= 0 {
+		if x > 0 {
 			return 1.
+		} else if x == 0. {
+			return 0.
 		}
 		return -1
 	}
@@ -111,31 +117,35 @@ func enetCoordinateDescent(w *mat.VecDense, alpha, beta float64, X *mat.Dense, Y
 
 			// # XtA = np.dot(X.T, R) - beta * w
 			XtA.MulVec(X.T(), R)
+			XtArv = XtA.RawVector()
 			XtA.AddScaledVec(XtA, -beta, w)
 			if positive {
-				dualNormXtA = math.Max(float64(NFeatures), mat.Max(XtA))
+				dualNormXtA = mat.Max(XtA)
 			} else {
-				for i := 0; i < XtA.Len(); i++ {
-					XtA.SetVec(i, math.Abs(XtA.AtVec(i)))
-				}
-				dualNormXtA = math.Max(float64(NFeatures), mat.Max(XtA))
+				dualNormXtA = math.Abs(XtA.AtVec(blas64.Iamax(len(XtArv.Data), XtArv)))
 			}
 			// # R_norm2 = np.dot(R, R)
-			RNorm2.MulElemVec(R, R)
+			RNorm2.MulVec(R.T(), R)
+			RNorm2rv = RNorm2.RawVector()
 			// # w_norm2 = np.dot(w, w)
-			wNorm2.MulElemVec(w, w)
+			wNorm2.MulVec(w.T(), w)
+			wNorm2rv = wNorm2.RawVector()
 
 			if dualNormXtA > alpha {
 				cons = alpha / dualNormXtA
-				ANorm2 := RNorm2.AtVec(0) * cons * cons
-				gap = .5 * (RNorm2.AtVec(0) + ANorm2)
+				ANorm2 := RNorm2rv.Data[0] * cons * cons
+				gap = .5 * (RNorm2rv.Data[0] + ANorm2)
 			} else {
 				cons = 1.
-				gap = RNorm2.AtVec(0)
+				gap = RNorm2rv.Data[0]
 			}
-			l1norm = mat.Norm(w, 1)
+			l1norm = blas64.Asum(NFeatures, w.RawVector())
 			RY.MulElemVec(R, Y)
-			gap += (alpha*l1norm - cons*mat.Sum(RY)) + .5*beta*(1.+cons*cons)*wNorm2.AtVec(0)
+			gap += (alpha*l1norm - cons*mat.Sum(RY)) + .5*beta*(1.+cons*cons)*wNorm2rv.Data[0]
+			fmt.Printf("R:\n%4f\nW:\n%.4f\nXtA:\n%4f\n", mat.Formatted(R), mat.Formatted(w), mat.Formatted(XtA))
+			fmt.Println("dwmax", dwmax, "wmax", wmax, "dwtol", dwtol)
+			fmt.Println(nIter, gap, "l1reg", alpha, "l2reg", beta, "l21norm", l1norm, "sumRY", cons*mat.Sum(RY), "dualNormXtA", dualNormXtA, "RNorm", math.Sqrt(RNorm2rv.Data[0]), "gap", gap)
+
 			if gap < tol {
 				// # return if we reached desired tolerance
 				break
@@ -143,31 +153,38 @@ func enetCoordinateDescent(w *mat.VecDense, alpha, beta float64, X *mat.Dense, Y
 		}
 
 	}
-	return gap, tol, nIter + 1
+	return &CDResult{Gap: gap, Eps: tol, NIter: nIter + 1}
 }
 
-func enetCoordinateDescentMultiTask(w *mat.Dense, l1reg, l2reg float64, X *mat.Dense, Y *mat.Dense, maxIter int, tol float64, rng *rand.Rand, random, positive bool) (gap, tolout float64, nIter int) {
+func enetCoordinateDescentMultiTask(w *mat.Dense, l1reg, l2reg float64, X *mat.Dense, Y *mat.Dense, maxIter int, tol float64, rng *rand.Rand, random, positive bool) *CDResult {
 	/*
 	   coordinate descent algorithm
 	       for Elastic-Net regression
 	       We minimize
 	       (1/2) * norm(y - X w, 2)^2 + alpha norm(w, 1) + (beta/2) norm(w, 2)^2
 	*/
-	gap = tol + 1.
+	gap := tol + 1.
 	dwtol := tol
 
 	NSamples, NFeatures := X.Dims()
 	_ = NSamples
 	_, NTasks := Y.Dims()
 
-	R := &mat.Dense{}
-	rmX := X.RawMatrix()
+	var dwii, wmax, dwmax, dualNormXtA, cons, XtAaxis1norm, wiiabsmax, l21norm float64
+	var ii, fIter, nIter int
+	tmp := mat.NewVecDense(NTasks, nil)
+	wii := mat.NewVecDense(NTasks, nil)
+
+	R, Y2, XtA, RY, xw := &mat.Dense{}, &mat.Dense{}, &mat.Dense{}, &mat.Dense{}, &mat.Dense{}
+	RNorm, wNorm, ANorm, nn, tmpfactor := 0., 0., 0., 0., 0.
+	XtA = mat.NewDense(NFeatures, NTasks, nil)
+
 	// # norm_cols_X = (np.asarray(X) ** 2).sum(axis=0)
 	normColsX := make([]float64, NFeatures)
-	for r, rp := 0, 0; r < rmX.Rows; r, rp = r+1, rp+rmX.Stride {
-		for c := 0; c < rmX.Cols; c++ {
-			e := rmX.Data[rp+c]
-			normColsX[c] += e * e
+	Xmat := X.RawMatrix()
+	for jX := 0; jX < Xmat.Rows*Xmat.Stride; jX = jX + Xmat.Stride {
+		for i, v := range Xmat.Data[jX : jX+Xmat.Cols] {
+			normColsX[i] += v * v
 		}
 	}
 	// # R = Y - np.dot(X, W.T)
@@ -175,21 +192,9 @@ func enetCoordinateDescentMultiTask(w *mat.Dense, l1reg, l2reg float64, X *mat.D
 	R.Sub(Y, R)
 
 	// # tol = tol * linalg.norm(Y, ord='fro') ** 2
-	{
-		Y2 := &mat.Dense{}
-		Y2.MulElem(Y, Y)
-		tol *= mat.Sum(Y2)
-	}
 
-	var dwii, wmax, dwmax, dualNormXtA, cons, XtAaxis1norm, wiiabsmax, l21norm float64
-	var ii, fIter int
-	tmp := mat.NewVecDense(NTasks, nil)
-	wii := mat.NewVecDense(NFeatures, nil)
-
-	XtA := &mat.Dense{}
-	RNorm, wNorm, ANorm, nn := 0., 0., 0., 0.
-	RY := &mat.Dense{}
-	xw := &mat.Dense{}
+	Y2.MulElem(Y, Y)
+	tol *= mat.Sum(Y2)
 
 	for nIter = 0; nIter < maxIter; nIter++ {
 		wmax, dwmax = 0., 0.
@@ -224,7 +229,13 @@ func enetCoordinateDescentMultiTask(w *mat.Dense, l1reg, l2reg float64, X *mat.D
 			// # nn = sqrt(np.sum(tmp ** 2))
 			nn = mat.Norm(tmp, 2)
 			// # W[:, ii] = tmp * fmax(1. - l1_reg / nn, 0) / (norm_cols_X[ii] + l2_reg)
-			w.RowView(ii).(*mat.VecDense).ScaleVec(math.Max(1.-l1reg/nn, 0)/(normColsX[ii]+l2reg), tmp)
+			if l1reg < nn {
+				tmpfactor = math.Max(1.-l1reg/nn, 0) / (normColsX[ii] + l2reg)
+
+			} else {
+				tmpfactor = 0.
+			}
+			w.RowView(ii).(*mat.VecDense).ScaleVec(tmpfactor, tmp)
 
 			// # if np.sum(W[:, ii] ** 2) != 0.0:  # can do better
 
@@ -246,12 +257,22 @@ func enetCoordinateDescentMultiTask(w *mat.Dense, l1reg, l2reg float64, X *mat.D
 			if dwii > dwmax {
 				dwmax = dwii
 			}
-			wiiabsmax = mat.Norm(w, math.Inf(1))
+			wiiabsmax = 0.
+			wmat := w.RawMatrix()
+			for jw := 0; jw < wmat.Rows*wmat.Stride; jw = jw + wmat.Stride {
+				for _, v := range wmat.Data[jw : jw+wmat.Cols] {
+					v = math.Abs(v)
+					if v > wiiabsmax {
+						wiiabsmax = v
+					}
+				}
+			}
 			if wiiabsmax > wmax {
 				wmax = wiiabsmax
 			}
 
 		}
+
 		if wmax == 0. || dwmax/wmax < dwtol || nIter == maxIter-1 {
 			// # the biggest coordinate update of this iteration was smaller
 			// # than the tolerance: check the duality gap as ultimate
@@ -266,6 +287,7 @@ func enetCoordinateDescentMultiTask(w *mat.Dense, l1reg, l2reg float64, X *mat.D
 					XtAmat.Data[jXtA+i] -= l2reg * Wmat.Data[jW+i]
 				}
 			}
+
 			// # dual_norm_XtA = np.max(np.sqrt(np.sum(XtA ** 2, axis=1)))
 			dualNormXtA = 0.
 			for ii := 0; ii < NFeatures; ii++ {
@@ -294,6 +316,11 @@ func enetCoordinateDescentMultiTask(w *mat.Dense, l1reg, l2reg float64, X *mat.D
 				l21norm += mat.Norm(w.RowView(ii), 2)
 			}
 			gap += l1reg*l21norm - cons*mat.Sum(RY) + .5*l2reg*(1.+cons*cons)*(wNorm*wNorm)
+
+			// fmt.Printf("X\n%4f\nR:\n%4f\nW:\n%.4f\nXtA:\n%4f\n", mat.Formatted(X), mat.Formatted(R), mat.Formatted(w), mat.Formatted(XtA))
+			// fmt.Println("dwmax", dwmax, "wmax", wmax, "dwtol", dwtol)
+			// fmt.Println(nIter, gap, "l1reg", l1reg, "l2reg", l2reg, "l21norm", l21norm, "sumRY", cons*mat.Sum(RY), "dualNormXtA", dualNormXtA, "RNorm", RNorm, "gap", gap)
+
 			if gap < tol {
 				// return if we have reached the desired tolerance
 				break
@@ -301,5 +328,5 @@ func enetCoordinateDescentMultiTask(w *mat.Dense, l1reg, l2reg float64, X *mat.D
 		}
 
 	}
-	return gap, tol, nIter + 1
+	return &CDResult{Gap: gap, Eps: tol, NIter: nIter + 1}
 }

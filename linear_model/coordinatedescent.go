@@ -1,12 +1,26 @@
 package linearModel
 
 import (
+	"strings"
+
 	"github.com/pa-m/sklearn/base"
 	"github.com/pa-m/sklearn/preprocessing"
 	"gonum.org/v1/gonum/mat"
 )
 
-func (regr *RegularizedRegression) fitcd(X0, Y0 *mat.Dense) base.Transformer {
+// ElasticNetRegression is the struct for coordinate descent regularized regressions: ElasticNet,Ridge,Lasso
+// Selection is cyclic or random. defaults to cyclic
+type ElasticNetRegression struct {
+	LinearRegression
+	Tol, Alpha, L1Ratio float64
+	MaxIter             int
+	Selection           string
+	WarmStart, Positive bool
+	CDResult            *CDResult
+}
+
+// Fit ElasticNetRegression with coordinate descent
+func (regr *ElasticNetRegression) Fit(X0, Y0 *mat.Dense) base.Transformer {
 	X := mat.DenseCopyOf(X0)
 	regr.XOffset, regr.XScale = preprocessing.DenseNormalize(X, regr.FitIntercept, regr.Normalize)
 	Y := mat.DenseCopyOf(Y0)
@@ -16,65 +30,52 @@ func (regr *RegularizedRegression) fitcd(X0, Y0 *mat.Dense) base.Transformer {
 
 	l1reg := regr.Alpha * regr.L1Ratio * float64(NSamples)
 	l2reg := regr.Alpha * (1. - regr.L1Ratio) * float64(NSamples)
-	regr.Coef = mat.NewDense(NFeatures, NOutputs, nil)
-	if NOutputs <= 1 {
-		for o := 0; o < NOutputs; o++ {
-			y := &mat.VecDense{}
-			w := &mat.VecDense{}
-			w.ColViewOf(regr.Coef, o)
-			y.ColViewOf(Y, o)
-			enetCoordinateDescent(w, l1reg, l2reg, X, y, regr.MaxIter, regr.Tol, nil, regr.Random, regr.Positive)
-		}
+	if !regr.WarmStart {
+		regr.Coef = mat.NewDense(NFeatures, NOutputs, nil)
+	}
+	random := strings.EqualFold("random", regr.Selection)
+	if NOutputs == 1 {
+		y := &mat.VecDense{}
+		w := &mat.VecDense{}
+
+		w.ColViewOf(regr.Coef, 0)
+		y.ColViewOf(Y, 0)
+		regr.CDResult = enetCoordinateDescent(w, l1reg, l2reg, X, y, regr.MaxIter, regr.Tol, nil, random, regr.Positive)
+
 	} else {
-		enetCoordinateDescentMultiTask(regr.Coef, l1reg, l2reg, X, Y, regr.MaxIter, regr.Tol, nil, regr.Random, regr.Positive)
+		regr.CDResult = enetCoordinateDescentMultiTask(regr.Coef, l1reg, l2reg, X, Y, regr.MaxIter, regr.Tol, nil, random, regr.Positive)
 	}
 	regr.LinearModel.setIntercept(regr.XOffset, YOffset, regr.XScale)
 	return regr
 }
 
-//NewLasso creates a *RegularizedRegression with Alpha=1 and L1Ratio = 1
-func NewLasso() *RegularizedRegression {
-	regr := &RegularizedRegression{}
-	regr.FitIntercept = true
-	regr.Tol = 0.0001
-	regr.LossFunction = SquareLoss
-	regr.Alpha = 1.
-	regr.L1Ratio = 1.
-	regr.MaxIter = 1000
-	return regr
-}
-
 // NewElasticNet creates a *RegularizedRegression with Alpha=1 and L1Ratio=0.5
-func NewElasticNet() *RegularizedRegression {
-	regr := &RegularizedRegression{}
-	regr.FitIntercept = true
-	regr.Tol = 1e-6
-	regr.LossFunction = SquareLoss
-	regr.Alpha = 1.
-	regr.L1Ratio = .5
-	return regr
+func NewElasticNet() *ElasticNetRegression {
+	return NewMultiTaskElasticNet()
 }
 
-// NewMultiTaskElasticNet creates a *RegularizedRegression with Alpha=1 and L1Ratio=0.5
-func NewMultiTaskElasticNet() *RegularizedRegression {
-	regr := &RegularizedRegression{}
+// NewMultiTaskElasticNet creates a *ElasticNetRegression with Alpha=1 and L1Ratio=0.5
+func NewMultiTaskElasticNet() *ElasticNetRegression {
+	regr := &ElasticNetRegression{}
 	regr.FitIntercept = true
 	regr.Tol = 1e-4
-	regr.LossFunction = SquareLoss
 	regr.Alpha = 1.
 	regr.L1Ratio = .5
 	regr.MaxIter = 1000
+	regr.Selection = "cyclic"
 	return regr
+}
+
+//NewLasso creates a *ElasticNetRegression with Alpha=1 and L1Ratio = 1
+func NewLasso() *ElasticNetRegression {
+	m := NewMultiTaskElasticNet()
+	m.L1Ratio = 1.
+	return m
 }
 
 // NewMultiTaskLasso creates a *RegularizedRegression with Alpha=1 and L1Ratio=1
-func NewMultiTaskLasso() *RegularizedRegression {
-	regr := &RegularizedRegression{}
-	regr.FitIntercept = true
-	regr.Tol = 1e-4
-	regr.LossFunction = SquareLoss
-	regr.Alpha = 1.
-	regr.L1Ratio = 1.
-	regr.MaxIter = 1000
-	return regr
+func NewMultiTaskLasso() *ElasticNetRegression {
+	m := NewMultiTaskElasticNet()
+	m.L1Ratio = 1.
+	return m
 }

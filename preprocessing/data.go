@@ -119,13 +119,14 @@ func (scaler *MinMaxScaler) InverseTransform(X, Y *mat.Dense) (Xout, Yout *mat.D
 
 // StandardScaler scales data by removing Mean and dividing by stddev
 type StandardScaler struct {
-	Scale, Mean, Var *mat.Dense
-	NSamplesSeen     int
+	WithMean, WithStd bool
+	Scale, Mean, Var  *mat.Dense
+	NSamplesSeen      int
 }
 
 // NewStandardScaler creates a *StandardScaler
 func NewStandardScaler() *StandardScaler {
-	return &StandardScaler{}
+	return &StandardScaler{WithMean: true, WithStd: true}
 }
 
 // Reset ...
@@ -164,10 +165,22 @@ func (scaler *StandardScaler) PartialFit(X, Y *mat.Dense) Transformer {
 
 // Transform scales data
 func (scaler *StandardScaler) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
-	Xout = mat.DenseCopyOf(X)
-	Xout.Apply(func(i int, j int, x float64) float64 {
-		return (x - scaler.Mean.At(0, j)) / scaler.Scale.At(0, j)
-	}, X)
+	Xmat := X.RawMatrix()
+	Xout = mat.NewDense(Xmat.Rows, Xmat.Cols, nil)
+	Xoutmat := Xout.RawMatrix()
+	for i := 0; i < Xmat.Cols; i++ {
+		mean, scale := 0., 1.
+		if scaler.WithMean {
+			mean = scaler.Mean.At(0, i)
+		}
+		if scaler.WithStd {
+			scale = scaler.Scale.At(0, i)
+		}
+		for jX, jXout := 0, 0; jX < Xmat.Rows*Xmat.Stride; jX, jXout = jX+Xmat.Stride, jXout+Xoutmat.Stride {
+
+			Xoutmat.Data[jXout+i] = (Xmat.Data[jX+i] - mean) / scale
+		}
+	}
 	return Xout, Y
 }
 
@@ -178,19 +191,28 @@ func (scaler *StandardScaler) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Den
 
 // InverseTransform unscales data
 func (scaler *StandardScaler) InverseTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
-	if X == nil {
-		return X, Y
+	Xmat := X.RawMatrix()
+	Xout = mat.NewDense(Xmat.Rows, Xmat.Cols, nil)
+	Xoutmat := Xout.RawMatrix()
+	for i := 0; i < Xmat.Cols; i++ {
+		mean, scale := 0., 1.
+		if scaler.WithMean {
+			mean = scaler.Mean.At(0, i)
+		}
+		if scaler.WithStd {
+			scale = scaler.Scale.At(0, i)
+		}
+		for jX, jXout := 0, 0; jX < Xmat.Rows*Xmat.Stride; jX, jXout = jX+Xmat.Stride, jXout+Xoutmat.Stride {
+
+			Xoutmat.Data[jXout+i] = mean + Xmat.Data[jX+i]*scale
+		}
 	}
-	Xout = mat.DenseCopyOf(X)
-	Xout.Apply(func(i int, j int, x float64) float64 {
-		return scaler.Mean.At(0, j) + x*scaler.Scale.At(0, j)
-	}, X)
 	return Xout, Y
 }
 
 // Scale provides a quick and easy way to perform this operation on a single array-like dataset
 func Scale(X *mat.Dense) *mat.Dense {
-	Xout, _ := (&StandardScaler{}).FitTransform(X, nil)
+	Xout, _ := NewStandardScaler().FitTransform(X, nil)
 	return Xout
 }
 
@@ -631,31 +653,27 @@ func DenseMean(Xmean *mat.Dense, X mat.Matrix) *mat.Dense {
 
 // DenseNormalize normalize matrix rows by removing mean and dividing with standard deviation
 func DenseNormalize(X *mat.Dense, FitIntercept, Normalize bool) (XOffset, XScale *mat.Dense) {
+	scaler := NewStandardScaler()
+	scaler.WithMean = FitIntercept
+	scaler.WithStd = Normalize
+	Xout, _ := scaler.FitTransform(X, nil)
+	X.Copy(Xout)
 
-	nSamples, nFeatures := X.Dims()
-	XOffset = mat.NewDense(1, nFeatures, nil)
-	if FitIntercept {
-		DenseMean(XOffset, X)
-	}
-	XScale = mat.NewDense(1, nFeatures, nil)
-	XScale.Apply(func(i int, j int, XOffset float64) float64 {
-		v := 0.
-		if Normalize {
-			for i := 0; i < nSamples; i++ {
-				x := X.At(i, j) - XOffset
-				v += x * x
+	fill := func(M *mat.Dense, v float64) {
+		Mmat := M.RawMatrix()
+		for jM := 0; jM < Mmat.Rows*Mmat.Stride; jM = jM + Mmat.Stride {
+			for i := range Mmat.Data[jM : jM+Mmat.Cols] {
+				Mmat.Data[jM+i] = v
 			}
-			v = math.Sqrt(v / float64(nSamples))
 		}
-		if v == 0. {
-			v = 1.
-		}
-		return v
-	}, XOffset)
-	X.Apply(func(i int, j int, v float64) float64 {
-		return (v - XOffset.At(0, j)) / XScale.At(0, j)
-	}, X)
-	return XOffset, XScale
+	}
+	if !FitIntercept {
+		fill(scaler.Mean, 0.)
+	}
+	if !Normalize {
+		fill(scaler.Scale, 1.)
+	}
+	return scaler.Mean, scaler.Scale
 }
 
 // AddDummyFeature insert a column of ones to fit intercept

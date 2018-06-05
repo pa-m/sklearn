@@ -121,8 +121,8 @@ func ExampleLinearRegression() {
 	// Variance score: 0.47
 }
 
-// Test differents normalize setup for LinearRegression
-func TestRidgeWithVariousOptimizer(t *testing.T) {
+// Test differents normalize setup for RegularizedRegression
+func TestRegularizedRegression(t *testing.T) {
 	nSamples, nFeatures, nOutputs := 200, 2, 2
 	p := NewRandomLinearProblem(nSamples, nFeatures, nOutputs)
 
@@ -134,7 +134,8 @@ func TestRidgeWithVariousOptimizer(t *testing.T) {
 
 		for _, solver := range []string{"sgd", "adadelta", "adam"} {
 			testSetup := fmt.Sprintf("%s %v", solver, normalize)
-			regr := NewRidge()
+			regr := &RegularizedRegression{}
+			regr.FitIntercept = true
 			//regr.Options.PerOutputFit = true
 			regr.Alpha = 0.
 
@@ -148,6 +149,7 @@ func TestRidgeWithVariousOptimizer(t *testing.T) {
 					optimizer.(*base.SGDOptimizer).StepSize = .1
 				}
 			}
+			regr.Tol = 1e-4
 			start := time.Now()
 			regr.Fit(p.X, p.Y)
 			elapsed := time.Since(start)
@@ -185,66 +187,6 @@ func TestRidgeWithVariousOptimizer(t *testing.T) {
 		}
 	}
 	fmt.Printf("Test %T BEST SETUP:%v\n\n", LinearRegression{}, bestSetup)
-}
-
-func TestRidge(t *testing.T) {
-	nSamples, nFeatures, nOutputs := 200, 2, 2
-	p := NewRandomLinearProblem(nSamples, nFeatures, nOutputs)
-
-	for _, normalize := range []bool{false} {
-
-		regr := NewRidge()
-		regr.Alpha = 0.
-		regr.Tol = 1e-2
-		regr.Normalize = normalize
-		start := time.Now()
-		regr.Fit(p.X, p.Y)
-		elapsed := time.Since(start)
-		unused(elapsed)
-		//fmt.Println("XOffset", regr.XOffset, "Intercept", regr.Intercept, "Coef", regr.Coef)
-		Ypred := mat.NewDense(nSamples, nOutputs, nil)
-		regr.Predict(p.X, Ypred)
-		r2score := metrics.R2Score(p.Y, Ypred, nil, "").At(0, 0)
-		mse := metrics.MeanSquaredError(p.Y, Ypred, nil, "").At(0, 0)
-		mae := metrics.MeanAbsoluteError(p.Y, Ypred, nil, "").At(0, 0)
-		if math.Sqrt(mse) > regr.Tol {
-			t.Errorf("Test %T normalize=%v r2score=%g (%v) mse=%g mae=%g \n", regr, normalize, r2score, metrics.R2Score(p.Y, Ypred, nil, "raw_values"), mse, mae)
-			t.Fail()
-		} else {
-			//fmt.Printf("Test %T ok normalize=%v r2score=%g  mse=%g mae=%g elapsed=%s\n", regr, normalize, r2score, mse, mae, elapsed)
-		}
-	}
-
-}
-
-func TestLasso(t *testing.T) {
-	nSamples, nFeatures, nOutputs := 200, 2, 2
-	p := NewRandomLinearProblem(nSamples, nFeatures, nOutputs)
-
-	for _, normalize := range []bool{false} {
-
-		regr := NewLasso()
-		regr.Alpha = .1
-		regr.Tol = 1e-3
-		regr.Normalize = normalize
-		start := time.Now()
-		regr.Fit(p.X, p.Y)
-		elapsed := time.Since(start)
-		unused(elapsed)
-		//fmt.Println("XOffset", regr.XOffset, "Intercept", regr.Intercept, "Coef", regr.Coef)
-		Ypred := mat.NewDense(nSamples, nOutputs, nil)
-		regr.Predict(p.X, Ypred)
-		r2score := metrics.R2Score(p.Y, Ypred, nil, "").At(0, 0)
-		mse := metrics.MeanSquaredError(p.Y, Ypred, nil, "").At(0, 0)
-		mae := metrics.MeanAbsoluteError(p.Y, Ypred, nil, "").At(0, 0)
-		if math.Sqrt(mse) > regr.Tol {
-			t.Errorf("Test %T normalize=%v r2score=%g (%v) mse=%g mae=%g \n", regr, normalize, r2score, metrics.R2Score(p.Y, Ypred, nil, "raw_values"), mse, mae)
-			t.Fail()
-		} else {
-			//fmt.Printf("Test %T ok normalize=%v r2score=%g  mse=%g mae=%g elapsed=%s\n", regr, normalize, r2score, mse, mae, elapsed)
-		}
-	}
-
 }
 
 // ----
@@ -324,7 +266,8 @@ func TestLinFitGOM(t *testing.T) {
 		for _, normalize := range []bool{false, true} {
 			testSetup := fmt.Sprintf("%T %v", methodCreator(), normalize)
 			//fmt.Printf("-- TestLinearRegression normalize=%v --\n", normalize)
-			regr := NewRidge()
+			regr := &RegularizedRegression{}
+			regr.FitIntercept = true
 			regr.Alpha = 0.
 			regr.Normalize = normalize
 			regr.Options.GOMethodCreator = methodCreator
@@ -428,7 +371,7 @@ func TestBestRegressionImplementation(t *testing.T) {
 
 }
 
-func ExampleSetIntercept() {
+func _ExampleSetIntercept() {
 	X := mat.NewDense(3, 2, []float64{1, 2, 3, 7, 3, 6})
 	W := mat.NewDense(2, 2, []float64{5, 6, 7, 8})
 	Y := &mat.Dense{}

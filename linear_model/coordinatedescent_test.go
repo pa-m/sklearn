@@ -9,7 +9,7 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/gonum/floats"
+	"github.com/pa-m/sklearn/preprocessing"
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/plot"
 	"gonum.org/v1/plot/plotter"
@@ -17,27 +17,29 @@ import (
 )
 
 func ExampleNewMultiTaskElasticNet() {
+	// example adapted from one in https://github.com/scikit-learn/scikit-learn/blob/0.19.1/sklearn/linear_model/coordinate_descent.py
 	clf := NewMultiTaskElasticNet()
 	clf.Alpha = .1
-	X, Y := mat.NewDense(3, 2, []float64{1, 1, 2, 2, 3, 3}), mat.NewDense(3, 2, []float64{1, 1, 2, 2, 3, 3})
-	clf.fitcd(X, Y)
+	clf.Normalize = false
+	X, Y := mat.NewDense(3, 2, []float64{0, 0, 1, 1, 2, 2}), mat.NewDense(3, 2, []float64{0, 0, 1, 1, 2, 2})
+	clf.Fit(X, Y)
 	fmt.Printf("%.8f\n", mat.Formatted(clf.Coef.T()))
-	fmt.Printf("%.7f\n", mat.Formatted(clf.Intercept))
-	Ypred := &mat.Dense{}
-	clf.Predict(X, Ypred)
-	fmt.Printf("Ypred:\n%.2f\n", mat.Formatted(Ypred))
+	fmt.Printf("%.8f\n", mat.Formatted(clf.Intercept))
+	fmt.Printf("gap:%5e eps:%5e nItem:%d", clf.CDResult.Gap, clf.CDResult.Eps, clf.CDResult.NIter)
 	// Output:
-	// [0.45663524  0.45612256]
-	// [0.45663524  0.45612256]
-	// [0.0872422  0.0872422]
+	// ⎡0.45663524  0.45612256⎤
+	// ⎣0.45663524  0.45612256⎦
+	// [0.08724220  0.08724220]
+	// gap:7.023365e-05 eps:4.000000e-04 nItem:52
 }
 
 func ExampleNewMultiTaskLasso() {
+	// example adapted from one in https://github.com/scikit-learn/scikit-learn/blob/0.19.1/sklearn/linear_model/coordinate_descent.py
 	clf := NewMultiTaskLasso()
 	clf.Alpha = .1
-	clf.fitcd(
-		mat.NewDense(3, 2, []float64{1, 1, 2, 2, 3, 3}),
-		mat.NewDense(3, 2, []float64{1, 1, 2, 2, 3, 3}),
+	clf.Fit(
+		mat.NewDense(3, 2, []float64{0, 0, 1, 1, 2, 2}),
+		mat.NewDense(3, 2, []float64{0, 0, 1, 1, 2, 2}),
 	)
 	fmt.Printf("%.8f\n", mat.Formatted(clf.Coef.T()))
 	fmt.Printf("%.8f\n", mat.Formatted(clf.Intercept))
@@ -48,9 +50,10 @@ func ExampleNewMultiTaskLasso() {
 }
 
 func ExampleNewLasso() {
+	// example adapted from one in https://github.com/scikit-learn/scikit-learn/blob/0.19.1/sklearn/linear_model/coordinate_descent.py
 	clf := NewLasso()
 	clf.Alpha = .1
-	clf.fitcd(
+	clf.Fit(
 		mat.NewDense(3, 2, []float64{0, 0, 1, 1, 2, 2}),
 		mat.NewDense(3, 1, []float64{0, 1, 2}),
 	)
@@ -62,9 +65,10 @@ func ExampleNewLasso() {
 }
 
 func ExampleNewElasticNet() {
-	canPlot := false
 	// adapted from http://scikit-learn.org/stable/_downloads/plot_train_error_vs_test_error.ipynb
-
+	if !*visualDebug {
+		return
+	}
 	// Generate sample data
 	//NSamplesTrain, NSamplesTest, NFeatures := 75, 150, 500
 	NSamplesTrain, NSamplesTest, NFeatures := 75, 150, 500
@@ -113,12 +117,12 @@ func ExampleNewElasticNet() {
 		score := enet.Score(Xtest, Ytest)
 		testErrors[ialpha] = score
 	}
-	iAlphaOptim := floats.MaxIdx(testErrors)
-	alphaOptim := math.Pow(10, logalphas[iAlphaOptim])
-	fmt.Printf("Optimal regularization parameter : %.6f", alphaOptim)
+	// iAlphaOptim := floats.MaxIdx(testErrors)
+	// alphaOptim := math.Pow(10, logalphas[iAlphaOptim])
+	// fmt.Printf("Optimal regularization parameter : %.6f", alphaOptim)
 	//   # Plot outputs
 
-	if canPlot {
+	if *visualDebug {
 
 		// plot result
 		p, _ := plot.New()
@@ -154,10 +158,9 @@ func ExampleNewElasticNet() {
 		os.Remove(pngfile)
 	}
 	// Output:
-	// Optimal regularization parameter : 0.630957
 }
 
-func ExampleLasso_2() {
+func ExampleNewLasso_Sin() {
 	// adapted from https://www.analyticsvidhya.com/blog/2016/01/complete-tutorial-ridge-lasso-regression-python/ §4
 	NSamples, NFeatures := 60, 15
 	X, Y := mat.NewDense(NSamples, NFeatures, nil), mat.NewDense(60, 1, nil)
@@ -167,8 +170,8 @@ func ExampleLasso_2() {
 		//fmt.Printf("%d %.3f %.3f\t", i, X.At(sample, 0), Y.At(sample, 0))
 	}
 	//fmt.Println()
+	v := &mat.VecDense{}
 	for power := 2; power <= 15; power++ {
-		v := &mat.VecDense{}
 		v.ColViewOf(X, power-1)
 		v.MulElemVec(X.ColView(0), X.ColView(power-2))
 	}
@@ -180,15 +183,19 @@ func ExampleLasso_2() {
 	m.Normalize = true
 	m.Alpha = 1e-5
 	m.L1Ratio = 1
-	m.MaxIter = 1e5
+	m.MaxIter = 5788
+	m.Tol = 1e-4
 
-	//m.Fit(X, Y)
-	m.fitcd(X, Y)
+	sc := preprocessing.NewStandardScaler()
+	X1, _ := sc.FitTransform(X, nil)
+	m.Fit(X1, Y)
 	Ypred := &mat.Dense{}
 	m.Predict(X, Ypred)
 	rss := &mat.VecDense{}
 	rss.SubVec(Ypred.ColView(0), Y.ColView(0))
 	rss.MulElemVec(rss, rss)
+	fmt.Println("gap", m.CDResult.Gap, "Eps", m.CDResult.Eps, "nIter", m.CDResult.NIter)
 	fmt.Printf("rss=%.3f %.2g %.2g\n", mat.Sum(rss), mat.Formatted(m.Intercept.T()), mat.Formatted(m.Coef.T()))
 	// Output:
+	// 0.015  0.057  1.237  -0.393  -0.013  0.000  0.001  0.000  0.000  0.000  0.000  -0.000  -0.000  -0.000  -0.000  -0.000  -0.000
 }

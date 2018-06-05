@@ -11,42 +11,46 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
-func TestMinMaxScaler(t *testing.T) {
-	m := NewMinMaxScaler([]float{0, 1})
-	isTransformer := func(Transformer) {}
-	isTransformer(m)
-	X := mat.NewDense(3, 3, []float64{1, 2, 3, 1, 4, 7, 1, 5, 9})
-	m.Fit(X, nil)
-	if !floats.EqualApprox(m.Scale.RawRowView(0), []float{1, 1. / 3, 1. / 6}, 1e-6) {
-		t.Error("bad scale")
-		t.Fail()
-	}
-	X = mat.NewDense(3, 3, []float64{1, 2, 3, 1, 4, 7, 9, 5, 9})
-	m.Fit(X, nil)
-	X = mat.NewDense(1, 3, []float64{1, 2, 3})
-	Y, _ := m.Transform(X, nil)
-	if !floats.EqualApprox(Y.RawRowView(0), []float{0, 0, 0}, 1e-6) {
-		t.Error("bad min")
-		t.Fail()
-	}
+func ExampleMinMaxScaler() {
+	// adapted from http://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.MinMaxScaler.html#sklearn.preprocessing.MinMaxScaler
+	data := mat.NewDense(4, 2, []float64{-1., 2, -.5, 6, 0, 10, 1, 18})
+	scaler := NewMinMaxScaler([]float64{0, 1})
+	scaler.Fit(data, nil)
+	fmt.Println(mat.Formatted(scaler.DataMax))
+	X1, _ := scaler.Transform(data, nil)
+	fmt.Println(mat.Formatted(X1))
+	X2, _ := scaler.Transform(mat.NewDense(1, 2, []float64{2, 2}), nil)
+	fmt.Println(mat.Formatted(X2))
+	// Output:
+	// [ 1  18]
+	// ⎡   0     0⎤
+	// ⎢0.25  0.25⎥
+	// ⎢ 0.5   0.5⎥
+	// ⎣   1     1⎦
+	// [1.5    0]
 
-	X = mat.NewDense(1, 3, []float64{9, 5, 9})
-	Y, _ = m.Transform(X, nil)
-	if !floats.EqualApprox(Y.RawRowView(0), []float{1, 1, 1}, 1e-6) {
-		t.Errorf("bad Y=%v\n", Y)
-		t.Fail()
-	}
+}
+func ExampleStandardScaler() {
+	// adapted from example in http://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.StandardScaler.html#sklearn.preprocessing.StandardScaler
+	data := mat.NewDense(4, 2, []float64{0, 0, 0, 0, 1, 1, 1, 1})
+	scaler := NewStandardScaler()
+	scaler.Fit(data, nil)
+	fmt.Println(mat.Formatted(scaler.Mean))
+	X1, _ := scaler.Transform(data, nil)
+	fmt.Println(mat.Formatted(X1))
+	X2, _ := scaler.Transform(mat.NewDense(1, 2, []float64{2, 2}), nil)
+	fmt.Println(mat.Formatted(X2))
+	X3, _ := scaler.InverseTransform(mat.NewDense(1, 2, []float64{3, 3}), nil)
+	fmt.Println(mat.Formatted(X3))
 
-	m = NewMinMaxScaler([]float{0, 10})
-	X = mat.NewDense(3, 3, []float64{1, 2, 3, 1, 4, 7, 9, 5, 9})
-	m.Fit(X, nil)
-	X = mat.NewDense(1, 3, []float64{8, 8, 8})
-	Y, _ = m.Transform(X, nil)
-	X2, _ := m.InverseTransform(Y, nil)
-	if !floats.EqualApprox(X.RawRowView(0), X2.RawRowView(0), 1e-6) {
-		t.Errorf("MinMaxScaler InverseTransform failed %v", X2.RawRowView(0))
-		t.Fail()
-	}
+	// Output:
+	// [0.5  0.5]
+	// ⎡-1  -1⎤
+	// ⎢-1  -1⎥
+	// ⎢ 1   1⎥
+	// ⎣ 1   1⎦
+	// [3  3]
+	// [2  2]
 }
 
 func TestStandardScaler(t *testing.T) {
@@ -302,20 +306,6 @@ func ExampleScale() {
 	// ⎣-1.225   1.225  -1.069⎦
 	// mean:[0  0  0]
 	// std:[1.000  1.000  1.000]
-
-}
-
-func ExampleMinMaxScaler() {
-	// adapted from http://scikit-learn.org/stable/modules/preprocessing.html#standardization-or-mean-removal-and-variance-scaling
-	Xtrain := mat.NewDense(3, 3, []float64{1, -1, 2, 2, 0, 0, 0, 1, -1})
-	minMaxScaler := NewMinMaxScaler([]float64{0, 1})
-	Xtrainminmax, _ := minMaxScaler.FitTransform(Xtrain, nil)
-	fmt.Printf("Xtrainminmax:\n%.3f\n", mat.Formatted(Xtrainminmax))
-	// Output:
-	// 	Xtrainminmax:
-	// ⎡0.500  0.000  1.000⎤
-	// ⎢1.000  0.500  0.333⎥
-	// ⎣0.000  1.000  0.000⎦
 
 }
 
