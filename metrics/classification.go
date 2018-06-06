@@ -70,18 +70,21 @@ func AccuracyScore(Ytrue, Ypred mat.Matrix, normalize bool, sampleWeight *mat.De
 }*/
 
 // PrecisionScore v https://en.wikipedia.org/wiki/F1_score
+// average must be macro|micro|weighted.. //TODO binary,samples
 func PrecisionScore(Ytrue, Ypred *mat.Dense, average string, sampleWeight []float64) float64 {
 	p, _, _, _ := PrecisionRecallFScoreSupport(Ytrue, Ypred, 1, nil, -1, average, []string{}, sampleWeight)
 	return p
 }
 
 // RecallScore v https://en.wikipedia.org/wiki/F1_score
+// average must be macro|micro|weighted.. //TODO binary,samples
 func RecallScore(Ytrue, Ypred *mat.Dense, average string, sampleWeight []float64) float64 {
 	_, r, _, _ := PrecisionRecallFScoreSupport(Ytrue, Ypred, 1, nil, -1, average, []string{}, sampleWeight)
 	return r
 }
 
 // F1Score v https://en.wikipedia.org/wiki/F1_score
+// average must be macro|micro|weighted.. //TODO binary,samples
 func F1Score(Ytrue, Ypred *mat.Dense, average string, sampleWeight []float64) float64 {
 
 	return FBetaScore(Ytrue, Ypred, 1., average, sampleWeight)
@@ -93,6 +96,7 @@ func F1Score(Ytrue, Ypred *mat.Dense, average string, sampleWeight []float64) fl
 //     score. ``beta < 1`` lends more weight to precision, while ``beta > 1``
 //     favors recall (``beta -> 0`` considers only precision, ``beta -> inf``
 //     only recall)
+// average must be macro|micro|weighted.. //TODO binary,samples
 func FBetaScore(Ytrue, Ypred *mat.Dense, beta float64, average string, sampleWeight []float64) float64 {
 	_, _, f, _ := PrecisionRecallFScoreSupport(Ytrue, Ypred, beta, nil, -1, average, []string{}, sampleWeight)
 	return f
@@ -100,6 +104,8 @@ func FBetaScore(Ytrue, Ypred *mat.Dense, beta float64, average string, sampleWei
 
 // PrecisionRecallFScoreSupport Compute precision, recall, F-measure and support for each class
 // operate only on 1st Y column
+// average must be macro|micro|weighted.. //TODO binary,samples
+// posLabel is -1 or index of classes (index of class in ordered unique class values). if posLabel>=0, restuls are returned for the respective class only
 func PrecisionRecallFScoreSupport(YTrue, YPred *mat.Dense, beta float64, labels []float64, posLabel int, average string, warnFor []string, sampleWeight []float64) (precision, recall, fscore, support float64) {
 	type sumstype struct{ tpsum, truesum, predsum float64 }
 	type prfstype struct{ p, r, f, s float64 }
@@ -175,6 +181,7 @@ func PrecisionRecallFScoreSupport(YTrue, YPred *mat.Dense, beta float64, labels 
 
 // ConfusionMatrix Compute confusion matrix to evaluate the accuracy of a classification
 // operate only on 1st Y column
+// uses preprocessing.LabelEncoder to map class values to class indices
 func ConfusionMatrix(YTrue, YPred *mat.Dense, sampleWeight []float64) *mat.Dense {
 	cm, _, _, _ := internalConfusionMatrix(YTrue, YPred, sampleWeight)
 	return cm
@@ -188,6 +195,7 @@ func internalConfusionMatrix(YTrue, YPred *mat.Dense, sampleWeight []float64) (*
 	//var tn, fp, fn, tp int
 	NClasses := len(le.Classes[0])
 	cm := mat.NewDense(NClasses, NClasses, nil)
+	cmmat := cm.RawMatrix()
 	ytmat := yt.RawMatrix()
 	ypmat := yp.RawMatrix()
 	for sample, jyt, jyp := 0, 0, 0; jyt < ytmat.Rows*ytmat.Stride; sample, jyt, jyp = sample+1, jyt+ytmat.Stride, jyp+ypmat.Stride {
@@ -197,7 +205,8 @@ func internalConfusionMatrix(YTrue, YPred *mat.Dense, sampleWeight []float64) (*
 			if sampleWeight != nil {
 				w = sampleWeight[sample]
 			}
-			cm.Set(r, c, cm.At(r, c)+w)
+			// cm.Set(r, c, cm.At(r, c)+w)
+			cmmat.Data[r*cmmat.Stride+c] += w
 		}
 	}
 	return cm, yt, yp, le
