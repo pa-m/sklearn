@@ -197,3 +197,21 @@ func ExampleNewLasso() {
 	// rss=0.0149 intercept=[0.0570] coef=[ 1.2368  -0.3934  -0.0127   0.0000   0.0007   0.0001   0.0000   0.0000   0.0000  -0.0000  -0.0000  -0.0000  -0.0000  -0.0000  -0.0000]
 
 }
+
+func ExampleLassoPath() {
+	// adapted from https://github.com/scikit-learn/scikit-learn/blob/a24c8b46/sklearn/linear_model/coordinate_descent.py
+	X := mat.NewDense(3, 2, []float64{1, 2.3, 2, 5.4, 3.1, 4.3})
+	Y := mat.NewDense(3, 1, []float64{1, 2, 3.1})
+	alphas, coefPath, _, _ := LassoPath(X, Y, 1e-3, 3, &[]float64{5, 1, .5}, false, false)
+	for icoef, coef := range coefPath {
+		fmt.Printf("alpha=%.1f :\n%.3f\n", alphas[icoef], mat.Formatted(coef.T()))
+	}
+	// Output:
+	// alpha=5.0 :
+	// [0.000  0.216]
+	// alpha=1.0 :
+	// [0.000  0.443]
+	// alpha=0.5 :
+	// [0.474  0.235]
+
+}

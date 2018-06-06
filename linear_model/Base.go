@@ -54,12 +54,6 @@ type LinearRegression struct {
 	LinearModel
 }
 
-// CDResult is the coordinate descent specific part in the regression result
-type CDResult struct {
-	Gap, Eps float64
-	NIter    int
-}
-
 // RegularizedRegression is a common structure for ElasticNet,Lasso and Ridge
 type RegularizedRegression struct {
 	LinearRegression
