@@ -7,6 +7,7 @@ import (
 )
 
 func ExampleAccuracyScore() {
+	// adapted from example in https://github.com/scikit-learn/scikit-learn/blob/0.19.1/sklearn/metrics/classification.py
 	var nilDense *mat.Dense
 	normalize, sampleWeight := true, nilDense
 	Ypred, Ytrue := mat.NewDense(4, 1, []float64{0, 2, 1, 3}), mat.NewDense(4, 1, []float64{0, 1, 2, 3})
@@ -29,6 +30,7 @@ func ExampleConfusionMatrix() {
 }
 
 func ExamplePrecisionScore() {
+	// adapted from example in https://github.com/scikit-learn/scikit-learn/blob/0.19.1/sklearn/metrics/classification.py
 	Ytrue, Ypred := mat.NewDense(6, 1, []float64{0, 1, 2, 0, 1, 2}), mat.NewDense(6, 1, []float64{0, 2, 1, 0, 0, 1})
 	var sampleWeight []float64
 	fmt.Printf("%.2f\n", PrecisionScore(Ytrue, Ypred, "macro", sampleWeight))
@@ -41,6 +43,7 @@ func ExamplePrecisionScore() {
 }
 
 func ExampleRecallScore() {
+	// adapted from example in https://github.com/scikit-learn/scikit-learn/blob/0.19.1/sklearn/metrics/classification.py
 	Ytrue, Ypred := mat.NewDense(6, 1, []float64{0, 1, 2, 0, 1, 2}), mat.NewDense(6, 1, []float64{0, 2, 1, 0, 0, 1})
 	var sampleWeight []float64
 	fmt.Printf("%.2f\n", RecallScore(Ytrue, Ypred, "macro", sampleWeight))
@@ -53,6 +56,7 @@ func ExampleRecallScore() {
 }
 
 func ExampleF1Score() {
+	// adapted from example in https://github.com/scikit-learn/scikit-learn/blob/0.19.1/sklearn/metrics/classification.py
 	Ytrue, Ypred := mat.NewDense(6, 1, []float64{0, 1, 2, 0, 1, 2}), mat.NewDense(6, 1, []float64{0, 2, 1, 0, 0, 1})
 	var sampleWeight []float64
 	fmt.Printf("%.2f\n", F1Score(Ytrue, Ypred, "macro", sampleWeight))
@@ -65,6 +69,7 @@ func ExampleF1Score() {
 }
 
 func ExampleFBetaScore() {
+	// adapted from example in https://github.com/scikit-learn/scikit-learn/blob/0.19.1/sklearn/metrics/classification.py
 	Ytrue, Ypred := mat.NewDense(6, 1, []float64{0, 1, 2, 0, 1, 2}), mat.NewDense(6, 1, []float64{0, 2, 1, 0, 0, 1})
 	var sampleWeight []float64
 	fmt.Printf("%.2f\n", FBetaScore(Ytrue, Ypred, .5, "macro", sampleWeight))
@@ -77,6 +82,7 @@ func ExampleFBetaScore() {
 }
 
 func ExamplePrecisionRecallFScoreSupport() {
+	// adapted from example in https://github.com/scikit-learn/scikit-learn/blob/0.19.1/sklearn/metrics/classification.py
 	var precision, recall, fscore, support float64
 	// cat, dog, pig := 0., 1., 2.
 	Ytrue, Ypred := mat.NewDense(6, 1, []float64{0, 1, 2, 0, 1, 2}), mat.NewDense(6, 1, []float64{0, 2, 1, 0, 0, 1})

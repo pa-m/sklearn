@@ -1,8 +1,12 @@
 package metrics
 
-import "testing"
-import "math"
-import "gonum.org/v1/gonum/mat"
+import (
+	"fmt"
+	"math"
+	"testing"
+
+	"gonum.org/v1/gonum/mat"
+)
 
 func TestR2Score(t *testing.T) {
 	//1st example of sklearn metrics r2score
@@ -34,6 +38,36 @@ func TestR2Score(t *testing.T) {
 	if math.Abs(-3.-R2Score(yTrue, yPred, nil, "").At(0, 0)) >= 1e-3 {
 		t.Error("expected -3")
 	}
+}
+
+func ExampleR2Score() {
+	// adapted from example in https://github.com/scikit-learn/scikit-learn/blob/0.19.1/sklearn/metrics/regression.py
+	yTrue := mat.NewDense(4, 1, []float64{3, -0.5, 2, 7})
+	yPred := mat.NewDense(4, 1, []float64{2.5, 0.0, 2, 8})
+	fmt.Printf("%.3f\n", R2Score(yTrue, yPred, nil, "").At(0, 0))
+
+	yTrue = mat.NewDense(3, 2, []float64{0.5, 1, -1, 1, 7, -6})
+	yPred = mat.NewDense(3, 2, []float64{0, 2, -1, 2, 8, -5})
+	fmt.Printf("%.3f\n", R2Score(yTrue, yPred, nil, "variance_weighted").At(0, 0))
+
+	yTrue = mat.NewDense(3, 1, []float64{1, 2, 3})
+	yPred = mat.NewDense(3, 1, []float64{1, 2, 3})
+	fmt.Printf("%.3f\n", R2Score(yTrue, yPred, nil, "").At(0, 0))
+
+	yTrue = mat.NewDense(3, 1, []float64{1, 2, 3})
+	yPred = mat.NewDense(3, 1, []float64{2, 2, 2})
+	fmt.Printf("%g\n", R2Score(yTrue, yPred, nil, "").At(0, 0))
+
+	yTrue = mat.NewDense(3, 1, []float64{1, 2, 3})
+	yPred = mat.NewDense(3, 1, []float64{3, 2, 1})
+	fmt.Printf("%g\n", R2Score(yTrue, yPred, nil, "").At(0, 0))
+	// Output:
+	// 0.949
+	// 0.938
+	// 1.000
+	// 0
+	// -3
+
 }
 
 // >>> y_pred = [0, 2, 1, 3]
