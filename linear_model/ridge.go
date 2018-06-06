@@ -1,5 +1,8 @@
 package linearModel
 
+// Ridge is an alias for RegularizedRegression
+type Ridge = RegularizedRegression
+
 // NewRidge creates a *RegularizedRegression with Alpha=1. and L1Ratio=0
 func NewRidge() *RegularizedRegression {
 	regr := &RegularizedRegression{}

@@ -49,7 +49,7 @@ func TestRidge(t *testing.T) {
 
 }
 
-func ExampleNewRidge() {
+func ExampleRidge() {
 	X, Y := mat.NewDense(3, 2, []float64{0, 0, 1, 1, 2, 2}), mat.NewDense(3, 2, []float64{0, 0, 1, 1, 2, 2})
 	clf := NewRidge()
 	clf.Tol = 1e-3

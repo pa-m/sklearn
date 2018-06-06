@@ -15,7 +15,7 @@ import (
 	"gonum.org/v1/plot/vg"
 )
 
-func ExampleNewMultiTaskElasticNet() {
+func ExampleMultiTaskElasticNet() {
 	// example adapted from one in https://github.com/scikit-learn/scikit-learn/blob/0.19.1/sklearn/linear_model/coordinate_descent.py
 	clf := NewMultiTaskElasticNet()
 	clf.Alpha = .1
@@ -32,7 +32,7 @@ func ExampleNewMultiTaskElasticNet() {
 	// gap:7.023365e-05 eps:4.000000e-04 nItem:52
 }
 
-func ExampleNewMultiTaskLasso() {
+func ExampleMultiTaskLasso() {
 	// example adapted from one in https://github.com/scikit-learn/scikit-learn/blob/0.19.1/sklearn/linear_model/coordinate_descent.py
 	clf := NewMultiTaskLasso()
 	clf.Alpha = .1
@@ -48,7 +48,7 @@ func ExampleNewMultiTaskLasso() {
 	// [0.10606602  0.10606602]
 }
 
-func _ExampleNewLasso() {
+func _ExampleLasso() {
 	// example adapted from one in https://github.com/scikit-learn/scikit-learn/blob/0.19.1/sklearn/linear_model/coordinate_descent.py
 	clf := NewLasso()
 	clf.Alpha = .1
@@ -63,7 +63,7 @@ func _ExampleNewLasso() {
 	// [0.15000000]
 }
 
-func ExampleNewElasticNet() {
+func ExampleElasticNet() {
 	// adapted from http://scikit-learn.org/stable/_downloads/plot_train_error_vs_test_error.ipynb
 	if !*visualDebug {
 		return
@@ -159,7 +159,7 @@ func ExampleNewElasticNet() {
 	// Output:
 }
 
-func ExampleNewLasso() {
+func ExampleLasso() {
 	// adapted from https://www.analyticsvidhya.com/blog/2016/01/complete-tutorial-ridge-lasso-regression-python/ §4
 	NSamples, NFeatures := 60, 15
 	X, Y := mat.NewDense(NSamples, NFeatures, nil), mat.NewDense(60, 1, nil)

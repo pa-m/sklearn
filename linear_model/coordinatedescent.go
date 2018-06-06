@@ -14,9 +14,9 @@ type CDResult struct {
 	NIter    int
 }
 
-// ElasticNetRegression is the struct for coordinate descent regularized regressions: ElasticNet,Ridge,Lasso
+// ElasticNet is the struct for coordinate descent regularized regressions: ElasticNet,Ridge,Lasso
 // Selection is cyclic or random. defaults to cyclic
-type ElasticNetRegression struct {
+type ElasticNet struct {
 	LinearRegression
 	Tol, Alpha, L1Ratio float64
 	MaxIter             int
@@ -25,8 +25,17 @@ type ElasticNetRegression struct {
 	CDResult            CDResult
 }
 
+// Lasso is an alias for ElasticNet
+type Lasso = ElasticNet
+
+// MultiTaskElasticNet is an alias for ElasticNet
+type MultiTaskElasticNet = Lasso
+
+// MultiTaskLasso is an alias for ElasticNet/Lasso
+type MultiTaskLasso = Lasso
+
 // Fit ElasticNetRegression with coordinate descent
-func (regr *ElasticNetRegression) Fit(X0, Y0 *mat.Dense) base.Transformer {
+func (regr *ElasticNet) Fit(X0, Y0 *mat.Dense) base.Transformer {
 	var X, Y, YOffset *mat.Dense
 	X, Y, regr.XOffset, YOffset, regr.XScale = PreprocessData(X0, Y0, regr.FitIntercept, regr.Normalize, nil)
 	NSamples, NFeatures := X.Dims()
@@ -53,14 +62,14 @@ func (regr *ElasticNetRegression) Fit(X0, Y0 *mat.Dense) base.Transformer {
 	return regr
 }
 
-// NewElasticNet creates a *RegularizedRegression with Alpha=1 and L1Ratio=0.5
-func NewElasticNet() *ElasticNetRegression {
+// NewElasticNet creates a *ElasticNet with Alpha=1 and L1Ratio=0.5
+func NewElasticNet() *ElasticNet {
 	return NewMultiTaskElasticNet()
 }
 
-// NewMultiTaskElasticNet creates a *ElasticNetRegression with Alpha=1 and L1Ratio=0.5
-func NewMultiTaskElasticNet() *ElasticNetRegression {
-	regr := &ElasticNetRegression{}
+// NewMultiTaskElasticNet creates a *ElasticNet with Alpha=1 and L1Ratio=0.5
+func NewMultiTaskElasticNet() *MultiTaskElasticNet {
+	regr := &ElasticNet{}
 	regr.FitIntercept = true
 	regr.Tol = 1e-4
 	regr.Alpha = 1.
@@ -71,14 +80,14 @@ func NewMultiTaskElasticNet() *ElasticNetRegression {
 }
 
 //NewLasso creates a *ElasticNetRegression with Alpha=1 and L1Ratio = 1
-func NewLasso() *ElasticNetRegression {
+func NewLasso() *Lasso {
 	m := NewMultiTaskElasticNet()
 	m.L1Ratio = 1.
 	return m
 }
 
 // NewMultiTaskLasso creates a *RegularizedRegression with Alpha=1 and L1Ratio=1
-func NewMultiTaskLasso() *ElasticNetRegression {
+func NewMultiTaskLasso() *MultiTaskLasso {
 	m := NewMultiTaskElasticNet()
 	m.L1Ratio = 1.
 	return m
