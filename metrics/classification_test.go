@@ -30,9 +30,10 @@ func ExampleConfusionMatrix() {
 
 func ExamplePrecisionScore() {
 	Ytrue, Ypred := mat.NewDense(6, 1, []float64{0, 1, 2, 0, 1, 2}), mat.NewDense(6, 1, []float64{0, 2, 1, 0, 0, 1})
-	fmt.Printf("%.2f\n", PrecisionScore(Ytrue, Ypred, "macro"))
-	fmt.Printf("%.2f\n", PrecisionScore(Ytrue, Ypred, "micro"))
-	fmt.Printf("%.2f\n", PrecisionScore(Ytrue, Ypred, "weighted"))
+	var sampleWeight []float64
+	fmt.Printf("%.2f\n", PrecisionScore(Ytrue, Ypred, "macro", sampleWeight))
+	fmt.Printf("%.2f\n", PrecisionScore(Ytrue, Ypred, "micro", sampleWeight))
+	fmt.Printf("%.2f\n", PrecisionScore(Ytrue, Ypred, "weighted", sampleWeight))
 	// Output:
 	// 0.22
 	// 0.33
@@ -41,9 +42,10 @@ func ExamplePrecisionScore() {
 
 func ExampleRecallScore() {
 	Ytrue, Ypred := mat.NewDense(6, 1, []float64{0, 1, 2, 0, 1, 2}), mat.NewDense(6, 1, []float64{0, 2, 1, 0, 0, 1})
-	fmt.Printf("%.2f\n", RecallScore(Ytrue, Ypred, "macro"))
-	fmt.Printf("%.2f\n", RecallScore(Ytrue, Ypred, "micro"))
-	fmt.Printf("%.2f\n", RecallScore(Ytrue, Ypred, "weighted"))
+	var sampleWeight []float64
+	fmt.Printf("%.2f\n", RecallScore(Ytrue, Ypred, "macro", sampleWeight))
+	fmt.Printf("%.2f\n", RecallScore(Ytrue, Ypred, "micro", sampleWeight))
+	fmt.Printf("%.2f\n", RecallScore(Ytrue, Ypred, "weighted", sampleWeight))
 	// Output:
 	// 0.33
 	// 0.33
@@ -52,9 +54,10 @@ func ExampleRecallScore() {
 
 func ExampleF1Score() {
 	Ytrue, Ypred := mat.NewDense(6, 1, []float64{0, 1, 2, 0, 1, 2}), mat.NewDense(6, 1, []float64{0, 2, 1, 0, 0, 1})
-	fmt.Printf("%.2f\n", F1Score(Ytrue, Ypred, "macro"))
-	fmt.Printf("%.2f\n", F1Score(Ytrue, Ypred, "micro"))
-	fmt.Printf("%.2f\n", F1Score(Ytrue, Ypred, "weighted"))
+	var sampleWeight []float64
+	fmt.Printf("%.2f\n", F1Score(Ytrue, Ypred, "macro", sampleWeight))
+	fmt.Printf("%.2f\n", F1Score(Ytrue, Ypred, "micro", sampleWeight))
+	fmt.Printf("%.2f\n", F1Score(Ytrue, Ypred, "weighted", sampleWeight))
 	// Output:
 	// 0.27
 	// 0.33
@@ -63,9 +66,10 @@ func ExampleF1Score() {
 
 func ExampleFBetaScore() {
 	Ytrue, Ypred := mat.NewDense(6, 1, []float64{0, 1, 2, 0, 1, 2}), mat.NewDense(6, 1, []float64{0, 2, 1, 0, 0, 1})
-	fmt.Printf("%.2f\n", FBetaScore(Ytrue, Ypred, "macro", .5))
-	fmt.Printf("%.2f\n", FBetaScore(Ytrue, Ypred, "micro", .5))
-	fmt.Printf("%.2f\n", FBetaScore(Ytrue, Ypred, "weighted", .5))
+	var sampleWeight []float64
+	fmt.Printf("%.2f\n", FBetaScore(Ytrue, Ypred, .5, "macro", sampleWeight))
+	fmt.Printf("%.2f\n", FBetaScore(Ytrue, Ypred, .5, "micro", sampleWeight))
+	fmt.Printf("%.2f\n", FBetaScore(Ytrue, Ypred, .5, "weighted", sampleWeight))
 	// Output:
 	// 0.24
 	// 0.33

@@ -70,21 +70,21 @@ func AccuracyScore(Ytrue, Ypred mat.Matrix, normalize bool, sampleWeight *mat.De
 }*/
 
 // PrecisionScore v https://en.wikipedia.org/wiki/F1_score
-func PrecisionScore(Ytrue, Ypred *mat.Dense, average string) float64 {
-	p, _, _, _ := PrecisionRecallFScoreSupport(Ytrue, Ypred, 1, nil, -1, average, []string{}, nil)
+func PrecisionScore(Ytrue, Ypred *mat.Dense, average string, sampleWeight []float64) float64 {
+	p, _, _, _ := PrecisionRecallFScoreSupport(Ytrue, Ypred, 1, nil, -1, average, []string{}, sampleWeight)
 	return p
 }
 
 // RecallScore v https://en.wikipedia.org/wiki/F1_score
-func RecallScore(Ytrue, Ypred *mat.Dense, average string) float64 {
-	_, r, _, _ := PrecisionRecallFScoreSupport(Ytrue, Ypred, 1, nil, -1, average, []string{}, nil)
+func RecallScore(Ytrue, Ypred *mat.Dense, average string, sampleWeight []float64) float64 {
+	_, r, _, _ := PrecisionRecallFScoreSupport(Ytrue, Ypred, 1, nil, -1, average, []string{}, sampleWeight)
 	return r
 }
 
 // F1Score v https://en.wikipedia.org/wiki/F1_score
-func F1Score(Ytrue, Ypred *mat.Dense, average string) float64 {
+func F1Score(Ytrue, Ypred *mat.Dense, average string, sampleWeight []float64) float64 {
 
-	return FBetaScore(Ytrue, Ypred, average, 1.)
+	return FBetaScore(Ytrue, Ypred, 1., average, sampleWeight)
 }
 
 // FBetaScore is the weighted harmonic mean of precision and recall,
@@ -93,8 +93,8 @@ func F1Score(Ytrue, Ypred *mat.Dense, average string) float64 {
 //     score. ``beta < 1`` lends more weight to precision, while ``beta > 1``
 //     favors recall (``beta -> 0`` considers only precision, ``beta -> inf``
 //     only recall)
-func FBetaScore(Ytrue, Ypred *mat.Dense, average string, beta float64) float64 {
-	_, _, f, _ := PrecisionRecallFScoreSupport(Ytrue, Ypred, beta, nil, -1, average, []string{}, nil)
+func FBetaScore(Ytrue, Ypred *mat.Dense, beta float64, average string, sampleWeight []float64) float64 {
+	_, _, f, _ := PrecisionRecallFScoreSupport(Ytrue, Ypred, beta, nil, -1, average, []string{}, sampleWeight)
 	return f
 }
 
