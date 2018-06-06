@@ -82,10 +82,8 @@ func NewLinearRegression() *LinearRegression {
 
 // Fit fits Coef for a LinearRegression
 func (regr *LinearRegression) Fit(X0, Y0 *mat.Dense) base.Transformer {
-	X := mat.DenseCopyOf(X0)
-	regr.XOffset, regr.XScale = preprocessing.DenseNormalize(X, regr.FitIntercept, regr.Normalize)
-	Y := mat.DenseCopyOf(Y0)
-	YOffset, _ := preprocessing.DenseNormalize(Y, regr.FitIntercept, false)
+	var X, Y, YOffset *mat.Dense
+	X, Y, regr.XOffset, YOffset, regr.XScale = PreprocessData(X0, Y0, regr.FitIntercept, regr.Normalize, nil)
 	// use least squares
 	regr.Coef = &mat.Dense{}
 	regr.Coef.Solve(X, Y)
@@ -95,22 +93,18 @@ func (regr *LinearRegression) Fit(X0, Y0 *mat.Dense) base.Transformer {
 
 // Fit fits Coef for a LinearRegression
 func (regr *RegularizedRegression) Fit(X0, Y0 *mat.Dense) base.Transformer {
-	X := mat.DenseCopyOf(X0)
-	regr.XOffset, regr.XScale = preprocessing.DenseNormalize(X, regr.FitIntercept, regr.Normalize)
-	Y := mat.DenseCopyOf(Y0)
-	YOffset, _ := preprocessing.DenseNormalize(Y, regr.FitIntercept, false)
-	{
-		opt := regr.Options
-		opt.Tol = regr.Tol
-		opt.Solver = regr.Solver
-		opt.SolverConfigure = regr.SolverConfigure
-		opt.Loss = regr.LossFunction
-		opt.Activation = regr.ActivationFunction
-		opt.Alpha = regr.Alpha
-		opt.L1Ratio = regr.L1Ratio
-		res := LinFit(X, Y, &opt)
-		regr.Coef = res.Theta
-	}
+	var X, Y, YOffset *mat.Dense
+	X, Y, regr.XOffset, YOffset, regr.XScale = PreprocessData(X0, Y0, regr.FitIntercept, regr.Normalize, nil)
+	opt := regr.Options
+	opt.Tol = regr.Tol
+	opt.Solver = regr.Solver
+	opt.SolverConfigure = regr.SolverConfigure
+	opt.Loss = regr.LossFunction
+	opt.Activation = regr.ActivationFunction
+	opt.Alpha = regr.Alpha
+	opt.L1Ratio = regr.L1Ratio
+	res := LinFit(X, Y, &opt)
+	regr.Coef = res.Theta
 	regr.LinearModel.setIntercept(regr.XOffset, YOffset, regr.XScale)
 	return regr
 }
@@ -158,10 +152,8 @@ func NewSGDRegressor() *SGDRegressor {
 
 // Fit learns Coef
 func (regr *SGDRegressor) Fit(X0, y0 *mat.Dense) base.Transformer {
-	X := mat.DenseCopyOf(X0)
-	regr.XOffset, regr.XScale = preprocessing.DenseNormalize(X, regr.FitIntercept, regr.Normalize)
-	Y := mat.DenseCopyOf(y0)
-	YOffset, _ := preprocessing.DenseNormalize(Y, regr.FitIntercept, false)
+	var X, Y, YOffset *mat.Dense
+	X, Y, regr.XOffset, YOffset, regr.XScale = PreprocessData(X0, y0, regr.FitIntercept, regr.Normalize, nil)
 	// begin use gonum gradientDescent
 	nSamples, nFeatures := X.Dims()
 	_, nOutputs := Y.Dims()
@@ -615,42 +607,49 @@ func (regr *LinearModel) Score(X, Y *mat.Dense) float64 {
 func PreprocessData(X, Y *mat.Dense, FitIntercept, Normalize bool, SampleWeight *mat.VecDense) (Xout, Yout, XOffset, YOffset, XScale *mat.Dense) {
 	Xmat := X.RawMatrix()
 	Ymat := Y.RawMatrix()
-	Xout = mat.NewDense(Xmat.Rows, Xmat.Cols, nil)
-	Xoutmat := Xout.RawMatrix()
-
-	Yout = Y
 	XOffset = mat.NewDense(1, Xmat.Cols, nil)
 	XOffsetmat := XOffset.RawMatrix()
 	YOffset = mat.NewDense(1, Ymat.Cols, nil)
 	YOffsetmat := YOffset.RawMatrix()
 	XScale = mat.NewDense(1, Xmat.Cols, nil)
 	XScalemat := XScale.RawMatrix()
-	for i := range YOffsetmat.Data[0:YOffsetmat.Cols] {
-		YOffsetmat.Data[i] = 1
+	for i := range XScalemat.Data[0:XScalemat.Cols] {
+		XScalemat.Data[i] = 1
 	}
+	if !FitIntercept && !Normalize {
+		Xout, Yout = X, Y
+		return
+	}
+	Xout = mat.NewDense(Xmat.Rows, Xmat.Cols, nil)
+	Xoutmat := Xout.RawMatrix()
+
+	Yout = Y
 	base.Parallelize(-1, Xmat.Cols, func(th, start, end int) {
 		for feature := start; feature < end; feature++ {
 			xcol := X.ColView(feature)
+			mean := 0.
 			if FitIntercept {
-				mean := mat.Sum(xcol) / float64(Xmat.Rows)
+				mean = mat.Sum(xcol) / float64(Xmat.Rows)
 
 				for jX, jXout := 0, 0; jX < Xmat.Rows*Xmat.Stride; jX, jXout = jX+Xmat.Stride, jXout+Xoutmat.Stride {
 					Xoutmat.Data[jXout+feature] = Xmat.Data[jX+feature] - mean
 				}
-				scale := 1.
-				if Normalize {
-					scale = mat.Norm(Xout.ColView(feature), 2)
-					if scale != 0. {
-						for jXout := 0; jXout < Xoutmat.Rows*Xoutmat.Stride; jXout = jXout + Xoutmat.Stride {
-							Xoutmat.Data[jXout+feature] /= scale
-						}
+			} else {
+				Xout.Copy(X)
+			}
+			scale := 1.
+			if Normalize {
+				scale = mat.Norm(Xout.ColView(feature), 2)
+				if scale != 0. {
+					for jXout := 0; jXout < Xoutmat.Rows*Xoutmat.Stride; jXout = jXout + Xoutmat.Stride {
+						Xoutmat.Data[jXout+feature] /= scale
 					}
-
 				}
-				XOffsetmat.Data[feature] = mean
-				XScalemat.Data[feature] = scale
 
 			}
+			XOffsetmat.Data[feature] = mean
+			XScalemat.Data[feature] = scale
+
 		}
 	})
 	if FitIntercept {
@@ -667,6 +666,10 @@ func PreprocessData(X, Y *mat.Dense, FitIntercept, Normalize bool, SampleWeight 
 				}
 			}
 		})
+	} else {
+		Yout = Y
 	}
+	// fmt.Printf("debug\nXout\n%.3f\nYout\n%.3f\nXOffset\n%.3f\nYOffset\n%.3f\nXScale\n%.3f\n",
+	// 	mat.Formatted(Xout), mat.Formatted(Yout), mat.Formatted(XOffset), mat.Formatted(YOffset), mat.Formatted(XScale))
 	return
 }

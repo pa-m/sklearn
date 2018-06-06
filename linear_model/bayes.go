@@ -5,7 +5,6 @@ import (
 	"math"
 
 	"github.com/pa-m/sklearn/base"
-	"github.com/pa-m/sklearn/preprocessing"
 	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
 )
@@ -37,13 +36,11 @@ func NewBayesianRidge() *BayesianRidge {
 //             Training data
 //         y : numpy array of shape [nSamples]
 //             Target values. Will be cast to X's dtype if necessary
-func (regr *BayesianRidge) Fit(X0, Y *mat.Dense) base.Transformer {
+func (regr *BayesianRidge) Fit(X0, Y0 *mat.Dense) base.Transformer {
+	var X, Y, YOffset *mat.Dense
+	X, Y, regr.XOffset, YOffset, regr.XScale = PreprocessData(X0, Y0, regr.FitIntercept, regr.Normalize, nil)
 	var nSamples, nFeatures = X0.Dims()
 	var _, nOutputs = Y.Dims()
-	X := mat.NewDense(nSamples, nFeatures, nil)
-	X.Clone(X0)
-	XOffset, XScale := preprocessing.DenseNormalize(X, regr.FitIntercept, regr.Normalize)
-	YOffset := mat.NewDense(1, nOutputs, nil)
 	//alpha_ = 1. / np.var(y)
 	alpha := 0.
 	Y.Apply(func(i int, j int, y float64) float64 {
@@ -189,9 +186,7 @@ func (regr *BayesianRidge) Fit(X0, Y *mat.Dense) base.Transformer {
 	//set_intercept
 	regr.Coef = coef
 	regr.Intercept = mat.NewDense(1, nOutputs, nil)
-	regr.setIntercept(XOffset, YOffset, XScale)
-	regr.XOffset = XOffset
-	regr.XScale = XScale
+	regr.setIntercept(regr.XOffset, YOffset, regr.XScale)
 	return regr
 }
 

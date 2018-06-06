@@ -10,6 +10,12 @@ type float = float64
 
 func unused(...interface{}) {}
 
+// BaseEstimator support may be added in the future
+type BaseEstimator interface {
+	GetParams() map[string]interface{}
+	SetParams(interface{})
+}
+
 // Transformer transforms X,Y
 type Transformer interface {
 	Fit(X, Y *mat.Dense) Transformer

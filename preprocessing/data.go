@@ -654,31 +654,6 @@ func DenseMean(Xmean *mat.Dense, X mat.Matrix) *mat.Dense {
 	return Xmean
 }
 
-// DenseNormalize normalize matrix rows by removing mean and dividing with standard deviation
-func DenseNormalize(X *mat.Dense, FitIntercept, Normalize bool) (XOffset, XScale *mat.Dense) {
-	scaler := NewStandardScaler()
-	scaler.WithMean = FitIntercept
-	scaler.WithStd = Normalize
-	Xout, _ := scaler.FitTransform(X, nil)
-	X.Copy(Xout)
-
-	fill := func(M *mat.Dense, v float64) {
-		Mmat := M.RawMatrix()
-		for jM := 0; jM < Mmat.Rows*Mmat.Stride; jM = jM + Mmat.Stride {
-			for i := range Mmat.Data[jM : jM+Mmat.Cols] {
-				Mmat.Data[jM+i] = v
-			}
-		}
-	}
-	if !FitIntercept {
-		fill(scaler.Mean, 0.)
-	}
-	if !Normalize {
-		fill(scaler.Scale, 1.)
-	}
-	return scaler.Mean, scaler.Scale
-}
-
 // AddDummyFeature insert a column of ones to fit intercept
 func AddDummyFeature(X *mat.Dense) {
 	nSamples, nFeatures := X.Dims()
