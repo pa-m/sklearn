@@ -3,6 +3,7 @@ package metrics
 import (
 	"fmt"
 
+	"github.com/gonum/stat"
 	"github.com/pa-m/sklearn/preprocessing"
 	"gonum.org/v1/gonum/mat"
 )
@@ -70,13 +71,13 @@ func AccuracyScore(Ytrue, Ypred mat.Matrix, normalize bool, sampleWeight *mat.De
 
 // PrecisionScore v https://en.wikipedia.org/wiki/F1_score
 func PrecisionScore(Ytrue, Ypred *mat.Dense, average string) float64 {
-	p, _, _, _ := PrecisionRecallFScoreSupport(Ytrue, Ypred, 1, nil, 1, average, []string{}, nil)
+	p, _, _, _ := PrecisionRecallFScoreSupport(Ytrue, Ypred, 1, nil, -1, average, []string{}, nil)
 	return p
 }
 
 // RecallScore v https://en.wikipedia.org/wiki/F1_score
 func RecallScore(Ytrue, Ypred *mat.Dense, average string) float64 {
-	_, r, _, _ := PrecisionRecallFScoreSupport(Ytrue, Ypred, 1, nil, 1, average, []string{}, nil)
+	_, r, _, _ := PrecisionRecallFScoreSupport(Ytrue, Ypred, 1, nil, -1, average, []string{}, nil)
 	return r
 }
 
@@ -93,60 +94,73 @@ func F1Score(Ytrue, Ypred *mat.Dense, average string) float64 {
 //     favors recall (``beta -> 0`` considers only precision, ``beta -> inf``
 //     only recall)
 func FBetaScore(Ytrue, Ypred *mat.Dense, average string, beta float64) float64 {
-	p, _, _, _ := PrecisionRecallFScoreSupport(Ytrue, Ypred, beta, nil, 1, average, []string{}, nil)
-	return p
+	_, _, f, _ := PrecisionRecallFScoreSupport(Ytrue, Ypred, beta, nil, -1, average, []string{}, nil)
+	return f
 }
 
 // PrecisionRecallFScoreSupport Compute precision, recall, F-measure and support for each class
 // operate only on 1st Y column
 func PrecisionRecallFScoreSupport(YTrue, YPred *mat.Dense, beta float64, labels []float64, posLabel int, average string, warnFor []string, sampleWeight []float64) (precision, recall, fscore, support float64) {
-	type sums struct{ tpsum, truesum, predsum float64 }
+	type sumstype struct{ tpsum, truesum, predsum float64 }
+	type prfstype struct{ p, r, f, s float64 }
 	cm := ConfusionMatrix(YTrue, YPred, sampleWeight)
-	// fmt.Println(mat.Formatted(cm))
 	cmmat := cm.RawMatrix()
 	NClasses := cmmat.Rows
-	perclass := make([]sums, NClasses)
+	sumsperclass := make([]sumstype, NClasses)
+	prfsperclass := make([]prfstype, NClasses)
 
-	for c := range perclass {
-		pc := &perclass[c]
-		pc.tpsum = (cm.At(c, c))
-		pc.truesum = mat.Sum(cm.RowView(c))
-		pc.predsum = mat.Sum(cm.ColView(c))
-	}
-	prfs := func(g sums) (precision, recall, fscore, support float64) {
+	prfs := func(g sumstype) (precision, recall, fscore, support float64) {
 		if g.predsum > 0. {
 			precision = g.tpsum / g.predsum
 		}
-		// fmt.Printf("precision %g/%g => %g\n", g.tpsum, g.predsum, precision)
 		if g.truesum > 0. {
 			recall = g.tpsum / g.truesum
 		}
-		// fmt.Printf("recall %g/%g => %g\n", g.tpsum, g.truesum, recall)
 
 		beta2 := beta * beta
 		if beta2*precision+recall > 0. {
 			fscore = ((1 + beta2) * precision * recall /
 				(beta2*precision + recall))
 		}
-		// fmt.Printf("fscore %g * %g * %g / (%g * %g + %g) => %g\n", 1+beta2, precision, recall, beta2, precision, recall, fscore)
 		return
 	}
-	if average == "macro" {
+	for c := range sumsperclass {
+		sumsperclass[c] = sumstype{
+			tpsum: cm.At(c, c), truesum: mat.Sum(cm.RowView(c)), predsum: mat.Sum(cm.ColView(c)),
+		}
+		p, r, f, s := prfs(sumsperclass[c])
+		prfsperclass[c] = prfstype{p, r, f, s}
+	}
+	if posLabel >= 0 {
 		if posLabel >= NClasses {
 			panic(fmt.Errorf("posLabel>=NClasses %d,%d", posLabel, NClasses))
 		}
-		return prfs(perclass[posLabel])
+		r := &prfsperclass[posLabel]
+		return r.p, r.r, r.f, r.s
+	}
+	if average == "macro" {
+		var p, r, f, s []float64
+		for c := range prfsperclass {
+			prfs := &prfsperclass[c]
+			p = append(p, prfs.p)
+			r = append(r, prfs.r)
+			f = append(f, prfs.f)
+			s = append(s, prfs.s)
+		}
+
+		m := prfstype{stat.Mean(p, nil), stat.Mean(r, nil), stat.Mean(f, nil), stat.Mean(s, nil)}
+		return m.p, m.r, m.f, m.s
 	}
 	// for average=micro
-	//if average == "micro" {
-	var g sums
-	for _, g1 := range perclass {
-		g.tpsum += g1.tpsum
-		g.truesum += g1.truesum
-		g.predsum += g1.predsum
+	if average == "micro" {
+		var g sumstype
+		for _, g1 := range sumsperclass {
+			g.tpsum += g1.tpsum
+			g.truesum += g1.truesum
+			g.predsum += g1.predsum
+		}
+		precision, recall, fscore, support = prfs(g)
 	}
-	precision, recall, fscore, support = prfs(g)
-	//}
 	return precision, recall, fscore, support
 }
 
