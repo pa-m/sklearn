@@ -3,6 +3,7 @@ package linearModel
 import (
 	"math"
 	"strings"
+	"sync"
 
 	"github.com/pa-m/sklearn/base"
 	"gonum.org/v1/gonum/mat"
@@ -130,19 +131,25 @@ func EnetPath(X, Y *mat.Dense, L1Ratio, eps float64, NAlphas int, Alphas *[]floa
 	coefs = make([]*mat.Dense, NAlphas)
 	dualGaps = make([]float64, NAlphas)
 	nIters = make([]int, NAlphas)
+	wg := new(sync.WaitGroup)
 	for ialpha, alpha := range alphas {
-		m := NewElasticNet()
-		m.FitIntercept = false
-		m.Normalize = false
-		m.L1Ratio = L1Ratio
-		m.Tol = eps
-		m.Positive = positive
-		m.Alpha = alpha
-		m.Fit(X, Y)
-		coefs[ialpha] = m.Coef
-		dualGaps[ialpha] = m.CDResult.Gap
-		nIters[ialpha] = m.CDResult.NIter
+		wg.Add(1)
+		go func(ialpha int, alpha float) {
+			m := NewElasticNet()
+			m.FitIntercept = false
+			m.Normalize = false
+			m.L1Ratio = L1Ratio
+			m.Tol = eps
+			m.Positive = positive
+			m.Alpha = alpha
+			m.Fit(X, Y)
+			coefs[ialpha] = m.Coef
+			dualGaps[ialpha] = m.CDResult.Gap
+			nIters[ialpha] = m.CDResult.NIter
+			wg.Done()
+		}(ialpha, alpha)
 	}
+	wg.Wait()
 	return
 }
 
