@@ -103,13 +103,13 @@ func FBetaScore(Ytrue, Ypred *mat.Dense, average string, beta float64) float64 {
 func PrecisionRecallFScoreSupport(YTrue, YPred *mat.Dense, beta float64, labels []float64, posLabel int, average string, warnFor []string, sampleWeight []float64) (precision, recall, fscore, support float64) {
 	type sumstype struct{ tpsum, truesum, predsum float64 }
 	type prfstype struct{ p, r, f, s float64 }
-	cm := ConfusionMatrix(YTrue, YPred, sampleWeight)
+	cm, _, _, le := internalConfusionMatrix(YTrue, YPred, sampleWeight)
 	cmmat := cm.RawMatrix()
 	NClasses := cmmat.Rows
 	sumsperclass := make([]sumstype, NClasses)
 	prfsperclass := make([]prfstype, NClasses)
 
-	prfs := func(g sumstype) (precision, recall, fscore, support float64) {
+	prfs := func(c int, g sumstype) (precision, recall, fscore, support float64) {
 		if g.predsum > 0. {
 			precision = g.tpsum / g.predsum
 		}
@@ -122,13 +122,17 @@ func PrecisionRecallFScoreSupport(YTrue, YPred *mat.Dense, beta float64, labels 
 			fscore = ((1 + beta2) * precision * recall /
 				(beta2*precision + recall))
 		}
+		if c >= 0 && c < len(le.Support[0]) {
+			support = float64(le.Support[0][c])
+		}
+
 		return
 	}
 	for c := range sumsperclass {
 		sumsperclass[c] = sumstype{
 			tpsum: cm.At(c, c), truesum: mat.Sum(cm.RowView(c)), predsum: mat.Sum(cm.ColView(c)),
 		}
-		p, r, f, s := prfs(sumsperclass[c])
+		p, r, f, s := prfs(c, sumsperclass[c])
 		prfsperclass[c] = prfstype{p, r, f, s}
 	}
 	if posLabel >= 0 {
@@ -138,18 +142,22 @@ func PrecisionRecallFScoreSupport(YTrue, YPred *mat.Dense, beta float64, labels 
 		r := &prfsperclass[posLabel]
 		return r.p, r.r, r.f, r.s
 	}
-	if average == "macro" {
+	if average == "macro" || average == "weighted" {
 		var p, r, f, s []float64
 		for c := range prfsperclass {
 			prfs := &prfsperclass[c]
 			p = append(p, prfs.p)
 			r = append(r, prfs.r)
 			f = append(f, prfs.f)
-			s = append(s, prfs.s)
+			if average == "weighted" {
+				s = append(s, prfs.s)
+			} else {
+				s = append(s, 1)
+			}
 		}
 
 		m := prfstype{stat.Mean(p, nil), stat.Mean(r, nil), stat.Mean(f, nil), stat.Mean(s, nil)}
-		return m.p, m.r, m.f, m.s
+		precision, recall, fscore, support = m.p, m.r, m.f, 0
 	}
 	// for average=micro
 	if average == "micro" {
@@ -159,7 +167,8 @@ func PrecisionRecallFScoreSupport(YTrue, YPred *mat.Dense, beta float64, labels 
 			g.truesum += g1.truesum
 			g.predsum += g1.predsum
 		}
-		precision, recall, fscore, support = prfs(g)
+		precision, recall, fscore, _ = prfs(-1, g)
+
 	}
 	return precision, recall, fscore, support
 }
@@ -167,9 +176,13 @@ func PrecisionRecallFScoreSupport(YTrue, YPred *mat.Dense, beta float64, labels 
 // ConfusionMatrix Compute confusion matrix to evaluate the accuracy of a classification
 // operate only on 1st Y column
 func ConfusionMatrix(YTrue, YPred *mat.Dense, sampleWeight []float64) *mat.Dense {
+	cm, _, _, _ := internalConfusionMatrix(YTrue, YPred, sampleWeight)
+	return cm
+}
+func internalConfusionMatrix(YTrue, YPred *mat.Dense, sampleWeight []float64) (*mat.Dense, *mat.Dense, *mat.Dense, *preprocessing.LabelEncoder) {
 	le := preprocessing.NewLabelEncoder()
 	le.Fit(nil, YTrue)
-	le.PartialFit(nil, YPred)
+	//le.PartialFit(nil, YPred)
 	_, yt := le.Transform(nil, YTrue)
 	_, yp := le.Transform(nil, YPred)
 	//var tn, fp, fn, tp int
@@ -187,5 +200,5 @@ func ConfusionMatrix(YTrue, YPred *mat.Dense, sampleWeight []float64) *mat.Dense
 			cm.Set(r, c, cm.At(r, c)+w)
 		}
 	}
-	return cm
+	return cm, yt, yp, le
 }

@@ -236,6 +236,7 @@ func (m *MultiLabelBinarizer) InverseTransform(X, Y *mat.Dense) (Xout *mat.Dense
 // LabelEncoder Encode labels with value between 0 and n_classes-1.
 type LabelEncoder struct {
 	Classes [][]float64
+	Support [][]int
 }
 
 // NewLabelEncoder ...
@@ -245,6 +246,7 @@ func NewLabelEncoder() *LabelEncoder { return &LabelEncoder{} }
 func (m *LabelEncoder) Fit(X, Y *mat.Dense) base.Transformer {
 	Ymat := Y.RawMatrix()
 	m.Classes = make([][]float64, Ymat.Cols)
+	m.Support = make([][]int, Ymat.Cols)
 	return m.PartialFit(X, Y)
 }
 
@@ -253,6 +255,7 @@ func (m *LabelEncoder) PartialFit(X, Y *mat.Dense) base.Transformer {
 	Ymat := Y.RawMatrix()
 	if m.Classes == nil || len(m.Classes) != Ymat.Cols {
 		m.Classes = make([][]float64, Ymat.Cols)
+		m.Support = make([][]int, Ymat.Cols)
 	}
 	for i := 0; i < Ymat.Cols; i++ {
 		for jY := 0; jY < Ymat.Rows*Ymat.Stride; jY = jY + Ymat.Stride {
@@ -260,11 +263,15 @@ func (m *LabelEncoder) PartialFit(X, Y *mat.Dense) base.Transformer {
 			l := len(m.Classes[i])
 			pos := sort.SearchFloat64s(m.Classes[i], v)
 			if pos < l && m.Classes[i][pos] == v {
+				m.Support[i][pos]++
 				continue
 			}
 			m.Classes[i] = append(m.Classes[i], v)
+			m.Support[i] = append(m.Support[i], 0)
 			copy(m.Classes[i][pos+1:l+1], m.Classes[i][pos:l])
+			copy(m.Support[i][pos+1:l+1], m.Support[i][pos:l])
 			m.Classes[i][pos] = v
+			m.Support[i][pos]++
 		}
 	}
 	return m
@@ -277,7 +284,11 @@ func (m *LabelEncoder) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
 	Youtmat := Yout.RawMatrix()
 	for jY, jYout := 0, 0; jY < Ymat.Rows*Ymat.Stride; jY, jYout = jY+Ymat.Stride, jYout+Youtmat.Stride {
 		for i, v := range Ymat.Data[jY : jY+Ymat.Cols] {
-			Youtmat.Data[jYout+i] = float64(sort.SearchFloat64s(m.Classes[i], v))
+			pos := sort.SearchFloat64s(m.Classes[i], v)
+			if pos < 0 || pos >= len(m.Classes[i]) {
+				pos = -1
+			}
+			Youtmat.Data[jYout+i] = float64(pos)
 		}
 	}
 	Xout = X
