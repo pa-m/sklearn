@@ -55,3 +55,20 @@ func ExampleMultiLabelBinarizer() {
 	// [[sci-fi thriller] [comedy comedy]]
 
 }
+
+func ExampleLabelEncoder() {
+	// adapted from http://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.LabelEncoder.html#sklearn.preprocessing.LabelEncoder
+	le := NewLabelEncoder()
+	Y := mat.NewDense(4, 1, []float64{1, 2, 2, 6})
+	le.Fit(nil, Y)
+	fmt.Println(le.Classes)
+	_, Y1 := le.Transform(nil, mat.NewDense(4, 1, []float64{1, 1, 2, 6}))
+	fmt.Println(mat.Formatted(Y1.T()))
+	_, Y2 := le.InverseTransform(nil, mat.NewDense(4, 1, []float64{0, 0, 1, 2}))
+	fmt.Println(mat.Formatted(Y2.T()))
+	// Output:
+	// [[1 2 6]]
+	// [0  0  1  2]
+	// [1  1  2  6]
+
+}

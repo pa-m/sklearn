@@ -1,8 +1,10 @@
 package preprocessing
 
 import (
+	"math"
 	"sort"
 
+	"github.com/pa-m/sklearn/base"
 	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
 )
@@ -228,5 +230,80 @@ func (m *MultiLabelBinarizer) InverseTransform(X, Y *mat.Dense) (Xout *mat.Dense
 	default:
 		panic("MultiLabelBinarizer: unknown target type in InverseTransform")
 	}
+	return
+}
+
+// LabelEncoder Encode labels with value between 0 and n_classes-1.
+type LabelEncoder struct {
+	Classes [][]float64
+}
+
+// NewLabelEncoder ...
+func NewLabelEncoder() *LabelEncoder { return &LabelEncoder{} }
+
+// Fit for LabelEncoder ...
+func (m *LabelEncoder) Fit(X, Y *mat.Dense) base.Transformer {
+	Ymat := Y.RawMatrix()
+	m.Classes = make([][]float64, Ymat.Cols)
+	return m.PartialFit(X, Y)
+}
+
+// PartialFit for LabelEncoder ...
+func (m *LabelEncoder) PartialFit(X, Y *mat.Dense) base.Transformer {
+	Ymat := Y.RawMatrix()
+	if m.Classes == nil || len(m.Classes) != Ymat.Cols {
+		m.Classes = make([][]float64, Ymat.Cols)
+	}
+	for i := 0; i < Ymat.Cols; i++ {
+		for jY := 0; jY < Ymat.Rows*Ymat.Stride; jY = jY + Ymat.Stride {
+			v := Ymat.Data[jY+i]
+			l := len(m.Classes[i])
+			pos := sort.SearchFloat64s(m.Classes[i], v)
+			if pos < l && m.Classes[i][pos] == v {
+				continue
+			}
+			m.Classes[i] = append(m.Classes[i], v)
+			copy(m.Classes[i][pos+1:l+1], m.Classes[i][pos:l])
+			m.Classes[i][pos] = v
+		}
+	}
+	return m
+}
+
+// Transform for LabelEncoder ...
+func (m *LabelEncoder) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	Ymat := Y.RawMatrix()
+	Yout = mat.NewDense(Ymat.Rows, Ymat.Cols, nil)
+	Youtmat := Yout.RawMatrix()
+	for jY, jYout := 0, 0; jY < Ymat.Rows*Ymat.Stride; jY, jYout = jY+Ymat.Stride, jYout+Youtmat.Stride {
+		for i, v := range Ymat.Data[jY : jY+Ymat.Cols] {
+			Youtmat.Data[jYout+i] = float64(sort.SearchFloat64s(m.Classes[i], v))
+		}
+	}
+	Xout = X
+	return
+}
+
+// FitTransform for LabelEncoder ...
+func (m *LabelEncoder) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	Xout, Yout = m.Fit(X, Y).Transform(X, Y)
+	return
+}
+
+// InverseTransform for LabelEncoder ...
+func (m *LabelEncoder) InverseTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	Ymat := Y.RawMatrix()
+	Yout = mat.NewDense(Ymat.Rows, Ymat.Cols, nil)
+	Youtmat := Yout.RawMatrix()
+	for jY, jYout := 0, 0; jY < Ymat.Rows*Ymat.Stride; jY, jYout = jY+Ymat.Stride, jYout+Youtmat.Stride {
+		for i, v := range Ymat.Data[jY : jY+Ymat.Cols] {
+			if int(v) < 0 || int(v) > len(m.Classes[i]) {
+				Youtmat.Data[jYout+i] = math.NaN()
+				break
+			}
+			Youtmat.Data[jYout+i] = m.Classes[i][int(v)]
+		}
+	}
+	Xout = X
 	return
 }
