@@ -5,7 +5,7 @@ import (
 	"math"
 	"sort"
 
-	"github.com/gonum/floats"
+	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
 )
 
@@ -78,4 +78,19 @@ func ROCCurve(Ytrue, Yscore *mat.Dense, posLabel float64, sampleWeight []float64
 		floats.Scale(1./tpmax, tps)
 	}
 	return
+}
+
+// AUC Compute Area Under the Curve (AUC) using the trapezoidal rule
+func AUC(fpr, tpr []float64) float64 {
+	auc := 0.
+	if !sort.Float64sAreSorted(fpr) {
+		fmt.Println("AUC: tpr is not sorted")
+	}
+	xp, yp := 0., 0.
+	for i := range fpr {
+		x, y := fpr[i], tpr[i]
+		auc += (x - xp) * (y + yp) / 2.
+		xp, yp = x, y
+	}
+	return auc
 }

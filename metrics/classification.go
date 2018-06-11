@@ -3,9 +3,9 @@ package metrics
 import (
 	"fmt"
 
-	"github.com/gonum/stat"
 	"github.com/pa-m/sklearn/preprocessing"
 	"gonum.org/v1/gonum/mat"
+	"gonum.org/v1/gonum/stat"
 )
 
 //	"fmt"
