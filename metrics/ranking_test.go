@@ -29,3 +29,14 @@ func ExampleAUC() {
 	// Output:
 	// auc: 0.75
 }
+
+func ExampleROCAUCScore() {
+	// example adapted from https://github.com/scikit-learn/scikit-learn/blob/a24c8b46/sklearn/metrics/ranking.py#L256
+	Ytrue := mat.NewDense(4, 1, []float64{0, 0, 1, 1})
+	Yscores := mat.NewDense(4, 1, []float64{.1, .4, .35, .8})
+
+	fmt.Println("auc:", ROCAUCScore(Ytrue, Yscores, "", nil))
+	// Output:
+	// auc: 0.75
+
+}

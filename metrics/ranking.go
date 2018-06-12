@@ -5,6 +5,9 @@ import (
 	"math"
 	"sort"
 
+	"gonum.org/v1/gonum/stat"
+
+	"github.com/pa-m/sklearn/preprocessing"
 	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
 )
@@ -46,6 +49,17 @@ func binaryClfScore(Ytrue, Yscore *mat.Dense, posLabel float64, sampleWeight []f
 }
 
 // ROCCurve Compute Receiver operating characteristic (ROC)
+// y_true : array, shape = [n_samples]
+// True binary labels in range {0, 1} or {-1, 1}.  If labels are not
+// binary, pos_label should be explicitly given.
+// y_score : array, shape = [n_samples]
+// Target scores, can either be probability estimates of the positive
+// class, confidence values, or non-thresholded measure of decisions
+// (as returned by "decision_function" on some classifiers).
+// pos_label : int or str, default=None
+// Label considered as positive and others are considered negative.
+// sample_weight : array-like of shape = [n_samples], optional
+// Sample weights.
 func ROCCurve(Ytrue, Yscore *mat.Dense, posLabel float64, sampleWeight []float64) (fpr, tpr, thresholds []float64) {
 	var tps, fps []float64
 	fps, tps, thresholds = binaryClfScore(Ytrue, Yscore, posLabel, sampleWeight)
@@ -93,4 +107,73 @@ func AUC(fpr, tpr []float64) float64 {
 		xp, yp = x, y
 	}
 	return auc
+}
+
+// ROCAUCScore compute Area Under the Receiver Operating Characteristic Curve (ROC AUC) from prediction scores.
+// y_true : array, shape = [n_samples] or [n_samples, n_classes]
+// True binary labels in binary label indicators.
+// y_score : array, shape = [n_samples] or [n_samples, n_classes]
+// Target scores, can either be probability estimates of the positive
+// class, confidence values, or non-thresholded measure of decisions
+// (as returned by "decision_function" on some classifiers).
+// average : string, [None, 'micro', 'macro' (default), 'samples', 'weighted']
+// If ``None``, the scores for each class are returned. Otherwise,
+// this determines the type of averaging performed on the data:
+// ``'micro'``:
+// 	Calculate metrics globally by considering each element of the label
+// 	indicator matrix as a label.
+// ``'macro'``:
+// 	Calculate metrics for each label, and find their unweighted
+// 	mean.  This does not take label imbalance into account.
+// ``'weighted'``:
+// 	Calculate metrics for each label, and find their average, weighted
+// 	by support (the number of true instances for each label).
+// ``'samples'``:
+// 	Calculate metrics for each instance, and find their average.
+// sample_weight : array-like of shape = [n_samples], optional
+// Sample weights.
+// Returns auc : float
+func ROCAUCScore(Ytrue, Yscore *mat.Dense, average string, sampleWeight []float64) float64 {
+	NSamples, NCols := Ytrue.Dims()
+	var aucs []float64
+	if NCols == 1 {
+		le := preprocessing.NewLabelEncoder()
+		le.FitTransform(nil, Ytrue)
+		output := 0
+		NClasses := len(le.Classes[output])
+		aucs = make([]float64, NClasses-1)
+		for icl, posLabel := range le.Classes[output][1:] {
+			fpr, tpr, _ := ROCCurve(Ytrue, Yscore, posLabel, sampleWeight)
+			aucs[icl] = AUC(fpr, tpr)
+		}
+		switch average {
+		case "micro", "weighted":
+			return stat.Mean(aucs, le.Support[output][1:])
+		default: //macro
+			return floats.Sum(aucs) / float64(len(aucs))
+		}
+	} else {
+		aucs = make([]float64, NCols)
+		support := make([]float64, NCols)
+		for icl := range aucs {
+			fpr, tpr, _ := ROCCurve(
+				Ytrue.Slice(0, NSamples, icl, icl+1).(*mat.Dense),
+				Yscore.Slice(0, NSamples, icl, icl+1).(*mat.Dense),
+				1,
+				sampleWeight,
+			)
+			for i := 0; i < NSamples; i++ {
+				if Ytrue.At(i, icl) == 1. {
+					support[icl] += 1.
+				}
+			}
+			aucs[icl] = AUC(fpr, tpr)
+		}
+		switch average {
+		case "micro", "weighted":
+			return stat.Mean(aucs, support)
+		default: //macro
+			return floats.Sum(aucs) / float64(len(aucs))
+		}
+	}
 }
