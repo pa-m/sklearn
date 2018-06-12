@@ -3,7 +3,6 @@ package neighbors
 import (
 	"fmt"
 	"math"
-	"time"
 
 	"gonum.org/v1/gonum/mat"
 )
@@ -44,7 +43,6 @@ func ExampleNearestNeighbors_KNeighborsGraph() {
 	// ⎡1  0  1⎤
 	// ⎢0  1  1⎥
 	// ⎣1  0  1⎦
-
 }
 
 func ExampleNearestNeighbors_Tree() {
@@ -65,13 +63,26 @@ func ExampleNearestNeighbors_Tree() {
 		neigh := NewNearestNeighbors()
 		neigh.Algorithm = algo
 		neigh.Fit(X)
-		start := time.Now()
+		//start := time.Now()
 		distances, indices := neigh.KNeighbors(pts, 2)
-		fmt.Println("elapsed", algo, time.Since(start))
+		//fmt.Println("elapsed", algo, time.Since(start))
 
 		fmt.Printf("%.6f\n", mat.Formatted(distances.T()))
 		fmt.Println(mat.Formatted(indices.T()))
 		fmt.Println(mat.Formatted(X.RowView(int(indices.At(0, 0))).T()))
 		fmt.Println(mat.Formatted(X.RowView(int(indices.At(0, 1))).T()))
 	}
+	// Output:
+	// ⎡0.424264⎤
+	// ⎣0.616441⎦
+	// ⎡158⎤
+	// ⎣168⎦
+	// [1  5  8]
+	// [1  6  8]
+	// ⎡0.424264⎤
+	// ⎣0.616441⎦
+	// ⎡158⎤
+	// ⎣168⎦
+	// [1  5  8]
+	// [1  6  8]
 }

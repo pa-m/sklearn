@@ -115,6 +115,33 @@ func TestRobustScalerQuantiles(t *testing.T) {
 	}
 }
 
+func ExampleRobustScaler() {
+	m := NewRobustScaler(true, false, nil)
+	X := mat.NewDense(3, 3, []float64{1, 4, 7, 3, 2, 8, 9, 1, 1})
+	//correctY := mat.NewDense(3, 3, []float64{-2, 2, 0, 0, 0, 1, 6, -1, -6})
+	X1, _ := m.FitTransform(X, nil)
+	fmt.Printf("centered:\n%g\n", mat.Formatted(X1))
+
+	m = NewRobustScaler(false, true, nil) // Use default (0.25, 0.75)
+	X = mat.NewDense(8, 1, []float64{9, 10, 12, 13, 19, 20, 21, 22})
+	X1, _ = m.FitTransform(X, nil)
+	fmt.Printf("quantiles:\n%g\n", mat.Formatted(X1))
+	// Output:
+	// centered:
+	// ⎡-2   2   0⎤
+	// ⎢ 0   0   1⎥
+	// ⎣ 6  -1  -6⎦
+	// quantiles:
+	// ⎡0.9⎤
+	// ⎢  1⎥
+	// ⎢1.2⎥
+	// ⎢1.3⎥
+	// ⎢1.9⎥
+	// ⎢  2⎥
+	// ⎢2.1⎥
+	// ⎣2.2⎦
+}
+
 func TestPolynomialFeatures(t *testing.T) {
 	pf := NewPolynomialFeatures(3)
 	isTransformer := func(Transformer) {}
