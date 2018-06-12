@@ -12,7 +12,7 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
-func binaryClfScore(Ytrue, Yscore *mat.Dense, posLabel float64, sampleWeight []float64) (fps, tps, thresholds []float64) {
+func binaryClfCurve(Ytrue, Yscore *mat.Dense, posLabel float64, sampleWeight []float64) (fps, tps, thresholds []float64) {
 	m, n := Ytrue.Dims()
 	if n > 1 {
 		fmt.Println("Warning: ROCCurve: only first output will be used")
@@ -30,8 +30,9 @@ func binaryClfScore(Ytrue, Yscore *mat.Dense, posLabel float64, sampleWeight []f
 			distinctValueIndices = append(distinctValueIndices, descScoreIndices[ii])
 		}
 	}
+	thresholdIdxs := distinctValueIndices
 	tpw, fpw, w := 0., 0., 1.
-	for _, i := range distinctValueIndices {
+	for _, i := range thresholdIdxs {
 		if sampleWeight != nil {
 			w = sampleWeight[i]
 		}
@@ -62,7 +63,7 @@ func binaryClfScore(Ytrue, Yscore *mat.Dense, posLabel float64, sampleWeight []f
 // Sample weights.
 func ROCCurve(Ytrue, Yscore *mat.Dense, posLabel float64, sampleWeight []float64) (fpr, tpr, thresholds []float64) {
 	var tps, fps []float64
-	fps, tps, thresholds = binaryClfScore(Ytrue, Yscore, posLabel, sampleWeight)
+	fps, tps, thresholds = binaryClfCurve(Ytrue, Yscore, posLabel, sampleWeight)
 	if len(tps) == 0 || fps[0] != 0. {
 		// Add an extra threshold position if necessary
 		fps = append([]float64{0.}, fps...)
@@ -176,4 +177,64 @@ func ROCAUCScore(Ytrue, Yscore *mat.Dense, average string, sampleWeight []float6
 			return floats.Sum(aucs) / float64(len(aucs))
 		}
 	}
+}
+
+// PrecisionRecallCurve compute precision-recall pairs for different probability thresholds
+//     Note: this implementation is restricted to the binary classification task.
+//     The precision is the ratio ``tp / (tp + fp)`` where ``tp`` is the number of
+//     true positives and ``fp`` the number of false positives. The precision is
+//     intuitively the ability of the classifier not to label as positive a sample
+//     that is negative.
+//     The recall is the ratio ``tp / (tp + fn)`` where ``tp`` is the number of
+//     true positives and ``fn`` the number of false negatives. The recall is
+//     intuitively the ability of the classifier to find all the positive samples.
+//     The last precision and recall values are 1. and 0. respectively and do not
+//     have a corresponding threshold.  This ensures that the graph starts on the
+//     x axis.
+//     Parameters
+//     y_true : array, shape = [n_samples]
+//         True targets of binary classification in range {-1, 1} or {0, 1}.
+//     probas_pred : array, shape = [n_samples]
+//         Estimated probabilities or decision function.
+//     pos_label : int or str, default=None
+//         The label of the positive class
+//     sample_weight : array-like of shape = [n_samples], optional
+//         Sample weights.
+//     Returns
+//     precision : array, shape = [n_thresholds + 1]
+//         Precision values such that element i is the precision of
+//         predictions with score >= thresholds[i] and the last element is 1.
+//     recall : array, shape = [n_thresholds + 1]
+//         Decreasing recall values such that element i is the recall of
+//         predictions with score >= thresholds[i] and the last element is 0.
+//     thresholds : array, shape = [n_thresholds <= len(np.unique(probas_pred))]
+//         Increasing thresholds on the decision function used to compute
+//         precision and recall.
+func PrecisionRecallCurve(Ytrue, ProbasPred *mat.Dense, posLabel float64, sampleWeight []float64) (precision, recall, thresholds []float64) {
+	var tps, fps []float64
+	fps, tps, thresholds = binaryClfCurve(Ytrue, ProbasPred, posLabel, sampleWeight)
+	lentps := len(tps)
+	precision = make([]float64, lentps)
+	recall = make([]float64, lentps)
+	for i := range tps {
+		precision[i] = tps[i] / (tps[i] + fps[i])
+		recall[i] = tps[i] / tps[lentps-1]
+	}
+	// # stop when full recall attained
+	// # and reverse the outputs so recall is decreasing
+	lastInd := sort.SearchFloat64s(tps, tps[lentps-1])
+	reverseAndAppend := func(a []float64, l int, v ...float64) []float64 {
+		for i := 0; i < l/2; i++ {
+			j := l - 1 - i
+			a[i], a[j] = a[j], a[i]
+		}
+		for j := range v {
+			a[l+j] = v[j]
+		}
+		return a[0 : l+len(v)]
+	}
+	precision = reverseAndAppend(precision, lastInd+1, 1.)
+	recall = reverseAndAppend(recall, lastInd+1, 0.)
+	thresholds = reverseAndAppend(thresholds, lastInd+1)
+	return
 }
