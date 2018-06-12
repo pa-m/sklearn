@@ -5,9 +5,6 @@ import (
 	"math"
 	"sort"
 
-	"gonum.org/v1/gonum/stat"
-
-	"github.com/pa-m/sklearn/preprocessing"
 	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
 )
@@ -135,48 +132,11 @@ func AUC(fpr, tpr []float64) float64 {
 // Sample weights.
 // Returns auc : float
 func ROCAUCScore(Ytrue, Yscore *mat.Dense, average string, sampleWeight []float64) float64 {
-	NSamples, NCols := Ytrue.Dims()
-	var aucs []float64
-	if NCols == 1 {
-		le := preprocessing.NewLabelEncoder()
-		le.FitTransform(nil, Ytrue)
-		output := 0
-		NClasses := len(le.Classes[output])
-		aucs = make([]float64, NClasses-1)
-		for icl, posLabel := range le.Classes[output][1:] {
-			fpr, tpr, _ := ROCCurve(Ytrue, Yscore, posLabel, sampleWeight)
-			aucs[icl] = AUC(fpr, tpr)
-		}
-		switch average {
-		case "micro", "weighted":
-			return stat.Mean(aucs, le.Support[output][1:])
-		default: //macro
-			return floats.Sum(aucs) / float64(len(aucs))
-		}
-	} else {
-		aucs = make([]float64, NCols)
-		support := make([]float64, NCols)
-		for icl := range aucs {
-			fpr, tpr, _ := ROCCurve(
-				Ytrue.Slice(0, NSamples, icl, icl+1).(*mat.Dense),
-				Yscore.Slice(0, NSamples, icl, icl+1).(*mat.Dense),
-				1,
-				sampleWeight,
-			)
-			for i := 0; i < NSamples; i++ {
-				if Ytrue.At(i, icl) == 1. {
-					support[icl] += 1.
-				}
-			}
-			aucs[icl] = AUC(fpr, tpr)
-		}
-		switch average {
-		case "micro", "weighted":
-			return stat.Mean(aucs, support)
-		default: //macro
-			return floats.Sum(aucs) / float64(len(aucs))
-		}
+	binaryROCAUCScore := func(Ytrue, Yscore *mat.Dense, sampleWeight []float64) float64 {
+		fpr, tpr, _ := ROCCurve(Ytrue, Yscore, 1, sampleWeight)
+		return AUC(fpr, tpr)
 	}
+	return averageBinaryScore(binaryROCAUCScore, Ytrue, Yscore, average, sampleWeight)
 }
 
 // PrecisionRecallCurve compute precision-recall pairs for different probability thresholds
@@ -237,4 +197,17 @@ func PrecisionRecallCurve(Ytrue, ProbasPred *mat.Dense, posLabel float64, sample
 	recall = reverseAndAppend(recall, lastInd+1, 0.)
 	thresholds = reverseAndAppend(thresholds, lastInd+1)
 	return
+}
+
+// AveragePrecisionScore compute average precision (AP) from prediction scores
+func AveragePrecisionScore(Ytrue, Yscore *mat.Dense, average string, sampleWeight []float64) float64 {
+	binaryUninterpolatedAveragePrecision := func(Ytrue, Yscore *mat.Dense, sampleWeight []float64) float64 {
+		precision, recall, _ := PrecisionRecallCurve(Ytrue, Yscore, 1, sampleWeight)
+		score := 0.
+		for i := 0; i < len(precision)-1; i++ {
+			score += (recall[i] - recall[i+1]) * precision[i]
+		}
+		return score
+	}
+	return averageBinaryScore(binaryUninterpolatedAveragePrecision, Ytrue, Yscore, average, sampleWeight)
 }

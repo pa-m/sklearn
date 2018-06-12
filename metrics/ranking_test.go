@@ -54,3 +54,13 @@ func ExamplePrecisionRecallCurve() {
 	// recall: [1 0.5 0.5 0]
 	// thresholds: [0.35 0.4 0.8]
 }
+
+func ExampleAveragePrecisionScore() {
+	// adapted from https://github.com/scikit-learn/scikit-learn/blob/a24c8b46/sklearn/metrics/ranking.py#L180
+	Ytrue := mat.NewDense(4, 1, []float64{0, 0, 1, 1})
+	Yscores := mat.NewDense(4, 1, []float64{.1, .4, .35, .8})
+	fmt.Printf("AveragePrecisionScore: %.2f\n", AveragePrecisionScore(Ytrue, Yscores, "macro", nil))
+	// Output:
+	// AveragePrecisionScore: 0.83
+
+}

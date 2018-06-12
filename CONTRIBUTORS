@@ -14,7 +14,7 @@
 #     Name <email address if known>
 #
 # Please keep the list sorted. 
-# (ex:  git shortlog -e -s -n|cut -d$'\t' -f 2-|grep -iv masschelier|sort)
+# (ex:  git shortlog -e -s -n | cut -d$'\t' -f 2- | sort)
 
 
 Graham Clark <gclark@extremenetworks.com>
