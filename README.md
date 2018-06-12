@@ -38,7 +38,7 @@ All of this is
 - unit tested but coverage should reach 90%
 - underdocumented but python sklearn documentation should be sufficient
 
-Many thanks to gonum and scikit-learn contributors
+Many thanks to gonum and scikit-learn authors and contributors
 
 PRs are welcome
 
