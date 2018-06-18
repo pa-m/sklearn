@@ -61,11 +61,8 @@ func (r *Rectangle) Split(d int, split float64) (less, greater *Rectangle) {
 
 // MinDistancePoint Return the minimum distance between input and points in the hyperrectangle.
 // Parameters
-// ----------
-// x : array_like
-// 	Input.
-// p : float, optional
-// 	Input.
+// x : array_like  	Input.
+// p : float, optional 	Input.
 func (r *Rectangle) MinDistancePoint(x []float64, p float64) float64 {
 	l := len(x)
 	v := make([]float64, l, l)
@@ -77,11 +74,8 @@ func (r *Rectangle) MinDistancePoint(x []float64, p float64) float64 {
 
 // MaxDistancePoint return the maximum distance between input and points in the hyperrectangle.
 // Parameters
-// ----------
-// x : array_like
-// 	Input array.
-// p : float, optional
-// 	Input.
+// x : array_like 	Input array.
+// p : float, optional	Input.
 func (r *Rectangle) MaxDistancePoint(x []float64, p float64) float64 {
 	l := len(x)
 	v := make([]float64, l, l)
@@ -93,11 +87,8 @@ func (r *Rectangle) MaxDistancePoint(x []float64, p float64) float64 {
 
 // MinDistanceRectangle compute the minimum distance between points in the two hyperrectangles.
 // Parameters
-// ----------
-// other : hyperrectangle
-// 	Input.
-// p : float
-// 	Input.
+// other : hyperrectangle Input.
+// p : float Input.
 func (r *Rectangle) MinDistanceRectangle(other *Rectangle, p float64) float64 {
 	l := len(other.Maxes)
 	v := make([]float64, l, l)
@@ -109,11 +100,8 @@ func (r *Rectangle) MinDistanceRectangle(other *Rectangle, p float64) float64 {
 
 // MaxDistanceRectangle compute the maximum distance between points in the two hyperrectangles.
 // Parameters
-// ----------
-// other : hyperrectangle
-//     Input.
-// p : float, optional
-//     Input.
+// other : hyperrectangle     Input.
+// p : float, optional      Input.
 func (r *Rectangle) MaxDistanceRectangle(other *Rectangle, p float64) float64 {
 	l := len(other.Maxes)
 	v := make([]float64, l, l)
@@ -127,15 +115,11 @@ func (r *Rectangle) MaxDistanceRectangle(other *Rectangle, p float64) float64 {
 // This class provides an index into a set of k-dimensional points which
 // can be used to rapidly look up the nearest neighbors of any point.
 // Parameters
-// ----------
-// Data : (N,K) mat.Dense
-// 	The data points to be indexed. This array is not copied, and
+// Data : (N,K) mat.Dense The data points to be indexed. This array is not copied, and
 // 	so modifying this data will result in bogus results.
-// Leafsize : int, optional
-// 	The number of points at which the algorithm switches over to
+// Leafsize : int, optional The number of points at which the algorithm switches over to
 // 	brute-force.  Has to be positive.
 // Notes
-// -----
 // The algorithm used is described in Maneewongvatana and Mount 1999.
 // The general idea is that the kd-tree is a binary tree, each of whose
 // nodes represents an axis-aligned hyperrectangle. Each node specifies
