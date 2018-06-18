@@ -32,12 +32,18 @@ Partial port of scikit-learn to [go](http://golang.org)
 
 
 
-All of this is 
+This is
+
 - a personal project to get a deeper understanding of how all of this magic works
+
 - a recent work still in progress, subject to refactoring, so interfaces may change, especially args to NewXXX
-- processed with gofmt, golint, go vet
+
+- linted with ~~gofmt, golint, go vet~~ [revive](https://github.com/mgechev/revive)
+
 - unit tested but coverage should reach 90%
-- underdocumented but python sklearn documentation should be sufficient
+
+- underdocumented but  [scikit-learn doc](http://scikit-learn.org/stable/documentation.html) is your friend
+
 
 Many thanks to gonum and scikit-learn authors and contributors
 
