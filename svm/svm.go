@@ -149,7 +149,7 @@ func svmTrain(X *mat.Dense, Y []float64, C float64, KernelFunction func(X1, X2 [
 	}
 	idx := make([]int, 0)
 	for i := 0; i < m; i++ {
-		if alphas[i] > 1e-15 {
+		if alphas[i] > Tol {
 			idx = append(idx, i)
 		}
 	}
