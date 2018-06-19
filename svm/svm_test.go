@@ -41,8 +41,8 @@ func ExampleSVC() {
 		m.Kernel = kernel
 		m.C = 1.
 		m.Gamma = 2.
-		m.MaxIter = 20
 		m.Tol = 1.e-3
+		m.MaxIter = 20
 		m.Fit(X1, Y1)
 		Ypred := mat.NewDense(16, 1, nil)
 		m.Predict(X, Ypred)
