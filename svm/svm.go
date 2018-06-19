@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"unsafe"
 
 	"github.com/pa-m/sklearn/base"
 	"gonum.org/v1/gonum/mat"
@@ -42,7 +43,7 @@ type Model struct {
 // %
 // %           LIBSVM   (http://www.csie.ntu.edu.tw/~cjlin/libsvm/)
 // %           SVMLight (http://svmlight.joachims.org/)
-func svmTrain(X *mat.Dense, Y []float64, C float64, KernelFunction func(X1, X2 []float64) float64, Tol float64, MaxPasses, CacheSize int) *Model {
+func svmTrain(X *mat.Dense, Y []float64, C float64, KernelFunction func(X1, X2 []float64) float64, Tol float64, MaxPasses int, CacheSize uint) *Model {
 	m, n := X.Dims()
 	alphas := make([]float64, m, m)
 	b := 0.
@@ -54,7 +55,9 @@ func svmTrain(X *mat.Dense, Y []float64, C float64, KernelFunction func(X1, X2 [
 		i, j int
 		v    float64
 	}
-	Kcache := make([]KcacheEntry, 0)
+	KcacheEntrySize := uint(unsafe.Sizeof(KcacheEntry{}))
+
+	Kcache := make([]KcacheEntry, 0, CacheSize<<20/KcacheEntrySize)
 
 	K := func(i, j int) float64 {
 		if i > j {
@@ -67,8 +70,8 @@ func svmTrain(X *mat.Dense, Y []float64, C float64, KernelFunction func(X1, X2 [
 				return e.v
 			}
 		}
-		if len(Kcache) > CacheSize/8 {
-			Kcache = Kcache[0 : CacheSize/8]
+		if uint(len(Kcache))*KcacheEntrySize >= CacheSize {
+			Kcache = Kcache[0 : CacheSize/KcacheEntrySize]
 		}
 		e := KcacheEntry{i, j, KernelFunction(X.RawRowView(i), X.RawRowView(j))}
 		Kcache = append([]KcacheEntry{e}, Kcache...)
@@ -257,13 +260,16 @@ type SVC struct {
 	Shrinking   bool
 	Probability bool
 	Tol         float64
-	CacheSize   int
+	CacheSize   uint
 	ClassWeight []float64
 	MaxIter     int
 	Model       []*Model
 }
 
 // NewSVC ...
+// Kernel: "linear","poly","rbf","sigmoid" default is "rbf"
+// if Gamma<=0 il will be changed to 1/NFeatures
+// Cachesize is in MB. defaults to 200
 func NewSVC() *SVC {
 	m := &SVC{
 		C: 1., Kernel: "rbf", Degree: 3., Gamma: 0., Coef0: 0., Shrinking: true, Probability: false, Tol: 1e-3, CacheSize: 200,
@@ -300,6 +306,9 @@ func (m *SVC) Fit(X, Y *mat.Dense) base.Transformer {
 		K = v.Func
 	default:
 		panic(fmt.Errorf("unknown kernel %#v", v))
+	}
+	if m.MaxIter <= 0 {
+		m.MaxIter = math.MaxInt32
 	}
 	base.Parallelize(-1, Noutputs, func(th, start, end int) {
 		y := make([]float64, NSamples)

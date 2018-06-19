@@ -15,6 +15,7 @@ import (
 	"gonum.org/v1/plot/plotter"
 	"gonum.org/v1/plot/vg"
 	"gonum.org/v1/plot/vg/draw"
+	"gonum.org/v1/plot/vg/vgimg"
 )
 
 var visualDebug = flag.Bool("visual", false, "output images for benchmarks and test data")
@@ -30,7 +31,7 @@ func ExampleSVC() {
 	yscaler := preprocessing.NewMinMaxScaler([]float64{-1, 1})
 	X1 := X
 	Y1, _ := yscaler.FitTransform(Y, nil)
-
+	plots := [][]*plot.Plot{make([]*plot.Plot, 0, 4)}
 	for _, kernel := range []string{
 		"linear",
 		"poly",
@@ -39,6 +40,7 @@ func ExampleSVC() {
 		m := NewSVC()
 		m.Kernel = kernel
 		m.C = 1.
+		m.Gamma = 2.
 		m.MaxIter = 20
 		m.Tol = 1.e-3
 		m.Fit(X1, Y1)
@@ -95,34 +97,73 @@ func ExampleSVC() {
 			for cls := 0; cls <= 1; cls++ {
 				s, _ := plotter.NewScatter(xys(Xgrid, Z, cls))
 				s.GlyphStyle.Shape = draw.BoxGlyph{}
-				s.GlyphStyle.Color = colors1[cls]
+				c := colors1[cls]
+				s.Color = c
+				s.GlyphStyle.Color = c
 				s.GlyphStyle.Radius = 1
 				plt.Add(s)
 
 				s1, _ := plotter.NewScatter(xys(X, Y, cls))
+				s1.Color = color.RGBA{0, 0, 0, 255}
 				s1.GlyphStyle.Shape = draw.CircleGlyph{}
 				s1.GlyphStyle.Radius = 4
 				s1.GlyphStyle.Color = colors1[cls]
 				plt.Add(s1)
-				plt.Legend.Add(fmt.Sprintf("class %d", cls), s1)
+				//plt.Legend.Add(fmt.Sprintf("class %d", cls), s1)
 			}
-			plt.X.Label.Text = "X0"
-			plt.Y.Label.Text = "X1"
-			// Save the plot to a PNG file.
-			pngfile := fmt.Sprintf("/tmp/ExampleSVC-%s.png", kernel)
-			os.Remove(pngfile)
-			if err := plt.Save(4*vg.Inch, 3*vg.Inch, pngfile); err != nil {
-				panic(err)
-			}
-			cmd := exec.Command("display", pngfile)
-			err := cmd.Start()
-			if err != nil {
-				fmt.Println(err.Error())
-			}
-			time.Sleep(200 * time.Millisecond)
-			os.Remove(pngfile)
+			// plt.X.Label.Text = "X0"
+			// plt.Y.Label.Text = "X1"
+			plt.Title.Text = kernel
+			plots[0] = append(plots[0], plt)
 
 		}
+
+	}
+	if *visualDebug {
+		// Save the plot to a PNG file.
+		pngfile := fmt.Sprintf("/tmp/ExampleSVC.png")
+		os.Remove(pngfile)
+
+		img := vgimg.New(vg.Points(float64(len(plots[0]))*300.), vg.Points(float64(len(plots))*300.))
+		dc := draw.New(img)
+
+		t := draw.Tiles{
+			Rows:      len(plots),
+			Cols:      len(plots[0]),
+			PadX:      vg.Points(2),
+			PadY:      vg.Points(2),
+			PadTop:    vg.Points(2),
+			PadBottom: vg.Points(2),
+			PadLeft:   vg.Points(2),
+			PadRight:  vg.Points(2),
+		}
+
+		canvases := plot.Align(plots, t, dc)
+		for j := 0; j < t.Rows; j++ {
+			for i := 0; i < t.Cols; i++ {
+				if plots[j][i] != nil {
+					plots[j][i].Draw(canvases[j][i])
+				}
+			}
+		}
+
+		w, err := os.Create(pngfile)
+		if err != nil {
+			panic(err)
+		}
+
+		png := vgimg.PngCanvas{Canvas: img}
+		if _, err := png.WriteTo(w); err != nil {
+			panic(err)
+		}
+		w.Close()
+		cmd := exec.Command("display", pngfile)
+		err = cmd.Start()
+		if err != nil {
+			fmt.Println(err.Error())
+		}
+		time.Sleep(200 * time.Millisecond)
+		os.Remove(pngfile)
 
 	}
 
