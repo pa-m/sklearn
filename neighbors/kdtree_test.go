@@ -5,7 +5,26 @@ import (
 	"math"
 
 	"gonum.org/v1/gonum/mat"
+	"testing"
 )
+
+func TestRectangle(t *testing.T) {
+	R := NewRectangle([]float64{3, 4}, []float64{1, 2})
+	expected := "<Rectangle 1 3, 2 4>"
+	actual := R.String()
+	if expected != actual {
+		t.Errorf("expected %s, got %s", expected, actual)
+	}
+	if R.Volume() != 4. {
+		t.Errorf("wrong volume")
+	}
+	if math.Abs(2.237-R.MinDistancePoint([]float64{0, 0}, 2)) > 1.e-3 {
+		t.Error("err MinDistancePoint")
+	}
+	if math.Abs(5-R.MaxDistancePoint([]float64{0, 0}, 2)) > 1.e-3 {
+		t.Error("err MaxDistancePoint")
+	}
+}
 
 func ExampleKDTree() {
 	// v https://github.com/scipy/scipy/blob/v1.1.0/scipy/spatial/kdtree.py

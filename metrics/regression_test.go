@@ -60,7 +60,8 @@ func ExampleR2Score() {
 
 	yTrue = mat.NewDense(3, 1, []float64{1, 2, 3})
 	yPred = mat.NewDense(3, 1, []float64{3, 2, 1})
-	fmt.Printf("%g\n", R2Score(yTrue, yPred, nil, "").At(0, 0))
+	sampleWeight := mat.NewDense(3, 1, []float64{1, 1, 1})
+	fmt.Printf("%g\n", R2Score(yTrue, yPred, sampleWeight, "").At(0, 0))
 	// Output:
 	// 0.949
 	// 0.938

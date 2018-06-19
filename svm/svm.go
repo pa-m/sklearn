@@ -24,6 +24,7 @@ type Model struct {
 	B              float64
 	Alphas         []float64
 	W              []float64
+	Support        []int
 }
 
 // %svmTrain Trains an SVM classifier using a simplified version of the SMO
@@ -160,12 +161,12 @@ func svmTrain(X *mat.Dense, Y []float64, C float64, KernelFunction func(X1, X2 [
 		B:              b,
 		Alphas:         make([]float64, len(idx)),
 		W:              make([]float64, n, n),
+		Support:        idx,
 	}
 	for ii, i := range idx {
 		model.X.SetRow(ii, X.RawRowView(i))
 		model.Y[ii] = Y[i]
 		model.Alphas[ii] = alphas[i]
-
 	}
 	for j := 0; j < n; j++ {
 		for _, i := range idx {
@@ -196,7 +197,6 @@ func svmPredict(model *Model, X *mat.Dense) (pred []float64) {
 		}
 	}
 	return
-
 }
 
 // Kernel is the interface for kernels
@@ -252,18 +252,20 @@ func (kdata SigmoidKernel) Func(a, b []float64) (sumprod float64) {
 
 // SVC struct
 type SVC struct {
-	C           float64
-	Kernel      interface{}
-	Degree      float64
-	Gamma       float64
-	Coef0       float64
-	Shrinking   bool
-	Probability bool
-	Tol         float64
-	CacheSize   uint
-	ClassWeight []float64
-	MaxIter     int
-	Model       []*Model
+	C              float64
+	Kernel         interface{}
+	Degree         float64
+	Gamma          float64
+	Coef0          float64
+	Shrinking      bool
+	Probability    bool
+	Tol            float64
+	CacheSize      uint
+	ClassWeight    []float64
+	MaxIter        int
+	Model          []*Model
+	Support        [][]int
+	SupportVectors [][][]float64
 }
 
 // NewSVC ...
@@ -310,12 +312,19 @@ func (m *SVC) Fit(X, Y *mat.Dense) base.Transformer {
 	if m.MaxIter <= 0 {
 		m.MaxIter = math.MaxInt32
 	}
+	m.Support = make([][]int, Noutputs)
+	m.SupportVectors = make([][][]float64, Noutputs)
 	base.Parallelize(-1, Noutputs, func(th, start, end int) {
 		y := make([]float64, NSamples)
 		for output := start; output < end; output++ {
 			mat.Col(y, output, Y)
 			m.Model[output] = svmTrain(X, y, m.C, K, m.Tol, m.MaxIter, m.CacheSize)
-
+			model := m.Model[output]
+			m.Support[output] = model.Support
+			m.SupportVectors[output] = make([][]float64, len(model.Support))
+			for i := range model.Support {
+				m.SupportVectors[output][i] = model.X.RawRowView(i)
+			}
 		}
 	})
 	return m

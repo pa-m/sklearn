@@ -23,6 +23,9 @@ func NewRectangle(Maxes, Mins []float64) *Rectangle {
 func (r *Rectangle) String() string {
 	s := "<Rectangle "
 	for axis := 0; axis < len(r.Maxes); axis++ {
+		if axis > 0 {
+			s += ", "
+		}
 		s += fmt.Sprint(r.Mins[axis], r.Maxes[axis])
 	}
 	s += ">"

@@ -32,26 +32,26 @@ func ExampleSVC() {
 	X1 := X
 	Y1, _ := yscaler.FitTransform(Y, nil)
 	plots := [][]*plot.Plot{make([]*plot.Plot, 0, 4)}
+	var clf *SVC
 	for _, kernel := range []string{
 		"linear",
 		"poly",
 		"rbf",
 	} {
-		m := NewSVC()
-		m.Kernel = kernel
-		m.C = 1.
-		m.Gamma = 2.
-		m.Tol = 1.e-3
-		m.MaxIter = 20
-		m.Fit(X1, Y1)
+		clf = NewSVC()
+		clf.Kernel = kernel
+		//clf.C = 1.
+		clf.Gamma = 2.
+		//clf.Tol = 1.e-3
+		clf.MaxIter = 20
+		clf.Fit(X1, Y1)
 		Ypred := mat.NewDense(16, 1, nil)
-		m.Predict(X, Ypred)
+		clf.Predict(X, Ypred)
 		fmt.Printf("%s kernel, accuracy:%.3f\n", kernel, metrics.AccuracyScore(Y, Ypred, true, nil))
 		// Put the result into a color plot
 		if *visualDebug {
 			// Plot the decision boundary. For that, we will assign a color to each point in the mesh [x_min, x_max]x[y_min, y_max].
 			var xmin, xmax = -3., 3.
-
 			var ymin, ymax = -3., 3.
 			h := (ymax - ymin) / 100
 
@@ -82,7 +82,7 @@ func ExampleSVC() {
 			var xx, yy = npmeshgrid(nparange(xmin, xmax, h), nparange(ymin, ymax, h))
 			Xgrid := npc(xx, yy)
 			Z := &mat.Dense{}
-			m.Predict(Xgrid, Z)
+			clf.Predict(Xgrid, Z)
 			plt, _ := plot.New()
 			xys := func(X, Y mat.Matrix, cls int) (xy plotter.XYs) {
 				imax, _ := Y.Dims()

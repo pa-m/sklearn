@@ -86,3 +86,19 @@ func ExampleNearestNeighbors_Tree() {
 	// [1  5  8]
 	// [1  6  8]
 }
+
+func ExampleNearestNeighbors_RadiusNeighbors() {
+	// adapted example from http://scikit-learn.org/stable/modules/generated/sklearn.neighbors.RadiusNeighborsRegressor.html#sklearn.neighbors.RadiusNeighborsRegressor
+	samples := mat.NewDense(3, 3, []float64{0, 0, 0, 0, .5, 0, 1, 1, .5})
+	neigh := NewNearestNeighbors()
+	neigh.Fit(samples)
+	distances, indices := neigh.RadiusNeighbors(mat.NewDense(1, 3, []float64{1, 1, 1}), 1.6)
+	fmt.Println(distances[0])
+	fmt.Println(indices[0])
+	// unlike the python example, distances are sorted by increasing distances
+
+	// Output:
+	// [0.5 1.5]
+	// [2 1]
+
+}
