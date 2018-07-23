@@ -133,7 +133,7 @@ type SGDRegressor struct {
 	LinearModel
 	Tol, Alpha, L1Ratio float
 	NJobs               int
-	Method              optimize.Method
+	Method              optimize.GlobalMethod
 }
 
 // NewSGDRegressor creates a *SGDRegressor with defaults
@@ -240,7 +240,8 @@ func (regr *SGDRegressor) Fit(X0, y0 *mat.Dense) base.Transformer {
 		// settings.Recorder = printer
 
 		method := regr.Method
-		res, err := optimize.Local(p, initialcoefs, settings, method)
+		settings.InitX = initialcoefs
+		res, err := optimize.Global(p, len(initialcoefs), settings, method)
 		unused(err)
 		//fmt.Printf("res=%s %#v\n", res.Status.String(), res)
 		// if err != nil && err.Error() != "linesearch: no change in location after Linesearcher step" {
@@ -293,7 +294,7 @@ type LinFitOptions struct {
 	L1Ratio                             float64
 	Loss                                Loss
 	Activation                          Activation
-	GOMethodCreator                     func() optimize.Method
+	GOMethodCreator                     func() optimize.GlobalMethod
 	ThetaInitializer                    func(Theta *mat.Dense)
 	Recorder                            optimize.Recorder
 	PerOutputFit                        bool
@@ -322,7 +323,7 @@ func LinFit(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 	nSamples, nFeatures := X.Dims()
 	_, nOutputs := Ytrue.Dims()
 	if opts.GOMethodCreator == nil && opts.Solver == "" {
-		opts.GOMethodCreator = func() optimize.Method { return &optimize.LBFGS{} }
+		opts.GOMethodCreator = func() optimize.GlobalMethod { return &optimize.LBFGS{} }
 	}
 	if opts.GOMethodCreator != nil {
 		opts.PerOutputFit = true
@@ -453,8 +454,9 @@ func LinFitGOM(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 	if opts.Epochs <= 0 {
 		opts.Epochs = 4e6 / nSamples
 	}
-	fSettings := func() *optimize.Settings {
+	fSettings := func(initx []float64) *optimize.Settings {
 		settings := optimize.DefaultSettings()
+		settings.InitX = initx
 		settings.Recorder = opts.Recorder
 		settings.GradientThreshold = 1e-12
 		settings.FunctionConverge = nil
@@ -498,7 +500,7 @@ func LinFitGOM(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 				},
 			}
 			mat.Col(thetao, o, thetaM)
-			ret, err := optimize.Local(p, thetao, fSettings(), opts.GOMethodCreator())
+			ret, err := optimize.Global(p, len(thetao), fSettings(thetao), opts.GOMethodCreator())
 			//fmt.Printf("output %d F:%v Grad:%v Status:%s\n", o, ret.F, mat.Norm(mat.NewVecDense(nFeatures, ret.Gradient), math.Inf(1)), ret.Status)
 			chanret <- fitOutputRes{o: o, ret: ret, err: err}
 		}
@@ -530,7 +532,7 @@ func LinFitGOM(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 				opts.Loss(Ytrue, X, mat.NewDense(nFeatures, nOutputs, theta), Ypred, Ydiff, mat.NewDense(nFeatures, nOutputs, gradSlice), opts.Alpha, opts.L1Ratio, nSamples, opts.Activation, opts.DisableRegularizationOfFirstFeature)
 			},
 		}
-		ret, err = optimize.Local(p, theta, fSettings(), opts.GOMethodCreator())
+		ret, err = optimize.Global(p, len(theta), fSettings(theta), opts.GOMethodCreator())
 		copy(theta, ret.X)
 		rmse = mat.Norm(Ydiff, 2) / float64(nOutputs)
 		epoch = ret.FuncEvaluations
