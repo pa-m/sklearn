@@ -316,7 +316,7 @@ func colNorm(m mat.Matrix, o int) float64 {
 // Init initializes the method based on the initial data in loc, updates it
 // and returns the first operation to be carried out by the caller.
 // The initial location must be valid as specified by Needs.
-func (s *SGDOptimizer) Init(loc *optimize.Location) (op optimize.Operation, err error) {
+func (s *SGDOptimizer) oldInit(loc *optimize.Location) (op optimize.Operation, err error) {
 	//fmt.Println("SGDOptimizer.Init called with len(loc.X)=", len(loc.X))
 	if s.NFeatures == 0 || s.NOutputs == 0 {
 		s.NFeatures = len(loc.X)
@@ -334,6 +334,24 @@ func (s *SGDOptimizer) Init(loc *optimize.Location) (op optimize.Operation, err 
 	return
 }
 
+// Init ...
+func (s *SGDOptimizer) Init(dim, tasks int) int {
+	if s.NFeatures == 0 || s.NOutputs == 0 {
+		s.NFeatures = dim
+		return 1
+	}
+	if dim == s.NFeatures {
+		s.NOutputs = 1
+	}
+	if dim != s.NFeatures*s.NOutputs {
+		panic(fmt.Errorf("Size error. expected %d,%d got %d", s.NFeatures, s.NOutputs, dim))
+
+	}
+	s.Update = mat.NewDense(s.NFeatures, s.NOutputs, nil)
+	return 1
+
+}
+
 // Iterate retrieves data from loc, performs one iteration of the method,
 // updates loc and returns the next operation.
 func (s *SGDOptimizer) Iterate(loc *optimize.Location) (op optimize.Operation, err error) {
@@ -349,6 +367,23 @@ func (s *SGDOptimizer) Iterate(loc *optimize.Location) (op optimize.Operation, e
 	}
 	s.lastOp = op
 	return
+}
+
+// Run ...
+func (s *SGDOptimizer) Run(operation chan<- optimize.Task, result <-chan optimize.Task, tasks []optimize.Task) {
+	ID := 0
+	for r := range result {
+		ID++
+		task := optimize.Task{ID: ID, Location: r.Location}
+		op, err := s.Iterate(task.Location)
+		if err != nil {
+			panic(err)
+		}
+		task.Op = op
+		operation <- task
+
+	}
+	close(operation)
 }
 
 // Needs is for when SGDOptimizer is used as an optimize.Method

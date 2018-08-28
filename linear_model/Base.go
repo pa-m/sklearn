@@ -8,6 +8,7 @@ import (
 	"github.com/pa-m/sklearn/base"
 	"github.com/pa-m/sklearn/metrics"
 	"github.com/pa-m/sklearn/preprocessing"
+
 	//"gonum.org/v1/gonum/diff/fd"
 	"math"
 	"math/rand"
@@ -222,7 +223,7 @@ func (regr *SGDRegressor) Fit(X0, y0 *mat.Dense) base.Transformer {
 		/*for j := 0; j < nFeatures; j++ {
 			initialcoefs[j] = rand.Float64()
 		}*/
-		settings := optimize.DefaultSettings()
+		settings := optimize.DefaultSettingsLocal()
 		//settings.FunctionThreshold = regr.Tol * regr.Tol * 1e-4
 		//settings.GradientThreshold = 1.e-6
 		//settings.FuncEvaluations = 100000
@@ -240,7 +241,7 @@ func (regr *SGDRegressor) Fit(X0, y0 *mat.Dense) base.Transformer {
 		// settings.Recorder = printer
 
 		method := regr.Method
-		res, err := optimize.Local(p, initialcoefs, settings, method)
+		res, err := optimize.Minimize(p, initialcoefs, settings, method)
 		unused(err)
 		//fmt.Printf("res=%s %#v\n", res.Status.String(), res)
 		// if err != nil && err.Error() != "linesearch: no change in location after Linesearcher step" {
@@ -454,7 +455,7 @@ func LinFitGOM(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 		opts.Epochs = 4e6 / nSamples
 	}
 	fSettings := func() *optimize.Settings {
-		settings := optimize.DefaultSettings()
+		settings := optimize.DefaultSettingsLocal()
 		settings.Recorder = opts.Recorder
 		settings.GradientThreshold = 1e-12
 		settings.FunctionConverge = nil
@@ -498,7 +499,7 @@ func LinFitGOM(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 				},
 			}
 			mat.Col(thetao, o, thetaM)
-			ret, err := optimize.Local(p, thetao, fSettings(), opts.GOMethodCreator())
+			ret, err := optimize.Minimize(p, thetao, fSettings(), opts.GOMethodCreator())
 			//fmt.Printf("output %d F:%v Grad:%v Status:%s\n", o, ret.F, mat.Norm(mat.NewVecDense(nFeatures, ret.Gradient), math.Inf(1)), ret.Status)
 			chanret <- fitOutputRes{o: o, ret: ret, err: err}
 		}
@@ -530,7 +531,7 @@ func LinFitGOM(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 				opts.Loss(Ytrue, X, mat.NewDense(nFeatures, nOutputs, theta), Ypred, Ydiff, mat.NewDense(nFeatures, nOutputs, gradSlice), opts.Alpha, opts.L1Ratio, nSamples, opts.Activation, opts.DisableRegularizationOfFirstFeature)
 			},
 		}
-		ret, err = optimize.Local(p, theta, fSettings(), opts.GOMethodCreator())
+		ret, err = optimize.Minimize(p, theta, fSettings(), opts.GOMethodCreator())
 		copy(theta, ret.X)
 		rmse = mat.Norm(Ydiff, 2) / float64(nOutputs)
 		epoch = ret.FuncEvaluations
