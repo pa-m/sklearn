@@ -198,7 +198,7 @@ func TestGonumOptimizeRegressor(t *testing.T) {
 	bestErr := make(map[string]float)
 	bestTime := time.Second * 86400
 	bestSetup := make(map[string]string)
-	for _, method := range []optimize.GlobalMethod{&optimize.GradientDescent{}, &optimize.BFGS{}, &optimize.CG{}, &optimize.LBFGS{}} {
+	for _, method := range []optimize.Method{&optimize.GradientDescent{}, &optimize.BFGS{}, &optimize.CG{}, &optimize.LBFGS{}} {
 		for _, normalize := range []bool{false, true} {
 			testSetup := fmt.Sprintf("%T %v", method, normalize)
 			//fmt.Printf("-- TestLinearRegression normalize=%v --\n", normalize)
@@ -257,11 +257,11 @@ func TestLinFitGOM(t *testing.T) {
 	bestErr := make(map[string]float)
 	bestTime := time.Second * 86400
 	bestSetup := make(map[string]string)
-	for _, methodCreator := range []func() optimize.GlobalMethod{
-		func() optimize.GlobalMethod { return &optimize.GradientDescent{} },
-		func() optimize.GlobalMethod { return &optimize.BFGS{} },
-		func() optimize.GlobalMethod { return &optimize.CG{} },
-		func() optimize.GlobalMethod { return &optimize.LBFGS{} },
+	for _, methodCreator := range []func() optimize.Method{
+		func() optimize.Method { return &optimize.GradientDescent{} },
+		func() optimize.Method { return &optimize.BFGS{} },
+		func() optimize.Method { return &optimize.CG{} },
+		func() optimize.Method { return &optimize.LBFGS{} },
 	} {
 		for _, normalize := range []bool{false, true} {
 			testSetup := fmt.Sprintf("%T %v", methodCreator(), normalize)

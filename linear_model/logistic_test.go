@@ -84,11 +84,11 @@ func TestLogRegExamScore(t *testing.T) {
 
 	// test Fit with various gonum/optimize Method
 
-	var GOMethodCreators = map[string]func() optimize.GlobalMethod{
-		"bfgs": func() optimize.GlobalMethod { return &optimize.BFGS{} },
-		"cg":   func() optimize.GlobalMethod { return &optimize.CG{} },
+	var GOMethodCreators = map[string]func() optimize.Method{
+		"bfgs": func() optimize.Method { return &optimize.BFGS{} },
+		"cg":   func() optimize.Method { return &optimize.CG{} },
 		//&optimize.GradientDescent{},
-		"lbfgs": func() optimize.GlobalMethod { return &optimize.LBFGS{} },
+		"lbfgs": func() optimize.Method { return &optimize.LBFGS{} },
 		//&optimize.NelderMead{},
 		//&optimize.Newton{}
 	}
@@ -222,11 +222,11 @@ func TestLogRegMicrochipTest(t *testing.T) {
 
 	// test Fit Microchip with various gonum/optimize Method
 
-	var GOMethodCreators = map[string]func() optimize.GlobalMethod{
-		"bfgs": func() optimize.GlobalMethod { return &optimize.BFGS{} },
-		"cg":   func() optimize.GlobalMethod { return &optimize.CG{} },
+	var GOMethodCreators = map[string]func() optimize.Method{
+		"bfgs": func() optimize.Method { return &optimize.BFGS{} },
+		"cg":   func() optimize.Method { return &optimize.CG{} },
 		//&optimize.GradientDescent{},
-		"lbfgs": func() optimize.GlobalMethod { return &optimize.LBFGS{} },
+		"lbfgs": func() optimize.Method { return &optimize.LBFGS{} },
 		//&optimize.NelderMead{},
 		//&optimize.Newton{}
 	}

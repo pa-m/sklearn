@@ -23,7 +23,7 @@ func NewLogisticRegression() *LogisticRegression {
 	regr.Normalize = false
 	regr.ActivationFunction = base.Logistic{}
 	regr.LossFunction = CrossEntropyLoss
-	regr.Options.GOMethodCreator = func() optimize.GlobalMethod { return &optimize.LBFGS{} }
+	regr.Options.GOMethodCreator = func() optimize.Method { return &optimize.LBFGS{} }
 	return regr
 }
 
