@@ -79,6 +79,7 @@ func testMLPRegressor(t *testing.T, activationName string, lossName string, solv
 	for l := 0; l < maxLayers; l++ {
 		Alpha := 1e-14
 		regr := NewMLPRegressor(HiddenLayerSizes, activationName, solver, Alpha)
+
 		// regr.SetOptimizer(func() Optimizer {
 		// 	optimizer := base.NewAdamOptimizer()
 		// 	optimizer.StepSize = 0.1
@@ -326,9 +327,10 @@ func ExampleMLPClassifier() {
 	X2, Y2 := poly.Fit(X1, Y1).Transform(X1, Y1)
 
 	m := NewMLPClassifier([]int{}, "relu", "adam", 0.)
+	//m.WeightDecay = 0.005
 	m.Loss = "cross-entropy"
 
-	m.Epochs = 300
+	m.Epochs = 100
 	m.Fit(X2, Y2)
 	Ypred := mat.NewDense(nSamples, nOutputs, nil)
 	m.Predict(X2, Ypred)

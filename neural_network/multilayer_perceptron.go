@@ -25,10 +25,13 @@ type Layer struct {
 	X1, Ytrue, Z, Ypred, NextX1, Ydiff, Hgrad *mat.Dense
 	Theta, Grad, Update                       *mat.Dense
 	Optimizer                                 Optimizer
+
+	activation ActivationFunctions
 }
 
 // NewLayer creates a randomly initialized layer
-func NewLayer(inputs, outputs int, activation string, optimCreator base.OptimCreator, thetaSlice, gradSlice, updateSlice []float64, rnd func() float64) *Layer {
+// activation is a string or implements ActivationFunctions
+func NewLayer(inputs, outputs int, activation interface{}, optimCreator base.OptimCreator, thetaSlice, gradSlice, updateSlice []float64, rnd func() float64) *Layer {
 
 	Theta := mat.NewDense(inputs, outputs, thetaSlice)
 	if rnd == nil {
@@ -40,11 +43,20 @@ func NewLayer(inputs, outputs int, activation string, optimCreator base.OptimCre
 	if optimCreator != nil {
 		optimizer = optimCreator()
 	}
-	return &Layer{Activation: activation,
-		Theta:     Theta,
-		Grad:      mat.NewDense(inputs, outputs, gradSlice),
-		Update:    mat.NewDense(inputs, outputs, updateSlice),
-		Optimizer: optimizer}
+	activationStr := "?"
+	if v, ok := activation.(string); ok {
+		activationStr = v
+	} else if v, ok := activation.(fmt.Stringer); ok {
+		activationStr = v.String()
+	}
+	return &Layer{
+		Activation: activationStr,
+		Theta:      Theta,
+		Grad:       mat.NewDense(inputs, outputs, gradSlice),
+		Update:     mat.NewDense(inputs, outputs, updateSlice),
+		Optimizer:  optimizer,
+		activation: NewActivation(activation),
+	}
 }
 
 func (L *Layer) allocOutputs(nSamples, nOutputs int) {
@@ -74,13 +86,15 @@ func (L *Layer) allocOutputs(nSamples, nOutputs int) {
 var Regressors = []base.Regressor{&MLPRegressor{}}
 
 // MLPRegressor is a multilayer perceptron regressor
+// Activation is a string (identity,logistic,tanh,relu,paramrelu,elu) or implements ActivationFunctions
 type MLPRegressor struct {
 	Shuffle, UseBlas bool
 	Optimizer        base.OptimCreator
-	Activation       string
+	Activation       interface{}
 	Solver           string
 	HiddenLayerSizes []int
 	RandomState      *rand.Rand
+	WeightDecay      float64
 
 	Layers                           []*Layer
 	Alpha, L1Ratio, GradientClipping float64
@@ -97,11 +111,11 @@ type MLPRegressor struct {
 type OptimCreator = base.OptimCreator
 
 // NewMLPRegressor returns a *MLPRegressor with defaults
-// activation is one of identity,logistic,tanh,relu
+// activation is one of identity,logistic,tanh,relu, a string or implements ActivationFunctions
 // solver is on of agd,adagrad,rmsprop,adadelta,adam (one of the keys of base.Solvers) defaults to "adam"
 // Alpha is the regularization parameter
 // Loss is one of square,log,cross-entropy defaults: square for identity, log for logistic,tanh,relu
-func NewMLPRegressor(hiddenLayerSizes []int, activation string, solver string, Alpha float64) *MLPRegressor {
+func NewMLPRegressor(hiddenLayerSizes []int, activation interface{}, solver string, Alpha float64) *MLPRegressor {
 	if activation == "" {
 		activation = "relu"
 	}
@@ -168,9 +182,9 @@ func (regr *MLPRegressor) allocLayers(nFeatures, nOutputs int, rnd func() float6
 		thetaOffset += thetaLen1
 		prevOutputs = outputs
 	}
-	var lastActivation string
+	var lastActivation interface{}
 	if regr.Loss == "cross-entropy" || regr.Loss == "log" {
-		lastActivation = "logistic"
+		lastActivation = &LogisticActivation{}
 	} else {
 		lastActivation = regr.Activation
 	}
@@ -338,7 +352,7 @@ func (regr *MLPRegressor) backprop(X, Y mat.Matrix, epoch, miniBatchLen, nSample
 		}
 
 		// Ydiff is dJ/dH
-		NewActivation(L.Activation).Grad(L.Z, L.Ypred, L.Hgrad)
+		L.activation.Grad(L.Z, L.Ypred, L.Hgrad)
 		// =>L.Hgrad is derivative of activation vs Z
 
 		// put dJ/dh*dh/dz in Ydiff
@@ -389,6 +403,9 @@ func (regr *MLPRegressor) backprop(X, Y mat.Matrix, epoch, miniBatchLen, nSample
 		default:
 			L.Optimizer.GetUpdate(L.Update, L.Grad)
 			L.Theta.Add(L.Theta, L.Update)
+			if regr.WeightDecay > 0 && regr.WeightDecay < 1 {
+				L.Theta.Scale(1-regr.WeightDecay, L.Theta)
+			}
 		}
 	}
 	return J
@@ -423,6 +440,7 @@ func (regr *MLPRegressor) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
 // Z and Y can be nil
 func (regr *MLPRegressor) predictZH(X, Y *mat.Dense) base.Regressor {
 	nSamples, nFeatures0 := X.Dims()
+
 	for l := 0; l < len(regr.Layers); l++ {
 		L := regr.Layers[l]
 		_, nOutputs := L.Theta.Dims()
@@ -451,7 +469,7 @@ func (regr *MLPRegressor) predictZH(X, Y *mat.Dense) base.Regressor {
 			L.Z.Mul(L.X1, L.Theta)
 		}
 
-		NewActivation(L.Activation).Func(L.Z, L.Ypred)
+		L.activation.Func(L.Z, L.Ypred)
 	}
 
 	if Y != nil {

@@ -9,41 +9,66 @@ import (
 
 type activationStruct struct{}
 
-// ActivationFunctions WIP
+// ActivationFunctions is interface with Func and Grad for activation functions
 type ActivationFunctions interface {
 	Func(z, h *mat.Dense)
 	Grad(z, h, grad *mat.Dense)
+	String() string
 }
-type identityActivation struct{ activationStruct }
 
-func (*identityActivation) Func(z, h *mat.Dense) { h.Copy(z) }
-func (*identityActivation) Grad(z, h, grad *mat.Dense) {
+// IdentityActivation implements ActivationFunctions for identity
+type IdentityActivation struct{ activationStruct }
+
+// Func for IdentityActivation
+func (*IdentityActivation) Func(z, h *mat.Dense) { h.Copy(z) }
+
+// Grad for IndentityActivation
+func (*IdentityActivation) Grad(z, h, grad *mat.Dense) {
 	matx{Dense: grad}.CopyApplied(h, func(h float64) float64 { return 1. })
 }
 
-type logisticActivation struct{ activationStruct }
+// String for identity
+func (*IdentityActivation) String() string { return "identity" }
 
-func (*logisticActivation) Func(z, h *mat.Dense) {
+// LogisticActivation implements ActivationFunctions for sigmoid
+type LogisticActivation struct{ activationStruct }
+
+// Func for LogisticActivation
+func (*LogisticActivation) Func(z, h *mat.Dense) {
 	matx{Dense: h}.CopyApplied(z, func(z float64) float64 { return 1. / (1. + math.Exp(-z)) })
 	//h.Copy(matApply{Matrix: z, Func: func(z float64) float64 { return 1. / (1. + math.Exp(-z)) }})
 }
-func (*logisticActivation) Grad(z, h, grad *mat.Dense) {
+
+// Grad for LogisticActivation
+func (*LogisticActivation) Grad(z, h, grad *mat.Dense) {
 	matx{Dense: grad}.CopyApplied(h, func(h float64) float64 { return h * (1. - h) })
 }
 
-type tanhActivation struct{ activationStruct }
+// String for logistic
+func (*LogisticActivation) String() string { return "logistic" }
 
-func (*tanhActivation) Func(z, h *mat.Dense) {
+// TanhActivation implements ActivationFunctions for Tanh
+type TanhActivation struct{ activationStruct }
+
+// Func for tanh
+func (*TanhActivation) Func(z, h *mat.Dense) {
 	matx{Dense: h}.CopyApplied(z, math.Tanh)
 
 }
-func (*tanhActivation) Grad(z, h, grad *mat.Dense) {
+
+// Grad for tanh
+func (*TanhActivation) Grad(z, h, grad *mat.Dense) {
 	matx{Dense: grad}.CopyApplied(h, func(h float64) float64 { return 1. - h*h })
 }
 
-type reluActivation struct{ activationStruct }
+// String for tanh
+func (*TanhActivation) String() string { return "tanh" }
 
-func (*reluActivation) Func(z, h *mat.Dense) {
+// ReluActivation implements ActivationFunctions for rectified linear unit
+type ReluActivation struct{ activationStruct }
+
+// Func for relu
+func (*ReluActivation) Func(z, h *mat.Dense) {
 	matx{Dense: h}.CopyApplied(z, func(z float64) float64 {
 		if z >= 0 {
 			return z
@@ -51,7 +76,9 @@ func (*reluActivation) Func(z, h *mat.Dense) {
 		return 0
 	})
 }
-func (*reluActivation) Grad(z, h, grad *mat.Dense) {
+
+// Grad for relu
+func (*ReluActivation) Grad(z, h, grad *mat.Dense) {
 	matx{Dense: grad}.CopyApplied(h, func(h float64) float64 {
 		if h <= 0 {
 			return 0.
@@ -61,12 +88,17 @@ func (*reluActivation) Grad(z, h, grad *mat.Dense) {
 
 }
 
-type paramreluActivation struct {
+// String for relu
+func (*ReluActivation) String() string { return "relu" }
+
+// ParamreluActivation implements ActivationFunctions for parametric relu
+type ParamreluActivation struct {
 	activationStruct
 	Param float64
 }
 
-func (act *paramreluActivation) Func(z, h *mat.Dense) {
+// Func for paramrelu
+func (act *ParamreluActivation) Func(z, h *mat.Dense) {
 	matx{Dense: h}.CopyApplied(z, func(z float64) float64 {
 		if z >= 0 {
 			return z
@@ -74,7 +106,9 @@ func (act *paramreluActivation) Func(z, h *mat.Dense) {
 		return z * act.Param
 	})
 }
-func (act *paramreluActivation) Grad(z, h, grad *mat.Dense) {
+
+// Grad for paramrelu
+func (act *ParamreluActivation) Grad(z, h, grad *mat.Dense) {
 	matx{Dense: grad}.CopyApplied(h, func(h float64) float64 {
 		if h >= 0 {
 			return 1.
@@ -83,15 +117,24 @@ func (act *paramreluActivation) Grad(z, h, grad *mat.Dense) {
 	})
 
 }
-func (act *paramreluActivation) SetParameter(v float64)    { act.Param = v }
-func (act *paramreluActivation) DefaultParameter() float64 { return 0.01 }
 
-type eluActivation struct {
+// String for paramrelu
+func (act *ParamreluActivation) String() string { return fmt.Sprintf("paramrelu(%g)", act.Param) }
+
+// SetParameter for paramrelu
+func (act *ParamreluActivation) SetParameter(v float64) { act.Param = v }
+
+// DefaultParameter for paramrelu
+func (act *ParamreluActivation) DefaultParameter() float64 { return 0.01 }
+
+// EluActivation implements ActivationFunctions for exponential linear unit
+type EluActivation struct {
 	activationStruct
 	Param float64
 }
 
-func (act *eluActivation) Func(z, h *mat.Dense) {
+// Func for elu
+func (act *EluActivation) Func(z, h *mat.Dense) {
 	elu := func(x float64) float64 {
 		if x >= 0 {
 			return x
@@ -101,7 +144,8 @@ func (act *eluActivation) Func(z, h *mat.Dense) {
 	matx{Dense: h}.CopyApplied(z, elu)
 }
 
-func (act *eluActivation) Grad(z, h, grad *mat.Dense) {
+// Grad for elu
+func (act *EluActivation) Grad(z, h, grad *mat.Dense) {
 	if act.Param < 0 {
 		panic("elu Param must be >0")
 	}
@@ -114,8 +158,15 @@ func (act *eluActivation) Grad(z, h, grad *mat.Dense) {
 	})
 
 }
-func (act *eluActivation) SetParameter(v float64)     { act.Param = v }
-func (act *reluActivation) DefaultParameter() float64 { return 0.01 }
+
+// String for relu
+func (act *EluActivation) String() string { return fmt.Sprintf("elu(%g)", act.Param) }
+
+// SetParameter for elu
+func (act *EluActivation) SetParameter(v float64) { act.Param = v }
+
+// DefaultParameter for elu
+func (act *ReluActivation) DefaultParameter() float64 { return 0.01 }
 
 type setparameterer interface {
 	SetParameter(v float64)
@@ -126,12 +177,12 @@ type defaultparameterer interface {
 
 // SupportedActivations is a map[Sing]ActivationFunctions for the supproted activation functions (identity,logistic,tanh,relu)
 var SupportedActivations = map[string]ActivationFunctions{
-	"identity":  &identityActivation{},
-	"logistic":  &logisticActivation{},
-	"tanh":      &tanhActivation{},
-	"relu":      &reluActivation{},
-	"elu":       &eluActivation{},
-	"paramrelu": &paramreluActivation{},
+	"identity":  &IdentityActivation{},
+	"logistic":  &LogisticActivation{},
+	"tanh":      &TanhActivation{},
+	"relu":      &ReluActivation{},
+	"elu":       &EluActivation{},
+	"paramrelu": &ParamreluActivation{},
 }
 
 // NewActivation return ActivationFunctions (Func and Grad) from its name (identity,logistic,tanh,relu)
