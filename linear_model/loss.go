@@ -1,4 +1,4 @@
-package linearModel
+package linearmodel
 
 import (
 	"fmt"

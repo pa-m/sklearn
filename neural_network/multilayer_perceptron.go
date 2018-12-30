@@ -1,4 +1,4 @@
-package neuralNetwork
+package neuralnetwork
 
 import (
 	"fmt"
@@ -226,10 +226,10 @@ func (regr *MLPRegressor) fitGOM(X, Y *mat.Dense) float64 {
 		},
 	}
 	method := base.GOMethodCreators[regr.Solver]()
-	settings := optimize.DefaultSettings()
+	settings := &optimize.Settings{}
 	settings.FuncEvaluations = regr.Epochs
 
-	ret, err := optimize.Local(p, regr.thetaSlice, settings, method)
+	ret, err := optimize.Minimize(p, regr.thetaSlice, settings, method)
 	if err != nil {
 		fmt.Println(err)
 	}

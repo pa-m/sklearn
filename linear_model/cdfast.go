@@ -1,4 +1,4 @@
-package linearModel
+package linearmodel
 
 import (
 	"math"
@@ -121,7 +121,7 @@ func enetCoordinateDescent(w *mat.VecDense, alpha, beta float64, X *mat.Dense, Y
 			if positive {
 				dualNormXtA = mat.Max(XtA)
 			} else {
-				dualNormXtA = math.Abs(XtA.AtVec(blas64.Iamax(len(XtArv.Data), XtArv)))
+				dualNormXtA = math.Abs(XtA.AtVec(blas64.Iamax(XtArv)))
 			}
 			// # R_norm2 = np.dot(R, R)
 			RNorm2.MulVec(R.T(), R)
@@ -138,7 +138,7 @@ func enetCoordinateDescent(w *mat.VecDense, alpha, beta float64, X *mat.Dense, Y
 				cons = 1.
 				gap = RNorm2rv.Data[0]
 			}
-			l1norm = blas64.Asum(NFeatures, w.RawVector())
+			l1norm = blas64.Asum(w.RawVector())
 			RY.MulElemVec(R, Y)
 			gap += (alpha*l1norm - cons*mat.Sum(RY)) + .5*beta*(1.+cons*cons)*wNorm2rv.Data[0]
 			// fmt.Printf("R:\n%.6f\nW:\n%.6f\nXtA:\n%.6f\n", mat.Formatted(R.T()), mat.Formatted(w.T()), mat.Formatted(XtA.T()))

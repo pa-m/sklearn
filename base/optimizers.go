@@ -77,6 +77,9 @@ type SGDOptimizer struct {
 	Mt, Vt       *mat.Dense
 	// lastOp is for Iterate when used as optimize.Method
 	lastOp optimize.Operation
+
+	status optimize.Status
+	err    error
 }
 
 // NewSGDOptimizer returns an initialized *SGDOptimizer with stepsize 1e-4 and momentum 0.9
@@ -316,7 +319,13 @@ func colNorm(m mat.Matrix, o int) float64 {
 // Init initializes the method based on the initial data in loc, updates it
 // and returns the first operation to be carried out by the caller.
 // The initial location must be valid as specified by Needs.
-func (s *SGDOptimizer) Init(loc *optimize.Location) (op optimize.Operation, err error) {
+func (s *SGDOptimizer) Init(dim, tasks int) int {
+	s.status = optimize.NotTerminated
+	s.err = nil
+	return 1
+}
+
+func (s *SGDOptimizer) initLocal(loc *optimize.Location) (op optimize.Operation, err error) {
 	//fmt.Println("SGDOptimizer.Init called with len(loc.X)=", len(loc.X))
 	if s.NFeatures == 0 || s.NOutputs == 0 {
 		s.NFeatures = len(loc.X)
@@ -334,9 +343,15 @@ func (s *SGDOptimizer) Init(loc *optimize.Location) (op optimize.Operation, err 
 	return
 }
 
+// Run implements optimize.Method.Run for SGDOptimizer
+func (s *SGDOptimizer) Run(operation chan<- optimize.Task, result <-chan optimize.Task, tasks []optimize.Task) {
+	(&optimize.GradientDescent{}).Run(operation, result, tasks)
+	return
+}
+
 // Iterate retrieves data from loc, performs one iteration of the method,
 // updates loc and returns the next operation.
-func (s *SGDOptimizer) Iterate(loc *optimize.Location) (op optimize.Operation, err error) {
+func (s *SGDOptimizer) iterateLocal(loc *optimize.Location) (op optimize.Operation, err error) {
 	theta := mat.NewDense(s.NFeatures, s.NOutputs, loc.X)
 
 	s.GetUpdate(s.Update, mat.NewDense(s.NFeatures, s.NOutputs, loc.Gradient))

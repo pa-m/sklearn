@@ -1,4 +1,4 @@
-package linearModel
+package linearmodel
 
 // Ridge is an alias for RegularizedRegression
 type Ridge = RegularizedRegression
