@@ -22,13 +22,13 @@ func TestReLU(t *testing.T) {
 	testActivationDerivatives(t, "relu")
 }
 
-func testActivationDerivatives(t *testing.T, activation string) {
+func TestELU(t *testing.T) {
+	testActivationDerivatives(t, "elu")
+}
+
+func testActivationDerivatives(t *testing.T, activation interface{}) {
 	nSamples, nOutputs := 1, 1
-	if _, ok := SupportedActivations[activation]; !ok {
-		t.Errorf("activation %s not in matActivations", activation)
-		return
-	}
-	a, _ := SupportedActivations[activation]
+	a := NewActivation(activation)
 	zSlice := make([]float64, nSamples*nOutputs)
 	hSlice := make([]float64, nSamples*nOutputs)
 	gradSlice := make([]float64, nSamples*nOutputs)

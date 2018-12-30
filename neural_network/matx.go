@@ -2,7 +2,6 @@ package neuralnetwork
 
 import (
 	"fmt"
-	"math"
 
 	"github.com/pa-m/sklearn/base"
 	"gonum.org/v1/gonum/blas/blas64"
@@ -72,7 +71,7 @@ func (m matx) CopyScaledApplied2(B, C mat.RawMatrixer, scale float64, f func(flo
 	}
 }
 
-// SumApplied2  returns sum of  f(B,C) t
+// SumApplied2  returns sum of  f(B,C)
 func (matx) SumApplied2(B, C mat.RawMatrixer, f func(float64, float64) float64) float64 {
 	bmat, cmat := B.RawMatrix(), C.RawMatrix()
 	if cmat.Rows != bmat.Rows || cmat.Cols != bmat.Cols {
@@ -91,9 +90,7 @@ func (m matx) SumSquares() float64 {
 	amat := m.RawMatrix()
 	sum := 0.
 	for ja := 0; ja < amat.Rows*amat.Stride; ja = ja + amat.Stride {
-		for _, v := range amat.Data[ja : ja+amat.Cols] {
-			sum += v * v
-		}
+		sum += blas64.Implementation().Ddot(amat.Cols, amat.Data[ja:ja+amat.Cols], 1, amat.Data[ja:ja+amat.Cols], 1)
 	}
 	return sum
 }
@@ -101,9 +98,7 @@ func (m matx) SumAbs() float64 {
 	amat := m.RawMatrix()
 	sum := 0.
 	for ja := 0; ja < amat.Rows*amat.Stride; ja = ja + amat.Stride {
-		for _, v := range amat.Data[ja : ja+amat.Cols] {
-			sum += math.Abs(v)
-		}
+		sum += blas64.Implementation().Dasum(amat.Cols, amat.Data[ja:ja+amat.Cols], 1)
 	}
 	return sum
 }

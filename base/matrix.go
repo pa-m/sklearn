@@ -422,21 +422,13 @@ func MatDenseFirstColumnRemoved(src *mat.Dense) *mat.Dense {
 
 // MatDenseSlice returns a *mat.Dense with the same underlaying data as src but rows and columns removed
 func MatDenseSlice(src mat.RawMatrixer, i, k, j, l int) *mat.Dense {
-	M := src.RawMatrix()
 	m := &mat.Dense{}
-	m.SetRawMatrix(MatGeneralSlice(M, i, k, j, l))
+	m.SetRawMatrix(MatGeneralSlice(src.RawMatrix(), i, k, j, l))
 	return m
 }
 
 // MatGeneralSlice returns a blas64.General with the same underlaying data as M but rows and columns removed
 func MatGeneralSlice(M blas64.General, i, k, j, l int) blas64.General {
-	// defer func() {
-	// 	if r := recover(); r != nil {
-	// 		fmt.Printf("i*M.Stride+j : %d*%d+%d : %d  (k-1)*M.Stride+l: %d*%d+%d : %d len:%d %s\n",
-	// 			i, M.Stride, j, i*M.Stride+j,
-	// 			k-1, M.Stride, l, (k-1)*M.Stride+l, len(M.Data), r)
-	// 	}
-	// }()
 	if k <= i {
 		panic(fmt.Errorf("k<=i %d %d", k, i))
 	}
@@ -458,13 +450,6 @@ func MatDenseRowSlice(src mat.RawMatrixer, i, k int) *mat.Dense {
 
 // MatGeneralRowSlice returns a blas64.General with the same underlaying data as M but rows and columns removed
 func MatGeneralRowSlice(M blas64.General, i, k int) blas64.General {
-	// defer func() {
-	// 	if r := recover(); r != nil {
-	// 		fmt.Printf("i*M.Stride+j : %d*%d+%d : %d  (k-1)*M.Stride+l: %d*%d+%d : %d len:%d %s\n",
-	// 			i, M.Stride, j, i*M.Stride+j,
-	// 			k-1, M.Stride, l, (k-1)*M.Stride+l, len(M.Data), r)
-	// 	}
-	// }()
 	if k <= i {
 		panic(fmt.Errorf("k<=i %d %d", k, i))
 	}

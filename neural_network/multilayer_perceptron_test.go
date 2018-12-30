@@ -274,7 +274,7 @@ func BenchmarkMnist(b *testing.B) {
 
 	X, Y := datasets.LoadMnist()
 
-	X, Yohe := preprocessing.NewOneHotEncoder().Fit(X, Y).Transform(X, Y)
+	X, Yohe := (&preprocessing.LabelBinarizer{}).FitTransform(X, Y)
 	//fmt.Println(base.MatDimsString(Yohe))
 	Theta1, Theta2 := datasets.LoadMnistWeights()
 	mlp := NewMLPClassifier([]int{25}, "logistic", "adam", 0.)
@@ -300,6 +300,7 @@ func BenchmarkMnist(b *testing.B) {
 //BenchmarkMnist-8   	      30	  35717715 ns/op	 2523106 B/op	     154 allocs/op
 //BenchmarkMnist-8   	      50	  26804534 ns/op	 1550716 B/op	     117 allocs/op
 //BenchmarkMnist-8   	      50	  26648869 ns/op	 1240290 B/op	     150 allocs/op
+//BenchmarkMnist-12    	     100	  17748256 ns/op	  667877 B/op	     137 allocs/op
 
 func ExampleMLPClassifier() {
 	ds := datasets.LoadBreastCancer()
@@ -323,9 +324,6 @@ func ExampleMLPClassifier() {
 	poly := preprocessing.NewPolynomialFeatures(2)
 	poly.IncludeBias = false
 	X2, Y2 := poly.Fit(X1, Y1).Transform(X1, Y1)
-
-	// fmt.Println(base.MatStr(base.MatDenseSlice(X2, 0, 2, 0, 5)))
-	// fmt.Println(base.MatStr(base.MatDenseRowSlice(Y2, 0, 2)))
 
 	m := NewMLPClassifier([]int{}, "relu", "adam", 0.)
 	m.Loss = "cross-entropy"
