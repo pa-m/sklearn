@@ -12,6 +12,12 @@ func NewFunctionTransformer(f, invf func(X, Y *mat.Dense) (X1, Y1 *mat.Dense)) *
 	return &FunctionTransformer{Func: f, InverseFunc: invf}
 }
 
+// Clone ...
+func (m *FunctionTransformer) Clone() Transformer {
+	var clone = *m
+	return &clone
+}
+
 // Fit ...
 func (m *FunctionTransformer) Fit(X, Y *mat.Dense) Transformer {
 	return m

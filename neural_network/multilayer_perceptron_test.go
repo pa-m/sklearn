@@ -10,6 +10,8 @@ import (
 	"github.com/pa-m/sklearn/base"
 	"github.com/pa-m/sklearn/datasets"
 	"github.com/pa-m/sklearn/metrics"
+	modelselection "github.com/pa-m/sklearn/model_selection"
+	"github.com/pa-m/sklearn/pipeline"
 	"github.com/pa-m/sklearn/preprocessing"
 
 	"gonum.org/v1/gonum/floats"
@@ -135,7 +137,7 @@ func TestMLPClassifierMicrochip(t *testing.T) {
 	Ypred := mat.NewDense(nSamples, nOutputs, nil)
 	var J float64
 	loss := func() float64 {
-		regr.predictZH(Xp, Ypred)
+		regr.forward(Xp, Ypred)
 		return regr.fitEpoch(Xp, Ytrue, 1)
 	}
 	chkLoss := func(context string, expectedLoss float64) {
@@ -346,4 +348,31 @@ func ExampleMLPClassifier() {
 	// 20 components explain 99.50% of variance
 	// accuracy>0.994 ? true
 
+}
+
+func ExampleMLPRegressor() {
+	ds := datasets.LoadBoston()
+	X, Y := ds.X, ds.Y
+	mlp := NewMLPRegressor([]int{20}, "identity", "adam", 1e-4)
+	mlp.Shuffle = false
+	mlp.MiniBatchSize = 5
+	mlp.Epochs = 100
+	m := pipeline.NewPipeline(
+		pipeline.NamedStep{Name: "standardize", Step: preprocessing.NewStandardScaler()},
+		pipeline.NamedStep{Name: "mlpregressor", Step: mlp},
+	)
+	RandomState := rand.NewSource(5)
+	scorer := func(Y, Ypred *mat.Dense) float64 {
+		e := metrics.MeanSquaredError(Y, Ypred, nil, "").At(0, 0)
+		return e
+	}
+	mean := func(x []float64) float64 { return floats.Sum(x) / float64(len(x)) }
+
+	res := modelselection.CrossValidate(m, X, Y,
+		nil,
+		scorer,
+		&modelselection.KFold{NSplits: 10, Shuffle: true, RandomState: &RandomState}, 10)
+	fmt.Println(math.Sqrt(mean(res.TestScore)) < 25)
+	// Output:
+	// true
 }

@@ -45,13 +45,13 @@ func testLossDerivatives(t *testing.T, loss string) {
 	}, Ytrue)
 
 	lossFd := func(YpredSlice []float64) float64 {
-		return losser.Loss(Ytrue, mat.NewDense(nSamples, nOutputs, YpredSlice), nil)
+		return losser.Loss(Ytrue, mat.NewDense(nSamples, nOutputs, YpredSlice), nil, nSamples)
 	}
 	//fmt.Printf("TestLoss %#v\n", activation)
 	for i := 0; i < 10; i++ {
 		// Alpha := 0.
 		// L1Ratio := 0.
-		losser.Loss(Ytrue, Ypred, Grad)
+		losser.Loss(Ytrue, Ypred, Grad, nSamples)
 		fd.Gradient(gradSliceFd, lossFd, YpredSlice, &fd.Settings{Step: 1e-8})
 
 		//fmt.Printf("%t %g %g\n", activation, grad.At(0, 0), dJ)

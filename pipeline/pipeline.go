@@ -10,11 +10,6 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
-// Estimator is an interface for Predict
-type Estimator interface {
-	Predict(X, Y *mat.Dense)
-}
-
 // NamedStep represents a pipeline named Step
 type NamedStep struct {
 	Name string
@@ -69,6 +64,20 @@ func (p *Pipeline) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
 	Yout = mat.NewDense(nSamples, p.NOutputs, nil)
 	p.Predict(Xout, Yout)
 	return
+}
+
+// Clone ...
+func (p *Pipeline) Clone() base.Transformer {
+	clone := *p
+	clone.NamedSteps = make([]NamedStep, len(p.NamedSteps))
+	for i, step := range p.NamedSteps {
+		if cloner, ok := step.Step.(base.TransformerCloner); ok {
+			clone.NamedSteps[i] = NamedStep{Name: step.Name, Step: cloner.Clone()}
+		} else {
+			panic(fmt.Errorf("step %s is not clonable", step.Name))
+		}
+	}
+	return &clone
 }
 
 // Score for base.Regressor

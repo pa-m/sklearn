@@ -6,10 +6,7 @@ import (
 	"io"
 	"math"
 	"math/rand"
-	"runtime"
-	"sync"
 
-	"gonum.org/v1/gonum/blas"
 	"gonum.org/v1/gonum/blas/blas64"
 	"gonum.org/v1/gonum/mat"
 )
@@ -350,68 +347,6 @@ func MatSigmoid(dst *mat.Dense, X mat.Matrix) *mat.Dense {
 		return 1. / (1. + math.Exp(-v))
 	}, X)
 	return dst
-}
-
-// MatParallelGemm parallelize Gemm on A rows
-func MatParallelGemm(tA, tB blas.Transpose, alpha float64, a, b blas64.General, beta float64, c blas64.General) {
-	var start, end int
-	// defer func() {
-	// 	if r := recover(); r != nil {
-	// 		fmt.Printf("a %d,%d start:%d end:%d %s\n", a.Rows, a.Cols, start, end, r)
-	// 	}
-	// }()
-	nJobs := runtime.NumCPU()
-	// n is a.Rows if blas.NoTrans, else a.Cols
-	var n int
-	if tA == blas.NoTrans {
-		n = a.Rows
-	} else {
-		n = a.Cols
-	}
-
-	sliceRows := (n + nJobs - 1) / nJobs
-	wg := new(sync.WaitGroup)
-	fn := func(job, start, end int, wg *sync.WaitGroup) {
-		//MatDimsCheck(".", dst.Slice(start, end, 0, nOutputs), MatRowSlice{Matrix: A, Start: start, End: end}, B)
-		if end > n {
-			end = n
-		}
-		if end > start {
-			//fmt.Printf("start %d end %d aRows %d cRows %d\n", start, end, a.Rows, c.Rows)
-			var aSlice blas64.General
-			if tA == blas.NoTrans {
-				aSlice = MatGeneralSlice(a, start, end, 0, a.Cols)
-			} else {
-				aSlice = MatGeneralSlice(a, 0, a.Rows, start, end)
-			}
-			blas64.Gemm(tA, tB, alpha,
-				aSlice,
-				b,
-				beta,
-				MatGeneralSlice(c, start, end, 0, c.Cols))
-		}
-		wg.Done()
-	}
-	if n < 64 {
-		wg.Add(1)
-		fn(0, 0, a.Rows, wg)
-
-	} else {
-		for job := 0; job < nJobs; job++ {
-			end = start + sliceRows
-			if end > n {
-				end = n
-			}
-			if end > start {
-				wg.Add(1)
-				//fmt.Printf("processing rows %d-%d of a(%d,%d, len:%d)\n", start, end, a.Rows, a.Cols, len(a.Data))
-				go fn(job, start, end, wg)
-			}
-			start = end
-		}
-		wg.Wait()
-
-	}
 }
 
 // MatDenseFirstColumnRemoved returns a *mat.Dense with the same underlaying data as M but 1st column removed

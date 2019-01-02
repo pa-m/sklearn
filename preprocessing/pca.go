@@ -18,6 +18,12 @@ type PCA struct {
 // NewPCA returns a *PCA
 func NewPCA() *PCA { return &PCA{} }
 
+// Clone ...
+func (m *PCA) Clone() Transformer {
+	clone := *m
+	return &clone
+}
+
 // Fit computes the svd of X
 func (m *PCA) Fit(X, Y *mat.Dense) Transformer {
 	_, c := X.Dims()

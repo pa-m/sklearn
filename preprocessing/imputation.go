@@ -19,6 +19,12 @@ type Imputer struct {
 // NewImputer ...
 func NewImputer() *Imputer { return &Imputer{} }
 
+// Clone ...
+func (m *Imputer) Clone() Transformer {
+	clone := *m
+	return &clone
+}
+
 // Fit for Imputer ...
 func (m *Imputer) Fit(X, Y *mat.Dense) base.Transformer {
 	Xmat := X.RawMatrix()

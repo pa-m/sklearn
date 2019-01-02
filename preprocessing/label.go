@@ -15,6 +15,17 @@ type LabelBinarizer struct {
 	Classes            [][]float64
 }
 
+// NewLabelBinarizer ...
+func NewLabelBinarizer(NegLabel, PosLabel float64) *LabelBinarizer {
+	return &LabelBinarizer{NegLabel: NegLabel, PosLabel: PosLabel}
+}
+
+// Clone ...
+func (m *LabelBinarizer) Clone() Transformer {
+	clone := *m
+	return &clone
+}
+
 // Fit for binarizer does nothing
 func (m *LabelBinarizer) Fit(X, Y *mat.Dense) Transformer {
 	if m.PosLabel == m.NegLabel {
@@ -102,9 +113,22 @@ type MultiLabelBinarizer struct {
 // NewMultiLabelBinarizer ...
 func NewMultiLabelBinarizer() *MultiLabelBinarizer { return &MultiLabelBinarizer{} }
 
+// Clone ...
+func (m *MultiLabelBinarizer) Clone() Transformer {
+	clone := *m
+	return &clone
+}
+
 // Fit for MultiLabelBinarizer ...
+// if Y is [][]string, use Fit2. this one is only to satisfy Transformer interface
+func (m *MultiLabelBinarizer) Fit(X, Y *mat.Dense) Transformer {
+	m.Fit2(X, Y)
+	return m
+}
+
+// Fit2 for MultiLabelBinarizer ...
 // Y type can be *mat.Dense | [][]string
-func (m *MultiLabelBinarizer) Fit(X *mat.Dense, Y interface{}) *MultiLabelBinarizer {
+func (m *MultiLabelBinarizer) Fit2(X *mat.Dense, Y interface{}) *MultiLabelBinarizer {
 	m.Classes = make([]interface{}, 0)
 	switch vY := Y.(type) {
 	case *mat.Dense:
@@ -141,7 +165,12 @@ func (m *MultiLabelBinarizer) Fit(X *mat.Dense, Y interface{}) *MultiLabelBinari
 
 // Transform for MultiLabelBinarizer ...
 // Y type must be the same passed int Fit
-func (m *MultiLabelBinarizer) Transform(X *mat.Dense, Y interface{}) (Xout, Yout *mat.Dense) {
+func (m *MultiLabelBinarizer) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+	return m.Transform2(X, Y)
+}
+
+// Transform2 handles Y types ùmat.dense and [][]string
+func (m *MultiLabelBinarizer) Transform2(X *mat.Dense, Y interface{}) (Xout, Yout *mat.Dense) {
 	Xout = X
 	switch vY := Y.(type) {
 	case *mat.Dense:
@@ -191,7 +220,7 @@ func (m *MultiLabelBinarizer) Transform(X *mat.Dense, Y interface{}) (Xout, Yout
 // FitTransform for MultiLabelBinarizer ...
 // Y type can be *mat.Dense | [][]string
 func (m *MultiLabelBinarizer) FitTransform(X *mat.Dense, Y interface{}) (Xout, Yout *mat.Dense) {
-	Xout, Yout = m.Fit(X, Y).Transform(X, Y)
+	Xout, Yout = m.Fit2(X, Y).Transform2(X, Y)
 	return
 }
 
@@ -241,6 +270,12 @@ type LabelEncoder struct {
 
 // NewLabelEncoder ...
 func NewLabelEncoder() *LabelEncoder { return &LabelEncoder{} }
+
+// Clone ...
+func (m *LabelEncoder) Clone() Transformer {
+	clone := *m
+	return &clone
+}
 
 // Fit for LabelEncoder ...
 func (m *LabelEncoder) Fit(X, Y *mat.Dense) base.Transformer {

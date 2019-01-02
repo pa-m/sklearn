@@ -35,6 +35,12 @@ func NewMinMaxScaler(featureRange []float) *MinMaxScaler {
 	return &MinMaxScaler{FeatureRange: featureRange}
 }
 
+// Clone ...
+func (scaler *MinMaxScaler) Clone() Transformer {
+	var clone = *scaler
+	return &clone
+}
+
 // Reset resets scaler to its initial state
 func (scaler *MinMaxScaler) Reset() *MinMaxScaler {
 	scaler.NSamplesSeen = 0
@@ -127,6 +133,12 @@ type StandardScaler struct {
 // NewStandardScaler creates a *StandardScaler
 func NewStandardScaler() *StandardScaler {
 	return &StandardScaler{WithMean: true, WithStd: true}
+}
+
+// Clone ...
+func (scaler *StandardScaler) Clone() Transformer {
+	var clone = *scaler
+	return &clone
 }
 
 // Reset ...
@@ -305,6 +317,12 @@ type QuantilePair struct {
 // NewDefaultRobustScaler supplies typical arguments (via python sklearn)
 func NewDefaultRobustScaler() *RobustScaler {
 	return NewRobustScaler(true, true, &QuantilePair{0.25, 0.75})
+}
+
+// Clone ...
+func (scaler *RobustScaler) Clone() Transformer {
+	var clone = *scaler
+	return &clone
 }
 
 // NewRobustScaler creates a *RobustScaler
@@ -524,6 +542,12 @@ func NewPolynomialFeatures(degree int) *PolynomialFeatures {
 
 }
 
+// Clone ...
+func (scaler *PolynomialFeatures) Clone() Transformer {
+	var clone = *scaler
+	return &clone
+}
+
 func addpowers(Powers *[][]int, j, Degree, nFeatures int, ppowers []int, InteractionOnly, IncludeBias bool) {
 	ppsum := 0
 	for jj := 0; jj < j; jj++ {
@@ -678,6 +702,12 @@ func NewOneHotEncoder() *OneHotEncoder {
 	return &OneHotEncoder{}
 }
 
+// Clone ...
+func (m *OneHotEncoder) Clone() Transformer {
+	var clone = *m
+	return &clone
+}
+
 // Fit ...
 func (m *OneHotEncoder) Fit(X, Y *mat.Dense) Transformer {
 	NSamples, NFeatures := X.Dims()
@@ -772,6 +802,12 @@ type Shuffler struct{ Perm []int }
 // NewShuffler returns a *Shuffler
 func NewShuffler() *Shuffler { return &Shuffler{} }
 
+// Clone ...
+func (m *Shuffler) Clone() Transformer {
+	var clone = *m
+	return &clone
+}
+
 // Fit for Shuffler
 func (m *Shuffler) Fit(X, Y *mat.Dense) Transformer {
 	m.Perm = rand.Perm(X.RawMatrix().Rows)
@@ -838,6 +874,12 @@ type Binarizer struct{ Threshold float64 }
 // NewBinarizer ...
 func NewBinarizer() *Binarizer { return &Binarizer{} }
 
+// Clone ...
+func (m *Binarizer) Clone() Transformer {
+	var clone = *m
+	return &clone
+}
+
 // Fit for binarizer does nothing
 func (m *Binarizer) Fit(X, Y *mat.Dense) Transformer {
 	return m
@@ -876,6 +918,12 @@ type MaxAbsScaler struct {
 
 // NewMaxAbsScaler ...
 func NewMaxAbsScaler() *MaxAbsScaler { return &MaxAbsScaler{} }
+
+// Clone ...
+func (m *MaxAbsScaler) Clone() Transformer {
+	var clone = *m
+	return &clone
+}
 
 // Fit for MaxAbsScaler ...
 func (m *MaxAbsScaler) Fit(X, Y *mat.Dense) base.Transformer {
@@ -950,6 +998,12 @@ type Normalizer struct{ Norm string }
 // NewNormalizer ...
 func NewNormalizer() *Normalizer { return &Normalizer{} }
 
+// Clone ...
+func (m *Normalizer) Clone() Transformer {
+	var clone = *m
+	return &clone
+}
+
 // Fit for Normalizer ...
 func (m *Normalizer) Fit(X, Y *mat.Dense) base.Transformer { return m }
 
@@ -993,6 +1047,12 @@ type KernelCenterer struct {
 
 // NewKernelCenterer ...
 func NewKernelCenterer() *KernelCenterer { return &KernelCenterer{} }
+
+// Clone ...
+func (m *KernelCenterer) Clone() Transformer {
+	var clone = *m
+	return &clone
+}
 
 // Fit for KernelCenterer ...
 func (m *KernelCenterer) Fit(X, Y *mat.Dense) base.Transformer {

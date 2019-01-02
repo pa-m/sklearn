@@ -7,6 +7,7 @@ import (
 
 	"github.com/pa-m/sklearn/metrics"
 
+	"gonum.org/v1/gonum/blas/blas64"
 	"gonum.org/v1/gonum/optimize"
 
 	"github.com/pa-m/sklearn/base"
@@ -132,15 +133,22 @@ func NewMLPRegressor(hiddenLayerSizes []int, activation interface{}, solver stri
 		Activation:       activation,
 		Alpha:            Alpha,
 	}
-	if activation != "identity" {
-		regr.Loss = "log"
-	}
 	switch {
 	case isGOMethodOnly(solver):
 	default:
 		regr.SetOptimizer(base.Solvers[solver])
 	}
 	return regr
+}
+
+// Clone ...
+func (regr *MLPRegressor) Clone() base.Transformer {
+	clone := *regr
+	clone.Layers = nil
+	clone.thetaSlice = nil
+	clone.gradSlice = nil
+	clone.updateSlice = nil
+	return &clone
 }
 
 // SetOptimizer changes Optimizer
@@ -254,8 +262,7 @@ func (regr *MLPRegressor) fitGOM(X, Y *mat.Dense) float64 {
 
 // fitEpoch fits one epoch
 func (regr *MLPRegressor) fitEpoch(Xfull, Yfull *mat.Dense, epoch int) float64 {
-	nSamples, nFeatures := Xfull.Dims()
-	_, nOutputs := Yfull.Dims()
+	nSamples, _ := Xfull.Dims()
 	var shuffler preprocessing.InverseTransformer
 	if regr.Shuffle {
 		shuffler = preprocessing.NewShuffler()
@@ -278,34 +285,44 @@ func (regr *MLPRegressor) fitEpoch(Xfull, Yfull *mat.Dense, epoch int) float64 {
 	Jsum := 0.
 	for miniBatchStart < nSamples {
 		miniBatchLen := miniBatchEnd - miniBatchStart
-		X := base.MatDenseSlice(Xfull, miniBatchStart, miniBatchEnd, 0, nFeatures)
-		Y := base.MatDenseSlice(Yfull, miniBatchStart, miniBatchEnd, 0, nOutputs)
+		X := base.MatDenseRowSlice(Xfull, miniBatchStart, miniBatchEnd)
+		Y := base.MatDenseRowSlice(Yfull, miniBatchStart, miniBatchEnd)
 
-		Jmini := regr.fitMiniBatch(X, Y, epoch, miniBatchLen, nSamples)
+		Jmini := regr.fitMiniBatch(X, Y, epoch, miniBatchStart, miniBatchLen, nSamples)
 		Jsum += Jmini
+
 		miniBatchStart, miniBatchEnd = miniBatchStart+miniBatchLen, miniBatchEnd+miniBatchLen
 		if miniBatchEnd > nSamples {
 			miniBatchEnd = nSamples
 		}
 	}
-	regr.J = Jsum
-	if epoch == 1 {
-		regr.JFirst = Jsum
+	// Apply weight decay
+	if regr.WeightDecay > 0 && regr.WeightDecay < 1 {
+		blas64.Implementation().Dscal(len(regr.thetaSlice), 1-regr.WeightDecay, regr.thetaSlice, 1)
 	}
+
+	regr.J = Jsum
+	if epoch == 0 {
+		regr.JFirst = Jsum
+	} else if Jsum > regr.JFirst {
+		//log.Printf("J>JFirst %g %g", Jsum, regr.JFirst)
+
+	}
+
 	return Jsum
 }
 
 // fitMiniBatch fit one minibatch
-func (regr *MLPRegressor) fitMiniBatch(Xmini, Ymini *mat.Dense, epoch, miniBatchLen, nSamples int) float64 {
-	regr.predictZH(Xmini, nil)
-	Jmini := regr.backprop(Xmini, Ymini, epoch, miniBatchLen, nSamples)
+func (regr *MLPRegressor) fitMiniBatch(Xmini, Ymini *mat.Dense, epoch, miniBatchStart, miniBatchLen, nSamples int) float64 {
+	regr.forward(Xmini, nil)
+	Jmini := regr.backprop(Xmini, Ymini, epoch, miniBatchStart, miniBatchLen, nSamples)
 	return Jmini
 }
 
 // backprop corrects weights
-func (regr *MLPRegressor) backprop(X, Y mat.Matrix, epoch, miniBatchLen, nSamples int) (J float64) {
+func (regr *MLPRegressor) backprop(X, Y mat.Matrix, epoch, miniBatchStart, miniBatchLen, nSamples int) (J float64) {
 	//nSamples, _ := X.Dims()
-	miniBatchPart := float64(miniBatchLen) / float64(nSamples)
+	//miniBatchPart := float64(miniBatchLen) / float64(nSamples)
 	_, nOutputs := Y.Dims()
 	outputLayer := len(regr.Layers) - 1
 
@@ -326,7 +343,7 @@ func (regr *MLPRegressor) backprop(X, Y mat.Matrix, epoch, miniBatchLen, nSample
 				NextThetaG := nextLayer.Theta.RawMatrix()
 				NextThetaG1 := base.MatDenseSlice(nextLayer.Theta, 1, NextThetaG.Rows, 0, NextThetaG.Cols)
 				//  C = alpha * A * B + beta * C
-				base.MatParallelGemm(blas.NoTrans, blas.Trans, 1., nextLayer.Ydiff.RawMatrix(), NextThetaG1.RawMatrix(), 0., L.Ydiff.RawMatrix())
+				blas64.Gemm(blas.NoTrans, blas.Trans, 1., nextLayer.Ydiff.RawMatrix(), NextThetaG1.RawMatrix(), 0., L.Ydiff.RawMatrix())
 
 			} else {
 				L.Ydiff.Mul(nextLayer.Ydiff, base.MatFirstColumnRemoved{Matrix: nextLayer.Theta.T()})
@@ -334,9 +351,9 @@ func (regr *MLPRegressor) backprop(X, Y mat.Matrix, epoch, miniBatchLen, nSample
 			}
 
 			//L.Ydiff.Apply(func(_, _ int, v float64) float64 { return panicIfNaN(v) }, L.Ydiff)
-			L.Ydiff.MulElem(rm(L.Ydiff), rm(L.Hgrad))
+			L.Ydiff.MulElem(L.Ydiff, L.Hgrad)
 			//L.Ydiff.Apply(func(_, _ int, v float64) float64 { return panicIfNaN(v) }, L.Ydiff)
-			L.Ytrue.Sub(rm(L.Ypred), rm(L.Ydiff))
+			L.Ytrue.Sub(L.Ypred, L.Ydiff)
 			//L.Ytrue.Apply(func(_, _ int, v float64) float64 { return panicIfNaN(v) }, L.Ytrue)
 		}
 
@@ -346,9 +363,10 @@ func (regr *MLPRegressor) backprop(X, Y mat.Matrix, epoch, miniBatchLen, nSample
 			if lastLoss == "log" && nOutputs == 1 {
 				lastLoss = "cross-entropy"
 			}
-			J = NewLoss(lastLoss).Loss(L.Ytrue, L.Ypred, L.Ydiff) * miniBatchPart
+			//fmt.Printf("epoch %d %g - %g = %g\n", epoch, L.Ytrue.At(0, 0), L.Ypred.At(0, 0), L.Ytrue.At(0, 0)-L.Ypred.At(0, 0))
+			J = NewLoss(lastLoss).Loss(L.Ytrue, L.Ypred, L.Ydiff, nSamples)
 		} else {
-			NewLoss("square").Loss(L.Ytrue, L.Ypred, L.Ydiff)
+			NewLoss("square").Loss(L.Ytrue, L.Ypred, L.Ydiff, nSamples)
 		}
 
 		// Ydiff is dJ/dH
@@ -360,7 +378,7 @@ func (regr *MLPRegressor) backprop(X, Y mat.Matrix, epoch, miniBatchLen, nSample
 
 		// put [1 X].T * (dJ/dh.*dh/dz) in L.Grad
 		if regr.UseBlas {
-			base.MatParallelGemm(blas.Trans, blas.NoTrans, 1., L.X1.RawMatrix(), L.Ydiff.RawMatrix(), 0., L.Grad.RawMatrix())
+			blas64.Gemm(blas.Trans, blas.NoTrans, 1., L.X1.RawMatrix(), L.Ydiff.RawMatrix(), 0., L.Grad.RawMatrix())
 
 		} else {
 			L.Grad.Mul(L.X1.T(), L.Ydiff)
@@ -403,11 +421,8 @@ func (regr *MLPRegressor) backprop(X, Y mat.Matrix, epoch, miniBatchLen, nSample
 		default:
 			L.Optimizer.GetUpdate(L.Update, L.Grad)
 			L.Theta.Add(L.Theta, L.Update)
-			if regr.WeightDecay > 0 && regr.WeightDecay < 1 {
-				L.Theta.Scale(1-regr.WeightDecay, L.Theta)
-			}
 		}
-	}
+	} // end for l
 	return J
 }
 
@@ -415,7 +430,7 @@ func unused(...interface{}) {}
 
 // Predict return the forward result
 func (regr *MLPRegressor) Predict(X, Y *mat.Dense) base.Regressor {
-	regr.predictZH(X, Y)
+	regr.forward(X, Y)
 	return regr
 }
 
@@ -436,9 +451,9 @@ func (regr *MLPRegressor) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
 	return
 }
 
-// put X dot Theta in Z and activation(X dot Theta) in Y
-// Z and Y can be nil
-func (regr *MLPRegressor) predictZH(X, Y *mat.Dense) base.Regressor {
+// put X dot Theta in L.Z and activation(X dot Theta) in Y
+// Y can be nil
+func (regr *MLPRegressor) forward(X, Y *mat.Dense) base.Regressor {
 	nSamples, nFeatures0 := X.Dims()
 
 	for l := 0; l < len(regr.Layers); l++ {
@@ -464,7 +479,7 @@ func (regr *MLPRegressor) predictZH(X, Y *mat.Dense) base.Regressor {
 
 		// compute activation.F([1 X] dot theta)
 		if regr.UseBlas {
-			base.MatParallelGemm(blas.NoTrans, blas.NoTrans, 1., L.X1.RawMatrix(), L.Theta.RawMatrix(), 0., L.Z.RawMatrix())
+			blas64.Gemm(blas.NoTrans, blas.NoTrans, 1., L.X1.RawMatrix(), L.Theta.RawMatrix(), 0., L.Z.RawMatrix())
 		} else {
 			L.Z.Mul(L.X1, L.Theta)
 		}
@@ -508,8 +523,7 @@ func NewMLPClassifier(hiddenLayerSizes []int, activation string, solver string, 
 
 // Predict return the forward result for MLPClassifier
 func (regr *MLPClassifier) Predict(X, Y *mat.Dense) base.Regressor {
-	regr.predictZH(X, Y)
-	Y.Copy(regr.Layers[len(regr.Layers)-1].Ypred)
+	regr.forward(X, Y)
 	Y.Apply(func(i, o int, y float64) float64 {
 		if y >= .5 {
 			y = 1.
@@ -547,9 +561,6 @@ func sgn(x float64) float64 {
 	}
 	return 0.
 }
-
-// rm checks arg is a *Dense and returns it
-func rm(m *mat.Dense) *mat.Dense { return m }
 
 func isGOMethodOnly(solver string) bool {
 	_, isBaseOptimCreator := base.Solvers[solver]
