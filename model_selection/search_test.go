@@ -13,8 +13,7 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
-func ExampleParameterGrid() {
-	arrOfMap := ParameterGrid(map[string][]interface{}{"a": {1, 2, 3}, "b": {10, 11}})
+func sortParamArray(paramArray []map[string]interface{}) {
 	tofloat := func(x interface{}) float64 {
 		switch xv := x.(type) {
 		case int:
@@ -35,10 +34,15 @@ func ExampleParameterGrid() {
 		return 0
 	}
 	less := func(i, j int) bool {
-		return cmp(arrOfMap[i]["a"], arrOfMap[j]["a"]) < 0 || (cmp(arrOfMap[i]["a"], arrOfMap[j]["a"]) == 0 && cmp(arrOfMap[i]["b"], arrOfMap[j]["b"]) < 0)
+		return cmp(paramArray[i]["a"], paramArray[j]["a"]) < 0 || (cmp(paramArray[i]["a"], paramArray[j]["a"]) == 0 && cmp(paramArray[i]["b"], paramArray[j]["b"]) < 0)
 	}
-	sort.Slice(arrOfMap, less)
-	for _, m := range arrOfMap {
+	sort.Slice(paramArray, less)
+
+}
+func ExampleParameterGrid() {
+	paramArray := ParameterGrid(map[string][]interface{}{"a": {1, 2, 3}, "b": {10, 11}})
+	sortParamArray(paramArray)
+	for _, m := range paramArray {
 		fmt.Println(m["a"], m["b"])
 	}
 	// Output:
@@ -60,17 +64,17 @@ func ExampleGridSearchCV() {
 	mlp.MiniBatchSize = 5
 	mlp.Epochs = 100
 	scorer := func(Y, Ypred *mat.Dense) float64 {
-		e := -metrics.MeanSquaredError(Y, Ypred, nil, "").At(0, 0)
-		return e
+		return metrics.MeanSquaredError(Y, Ypred, nil, "").At(0, 0)
 	}
 	RandomState := rand.NewSource(7)
 	gscv := &GridSearchCV{
-		Estimator: mlp,
-		ParamGrid: map[string][]interface{}{"Alpha": {0, 1e-4}, "WeightDecay": {0, 0.1}},
-		Scorer:    scorer,
-		CV:        &KFold{NSplits: 3, RandomState: &RandomState},
-		Verbose:   true,
-		NJobs:     -1}
+		Estimator:          mlp,
+		ParamGrid:          map[string][]interface{}{"Alpha": {0, 1e-4}, "WeightDecay": {0, 0.1}},
+		Scorer:             scorer,
+		LowerScoreIsBetter: true,
+		CV:                 &KFold{NSplits: 3, RandomState: &RandomState},
+		Verbose:            true,
+		NJobs:              -1}
 	gscv.Fit(X, Y)
 	fmt.Println(gscv.BestParams["Alpha"], gscv.BestParams["WeightDecay"])
 	//fmt.Printf("%#v\n", gscv.CVResults)

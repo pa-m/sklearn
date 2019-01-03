@@ -21,7 +21,7 @@ type CrossValidateResult struct {
 // NJobs is the number of goroutines. if <=0, runtime.NumCPU is used
 func CrossValidate(estimator base.Transformer, X, Y *mat.Dense, groups []int, scorer func(Ytrue, Ypred *mat.Dense) float64, cv Splitter, NJobs int) (res CrossValidateResult) {
 
-	if NJobs < 0 {
+	if NJobs <= 0 {
 		NJobs = runtime.NumCPU()
 	}
 	NSplits := cv.GetNSplits(X, Y)

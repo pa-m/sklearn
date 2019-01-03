@@ -2,6 +2,7 @@ package neuralnetwork
 
 import (
 	"fmt"
+	"log"
 	"math"
 	"math/rand"
 
@@ -89,13 +90,15 @@ var Regressors = []base.Regressor{&MLPRegressor{}}
 // MLPRegressor is a multilayer perceptron regressor
 // Activation is a string (identity,logistic,tanh,relu,paramrelu,elu) or implements ActivationFunctions
 type MLPRegressor struct {
-	Shuffle, UseBlas bool
-	Optimizer        base.OptimCreator
-	Activation       interface{}
-	Solver           string
-	HiddenLayerSizes []int
-	RandomState      *rand.Rand
-	WeightDecay      float64
+	Shuffle, UseBlas        bool
+	Optimizer               base.OptimCreator
+	Activation              interface{}
+	Solver                  string
+	HiddenLayerSizes        []int
+	RandomState             *rand.Rand
+	WeightDecay             float64
+	EarlyStopping           bool
+	MaxEpochWithoutProgress int
 
 	Layers                           []*Layer
 	Alpha, L1Ratio, GradientClipping float64
@@ -224,8 +227,25 @@ func (regr *MLPRegressor) Fit(X, Y *mat.Dense) base.Transformer {
 		regr.fitGOM(X, Y)
 
 	default:
+		prevLoss := math.Inf(1)
+		NNoProgress := 0
+		if regr.MaxEpochWithoutProgress <= 0 {
+			regr.MaxEpochWithoutProgress = 10
+		}
 		for epoch := 0; epoch < regr.Epochs; epoch++ {
-			regr.fitEpoch(X, Y, epoch)
+			loss := regr.fitEpoch(X, Y, epoch)
+			if loss >= prevLoss {
+				NNoProgress++
+				if NNoProgress == regr.MaxEpochWithoutProgress {
+					log.Printf("MLP Fit: %d epoch without progress", NNoProgress)
+					if regr.EarlyStopping {
+						break
+					}
+				}
+			} else {
+				NNoProgress = 0
+			}
+
 		}
 	}
 	return regr
@@ -269,6 +289,12 @@ func (regr *MLPRegressor) fitEpoch(Xfull, Yfull *mat.Dense, epoch int) float64 {
 		shuffler.Fit(Xfull, Yfull).Transform(Xfull, Yfull)
 		defer shuffler.InverseTransform(Xfull, Yfull)
 	}
+
+	// Apply weight decay at start of epoch
+	if regr.WeightDecay > 0 && regr.WeightDecay < 1 {
+		blas64.Implementation().Dscal(len(regr.thetaSlice), 1-regr.WeightDecay, regr.thetaSlice, 1)
+	}
+
 	var miniBatchSize int
 	switch {
 	case regr.MiniBatchSize > 0 && regr.MiniBatchSize <= nSamples:
@@ -281,6 +307,7 @@ func (regr *MLPRegressor) fitEpoch(Xfull, Yfull *mat.Dense, epoch int) float64 {
 			miniBatchSize = 200
 		}
 	}
+
 	miniBatchStart, miniBatchEnd := 0, miniBatchSize
 	Jsum := 0.
 	for miniBatchStart < nSamples {
@@ -295,10 +322,6 @@ func (regr *MLPRegressor) fitEpoch(Xfull, Yfull *mat.Dense, epoch int) float64 {
 		if miniBatchEnd > nSamples {
 			miniBatchEnd = nSamples
 		}
-	}
-	// Apply weight decay
-	if regr.WeightDecay > 0 && regr.WeightDecay < 1 {
-		blas64.Implementation().Dscal(len(regr.thetaSlice), 1-regr.WeightDecay, regr.thetaSlice, 1)
 	}
 
 	regr.J = Jsum

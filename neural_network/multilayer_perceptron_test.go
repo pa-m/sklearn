@@ -206,6 +206,7 @@ func TestMLPClassifierMicrochip(t *testing.T) {
 		testSetup := optimizer
 		start := time.Now()
 		regr.Alpha = 1.
+		//regr.WeightDecay = .1
 		regr.Epochs = 50
 		regr.MiniBatchSize = 118 //1,2,59,118
 		regr.Solver = optimizer
@@ -246,8 +247,7 @@ func TestMLPClassifierMicrochip(t *testing.T) {
 func TestMnist(t *testing.T) {
 	X, Y := datasets.LoadMnist()
 
-	X, Yohe := (&preprocessing.LabelBinarizer{}).FitTransform(X, Y)
-	//fmt.Println(base.MatDimsString(Yohe))
+	X, Ybin := (&preprocessing.LabelBinarizer{}).FitTransform(X, Y)
 	Theta1, Theta2 := datasets.LoadMnistWeights()
 	mlp := NewMLPClassifier([]int{25}, "logistic", "adam", 0.)
 	mlp.Loss = "cross-entropy"
@@ -256,7 +256,7 @@ func TestMnist(t *testing.T) {
 	mlp.allocLayers(400, 10, func() float64 { return 0. })
 	mlp.Layers[0].Theta.Copy(Theta1.T())
 	mlp.Layers[1].Theta.Copy(Theta2.T())
-	J := mlp.fitEpoch(X, Yohe, 0)
+	J := mlp.fitEpoch(X, Ybin, 0)
 
 	//fmt.Println("at test thetas J:=", J)
 	// check cost at loaded theta is 0.287629
@@ -267,7 +267,7 @@ func TestMnist(t *testing.T) {
 	mlp.Alpha = 1.
 	mlp.Layers[0].Theta.Copy(Theta1.T())
 	mlp.Layers[1].Theta.Copy(Theta2.T())
-	J = mlp.fitEpoch(X, Yohe, 0)
+	J = mlp.fitEpoch(X, Ybin, 0)
 	if !floats.EqualWithinAbs(0.383770, J, 1e-6) {
 		t.Errorf("Expected cost: %g, got %g", 0.383770, J)
 	}
@@ -277,8 +277,7 @@ func BenchmarkMnist(b *testing.B) {
 
 	X, Y := datasets.LoadMnist()
 
-	X, Yohe := (&preprocessing.LabelBinarizer{}).FitTransform(X, Y)
-	//fmt.Println(base.MatDimsString(Yohe))
+	X, Ybin := (&preprocessing.LabelBinarizer{}).FitTransform(X, Y)
 	Theta1, Theta2 := datasets.LoadMnistWeights()
 	mlp := NewMLPClassifier([]int{25}, "logistic", "adam", 0.)
 	mlp.Loss = "cross-entropy"
@@ -287,10 +286,10 @@ func BenchmarkMnist(b *testing.B) {
 	mlp.allocLayers(400, 10, func() float64 { return 0. })
 	mlp.Layers[0].Theta.Copy(Theta1.T())
 	mlp.Layers[1].Theta.Copy(Theta2.T())
-	mlp.fitEpoch(X, Yohe, 0)
+	mlp.fitEpoch(X, Ybin, 0)
 
 	for epoch := 1; epoch < b.N*1; epoch++ {
-		mlp.fitEpoch(X, Yohe, epoch)
+		mlp.fitEpoch(X, Ybin, epoch)
 	}
 
 }
@@ -372,10 +371,6 @@ func ExampleMLPRegressor() {
 		return e
 	}
 	mean := func(x []float64) float64 { return floats.Sum(x) / float64(len(x)) }
-
-	// res1, err1 := crossval(mlp, X, Y)
-	// fmt.Println(res1, err1)
-	// return
 
 	res := modelselection.CrossValidate(m, X, Y,
 		nil,

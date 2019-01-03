@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"runtime"
 
-	"github.com/gonum/floats"
 	"github.com/pa-m/sklearn/base"
+	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
 )
 
@@ -40,13 +40,17 @@ func ParameterGrid(paramGrid map[string][]interface{}) (out []map[string]interfa
 }
 
 // GridSearchCV ...
+// Estimator is the base estimator. it must implement base.TransformerCloner
+// Scorer is a function  __returning a higher score when Ypred is better__
+// CV is a splitter (defaults to KFold)
 type GridSearchCV struct {
-	Estimator base.Transformer
-	ParamGrid map[string][]interface{}
-	Scorer    func(Ytrue, Ypred *mat.Dense) float64
-	CV        Splitter
-	Verbose   bool
-	NJobs     int
+	Estimator          base.Transformer
+	ParamGrid          map[string][]interface{}
+	Scorer             func(Ytrue, Ypred *mat.Dense) float64
+	CV                 Splitter
+	Verbose            bool
+	NJobs              int
+	LowerScoreIsBetter bool
 
 	CVResults     map[string][]interface{}
 	BestEstimator base.Transformer
@@ -63,13 +67,30 @@ func (gscv *GridSearchCV) Clone() base.Transformer {
 
 // Fit ...
 func (gscv *GridSearchCV) Fit(X, Y *mat.Dense) base.Transformer {
+
+	isBetter := func(score, refscore float64) bool {
+		if gscv.LowerScoreIsBetter {
+			return score < refscore
+		}
+		return score > refscore
+	}
+	bestIdx := func(scores []float64) int {
+		best := -1
+		for i, score := range scores {
+			if best < 0 || isBetter(score, scores[best]) {
+				best = i
+			}
+		}
+		return best
+	}
+
 	estCloner := gscv.Estimator.(base.TransformerCloner)
-	arrOfMap := ParameterGrid(gscv.ParamGrid)
+	paramArray := ParameterGrid(gscv.ParamGrid)
 	gscv.CVResults = make(map[string][]interface{})
 	for k := range gscv.ParamGrid {
-		gscv.CVResults[k] = make([]interface{}, len(arrOfMap))
+		gscv.CVResults[k] = make([]interface{}, len(paramArray))
 	}
-	gscv.CVResults["score"] = make([]interface{}, len(arrOfMap))
+	gscv.CVResults["score"] = make([]interface{}, len(paramArray))
 
 	type structIn struct {
 		cvindex   int
@@ -77,7 +98,6 @@ func (gscv *GridSearchCV) Fit(X, Y *mat.Dense) base.Transformer {
 		estimator base.Transformer
 		score     float64
 	}
-	BESTIDX := floats.MaxIdx //FIXME, depends of scorer
 	dowork := func(sin structIn) structIn {
 		sin.estimator = estCloner.Clone()
 		for k, v := range sin.params {
@@ -85,7 +105,7 @@ func (gscv *GridSearchCV) Fit(X, Y *mat.Dense) base.Transformer {
 		}
 		cvres := CrossValidate(sin.estimator, X, Y, nil, gscv.Scorer, gscv.CV, gscv.NJobs)
 		sin.score = floats.Sum(cvres.TestScore) / float64(len(cvres.TestScore))
-		bestFold := BESTIDX(cvres.TestScore)
+		bestFold := bestIdx(cvres.TestScore)
 		sin.estimator = cvres.Estimator[bestFold]
 		return sin
 	}
@@ -102,18 +122,18 @@ func (gscv *GridSearchCV) Fit(X, Y *mat.Dense) base.Transformer {
 	for j := 0; j < gscv.NJobs; j++ {
 		go worker(j)
 	}
-	for cvindex, params := range arrOfMap {
+	for cvindex, params := range paramArray {
 		chin <- structIn{cvindex: cvindex, params: params}
 	}
 	close(chin)
 	gscv.BestIndex = -1
-	for range arrOfMap {
+	for range paramArray {
 		sout := <-chout
 		for k, v := range sout.params {
 			gscv.CVResults[k][sout.cvindex] = v
 		}
 		gscv.CVResults["score"][sout.cvindex] = sout.score
-		if gscv.BestIndex == -1 || sout.score > gscv.CVResults["score"][gscv.BestIndex].(float64) {
+		if gscv.BestIndex == -1 || isBetter(sout.score, gscv.CVResults["score"][gscv.BestIndex].(float64)) {
 			gscv.BestIndex = sout.cvindex
 			gscv.BestEstimator = sout.estimator
 			gscv.BestParams = sout.params
