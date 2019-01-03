@@ -27,6 +27,7 @@ func ExamplePipeline() {
 	m := nn.NewMLPClassifier([]int{}, "relu", "adam", 0.)
 	m.Loss = "cross-entropy"
 	m.Epochs = 300
+	m.WeightDecay = .1
 
 	pl := MakePipeline(scaler, pca, poly, m)
 

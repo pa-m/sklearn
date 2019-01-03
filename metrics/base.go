@@ -24,6 +24,7 @@ func averageBinaryScore(binaryMetric func(Ytrue, Yscore *mat.Dense, sampleWeight
 	scoreWeight := sampleWeight
 	var averageWeight []float64
 	yt, ys := Ytrue, Yscore
+	ytmat, ysmat := yt.RawMatrix(), ys.RawMatrix()
 
 	switch average {
 	case "micro":
@@ -34,17 +35,16 @@ func averageBinaryScore(binaryMetric func(Ytrue, Yscore *mat.Dense, sampleWeight
 			}
 			scoreWeight = tmp
 		}
-		yt, ys := mat.NewDense(m*n, 1, nil), mat.NewDense(m*n, 1, nil)
-		ytmat, ysmat := yt.RawMatrix(), ys.RawMatrix()
+		yt, ys = mat.NewDense(m*n, 1, nil), mat.NewDense(m*n, 1, nil)
+		ytmat, ysmat = yt.RawMatrix(), ys.RawMatrix()
 		for j := 0; j < m; j++ {
 			for i := 0; i < n; i++ {
-				ytmat.Data[j+m*i] = Ytrue.At(i, j)
-				ysmat.Data[j+m*i] = Yscore.At(i, j)
+				ytmat.Data[j*n+i] = Ytrue.At(j, i)
+				ysmat.Data[j*n+i] = Yscore.At(j, i)
 			}
 		}
 	case "weighted":
 		averageWeight = make([]float64, n)
-		ytmat := yt.RawMatrix()
 		for j, jyt := 0, 0; j < ytmat.Rows; j, jyt = j+1, jyt+ytmat.Stride {
 			for i, v := range ytmat.Data[jyt : jyt+ytmat.Cols] {
 				if v == 1. {
@@ -70,17 +70,19 @@ func averageBinaryScore(binaryMetric func(Ytrue, Yscore *mat.Dense, sampleWeight
 	default:
 		fmt.Println("averageBinaryScore: unsupported average:", average)
 	}
-	ytmat := yt.RawMatrix()
-	ytshape := []int{ytmat.Rows, ytmat.Cols}
+	ytshape := [2]int{ytmat.Rows, ytmat.Cols}
 	NClasses := ytshape[notAverageAxis]
 	scores := make([]float64, NClasses)
 	for c := 0; c < NClasses; c++ {
 		scores[c] = binaryMetric(
-			yt.Slice(0, m, c, c+1).(*mat.Dense),
-			ys.Slice(0, m, c, c+1).(*mat.Dense),
+			yt.Slice(0, ytmat.Rows, c, c+1).(*mat.Dense),
+			ys.Slice(0, ytmat.Rows, c, c+1).(*mat.Dense),
 			scoreWeight,
 		)
+		//fmt.Printf("%s %g\n", base.MatStr(yt.Slice(0, ytmat.Rows, c, c+1), ys.Slice(0, ytmat.Rows, c, c+1)), scores[c])
+
 	}
+	//fmt.Printf("scores %.6f\n", scores)
 	return stat.Mean(scores, averageWeight)
 }
 

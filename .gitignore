@@ -5,3 +5,4 @@ coverage.txt
 *.bak
 *.test
 _*.sh
+FIXME*

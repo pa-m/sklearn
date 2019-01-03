@@ -18,6 +18,7 @@ func (m matx) RemoveFirstRow() matx {
 
 // AddScaledApplied adds scale*B to m
 func (m matx) AddScaled(scale float64, B mat.RawMatrixer) {
+
 	amat, bmat := m.RawMatrix(), B.RawMatrix()
 	for ja, jb, jm := 0, 0, 0; ja < amat.Rows*amat.Stride; ja, jb, jm = ja+amat.Stride, jb+bmat.Stride, jm+amat.Stride {
 		for i, v := range amat.Data[ja : ja+amat.Cols] {

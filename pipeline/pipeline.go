@@ -19,7 +19,8 @@ type NamedStep struct {
 // Pipeline is a sequance of transformers and an estimator
 type Pipeline struct {
 	NamedSteps []NamedStep
-	NOutputs   int
+
+	NOutputs int
 }
 
 // NewPipeline returns a *Pipeline

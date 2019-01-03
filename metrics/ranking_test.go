@@ -59,8 +59,27 @@ func ExampleAveragePrecisionScore() {
 	// adapted from https://github.com/scikit-learn/scikit-learn/blob/a24c8b46/sklearn/metrics/ranking.py#L180
 	Ytrue := mat.NewDense(4, 1, []float64{0, 0, 1, 1})
 	Yscores := mat.NewDense(4, 1, []float64{.1, .4, .35, .8})
-	fmt.Printf("AveragePrecisionScore: %.2f\n", AveragePrecisionScore(Ytrue, Yscores, "macro", nil))
+	fmt.Printf("AveragePrecisionScore : %.2f\n", AveragePrecisionScore(Ytrue, Yscores, "macro", nil))
+
+	// import numpy as np
+	// from sklearn.metrics import average_precision_score
+	// y_true = np.array([[0,0], [0,0], [1,1], [1,1]])
+	// y_scores = np.array([[0.1,.5],[ 0.4,.4], [0.35,.35], [0.8,.4]])
+	// average_precision_score(y_true, y_scores,"macro"),average_precision_score(y_true, y_scores,"micro")
+	/*
+		np.average( [0.83333333 0.41666667] , None )
+		np.average( [0.63571429] , None )
+		(0.625, 0.6357142857142857)
+	*/
+
+	//FIXME
+	Ytrue = mat.NewDense(4, 2, []float64{0, 0, 0, 0, 1, 1, 1, 1})
+	Yscores = mat.NewDense(4, 2, []float64{.1, .5, .4, .4, .35, .35, .8, .4})
+	fmt.Printf("AveragePrecisionScore macro: %.3f\n", AveragePrecisionScore(Ytrue, Yscores, "macro", nil))
+	fmt.Printf("AveragePrecisionScore micro: %.3f\n", AveragePrecisionScore(Ytrue, Yscores, "micro", []float64{1, 1, 1, 1}))
 	// Output:
-	// AveragePrecisionScore: 0.83
+	// AveragePrecisionScore : 0.83
+	// AveragePrecisionScore macro: 0.625
+	// AveragePrecisionScore micro: 0.636
 
 }

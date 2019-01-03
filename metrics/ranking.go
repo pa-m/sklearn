@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"fmt"
+	"log"
 	"math"
 	"sort"
 
@@ -12,7 +13,7 @@ import (
 func binaryClfCurve(Ytrue, Yscore *mat.Dense, posLabel float64, sampleWeight []float64) (fps, tps, thresholds []float64) {
 	m, n := Ytrue.Dims()
 	if n > 1 {
-		fmt.Println("Warning: ROCCurve: only first output will be used")
+		log.Println("Warning: ROCCurve: only first output will be used")
 	}
 	idx := make([]int, 0) //desc_score_indices
 	for i := 0; i < m; i++ {
@@ -21,27 +22,36 @@ func binaryClfCurve(Ytrue, Yscore *mat.Dense, posLabel float64, sampleWeight []f
 	higherscore := func(i, j int) bool { return Yscore.At(idx[i], 0) > Yscore.At(idx[j], 0) }
 	sort.Slice(idx, higherscore)
 	descScoreIndices := idx
-	distinctValueIndices := make([]int, 0)
+	distinctValueIndices := make([][]int, 0)
+
 	for ii := 0; ii < len(descScoreIndices); ii++ {
+
 		if ii == 0 || Yscore.At(descScoreIndices[ii], 0) < Yscore.At(descScoreIndices[ii-1], 0) {
-			distinctValueIndices = append(distinctValueIndices, descScoreIndices[ii])
-		}
-	}
-	thresholdIdxs := distinctValueIndices
-	tpw, fpw, w := 0., 0., 1.
-	for _, i := range thresholdIdxs {
-		if sampleWeight != nil {
-			w = sampleWeight[i]
-		}
-		tp := Ytrue.At(i, 0) == posLabel
-		if tp {
-			tpw += w
+			distinctValueIndices = append(distinctValueIndices, []int{descScoreIndices[ii]})
 		} else {
-			fpw += w
+			distinctValueIndices[len(distinctValueIndices)-1] = append(distinctValueIndices[len(distinctValueIndices)-1], descScoreIndices[ii])
+		}
+
+	}
+	//thresholdIdxs := distinctValueIndices
+	tpw, fpw, w := 0., 0., 1.
+	for ii := range distinctValueIndices {
+		//fmt.Printf("thresholdidx %d score %g distinctValueIndices %d\n", i, Yscore.At(i, 0), distinctValueIndices[ii])
+		for _, i3 := range distinctValueIndices[ii] {
+			tp := Ytrue.At(i3, 0) == posLabel
+			if sampleWeight != nil {
+				w = sampleWeight[i3]
+			}
+
+			if tp {
+				tpw += w
+			} else {
+				fpw += w
+			}
 		}
 		tps = append(tps, tpw)
 		fps = append(fps, fpw)
-		thresholds = append(thresholds, Yscore.At(i, 0))
+		thresholds = append(thresholds, Yscore.At(distinctValueIndices[ii][0], 0))
 	}
 	return
 }
@@ -72,7 +82,7 @@ func ROCCurve(Ytrue, Yscore *mat.Dense, posLabel float64, sampleWeight []float64
 
 	fpmax := fps[len(fps)-1]
 	if fpmax <= 0. {
-		fmt.Println("No negative samples in y_true, false positive value should be meaningless")
+		log.Println("No negative samples in y_true, false positive value should be meaningless")
 		for i := range fpr {
 			fpr[i] = math.NaN()
 		}
@@ -82,7 +92,7 @@ func ROCCurve(Ytrue, Yscore *mat.Dense, posLabel float64, sampleWeight []float64
 	}
 	tpmax := tps[len(tps)-1]
 	if tpmax <= 0 {
-		fmt.Println("No positive samples in y_true, true positive value should be meaningless")
+		log.Println("No positive samples in y_true, true positive value should be meaningless")
 		for i := range tpr {
 			tpr[i] = math.NaN()
 		}
@@ -188,10 +198,11 @@ func PrecisionRecallCurve(Ytrue, ProbasPred *mat.Dense, posLabel float64, sample
 			j := l - 1 - i
 			a[i], a[j] = a[j], a[i]
 		}
-		for j := range v {
-			a[l+j] = v[j]
+		a = a[:l]
+		for _, vj := range v {
+			a = append(a, vj)
 		}
-		return a[0 : l+len(v)]
+		return a
 	}
 	precision = reverseAndAppend(precision, lastInd+1, 1.)
 	recall = reverseAndAppend(recall, lastInd+1, 0.)

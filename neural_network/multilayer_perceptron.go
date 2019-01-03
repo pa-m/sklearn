@@ -37,7 +37,7 @@ func NewLayer(inputs, outputs int, activation interface{}, optimCreator base.Opt
 
 	Theta := mat.NewDense(inputs, outputs, thetaSlice)
 	if rnd == nil {
-		rnd = func() float64 { return -.5 + 2*rand.Float64() }
+		rnd = func() float64 { return -.5 + rand.Float64() }
 	}
 	Theta.Apply(func(feature, output int, _ float64) float64 { return rnd() }, Theta)
 	matx{Dense: Theta}.Orthonormalize()
