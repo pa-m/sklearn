@@ -10,13 +10,6 @@ type float = float64
 
 func unused(...interface{}) {}
 
-// ClonablePredicter ...
-type ClonablePredicter interface {
-	Fit(X, Y *mat.Dense) Transformer
-	Predict(X, Y *mat.Dense) Regressor
-	Clone() ClonablePredicter
-}
-
 // Transformer transforms X,Y
 type Transformer interface {
 	Fit(X, Y *mat.Dense) Transformer

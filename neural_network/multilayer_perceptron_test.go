@@ -351,9 +351,13 @@ func ExampleMLPClassifier() {
 }
 
 func ExampleMLPRegressor() {
+	// exmaple inspired from # https://machinelearningmastery.com/regression-tutorial-keras-deep-learning-library-python/
+	// with wider_model
+	// added weight decay
 	ds := datasets.LoadBoston()
 	X, Y := ds.X, ds.Y
-	mlp := NewMLPRegressor([]int{20}, "identity", "adam", 1e-4)
+	mlp := NewMLPRegressor([]int{20}, "relu", "adam", 9.55e-5)
+	mlp.WeightDecay = .1
 	mlp.Shuffle = false
 	mlp.MiniBatchSize = 5
 	mlp.Epochs = 100
@@ -361,18 +365,24 @@ func ExampleMLPRegressor() {
 		pipeline.NamedStep{Name: "standardize", Step: preprocessing.NewStandardScaler()},
 		pipeline.NamedStep{Name: "mlpregressor", Step: mlp},
 	)
-	RandomState := rand.NewSource(5)
+	_ = m
+	RandomState := rand.NewSource(7)
 	scorer := func(Y, Ypred *mat.Dense) float64 {
 		e := metrics.MeanSquaredError(Y, Ypred, nil, "").At(0, 0)
 		return e
 	}
 	mean := func(x []float64) float64 { return floats.Sum(x) / float64(len(x)) }
 
+	// res1, err1 := crossval(mlp, X, Y)
+	// fmt.Println(res1, err1)
+	// return
+
 	res := modelselection.CrossValidate(m, X, Y,
 		nil,
 		scorer,
 		&modelselection.KFold{NSplits: 10, Shuffle: true, RandomState: &RandomState}, 10)
-	fmt.Println(math.Sqrt(mean(res.TestScore)) < 25)
+	fmt.Println(math.Sqrt(mean(res.TestScore)) < 20)
+
 	// Output:
 	// true
 }
