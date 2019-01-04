@@ -198,7 +198,7 @@ func TestGonumOptimizeRegressor(t *testing.T) {
 	bestErr := make(map[string]float)
 	bestTime := time.Second * 86400
 	bestSetup := make(map[string]string)
-	for _, method := range []optimize.Method{&optimize.GradientDescent{}, &optimize.BFGS{}, &optimize.CG{}, &optimize.LBFGS{}} {
+	for _, method := range []optimize.Method{ /*&optimize.GradientDescent{}, &optimize.BFGS{}, &optimize.CG{},*/ &optimize.LBFGS{}} {
 		for _, normalize := range []bool{false, true} {
 			testSetup := fmt.Sprintf("%T %v", method, normalize)
 			//fmt.Printf("-- TestLinearRegression normalize=%v --\n", normalize)
