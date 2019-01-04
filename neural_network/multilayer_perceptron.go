@@ -95,7 +95,7 @@ type MLPRegressor struct {
 	Activation              interface{}
 	Solver                  string
 	HiddenLayerSizes        []int
-	RandomState             *rand.Rand
+	RandomState             *int64
 	WeightDecay             float64
 	EarlyStopping           bool
 	MaxEpochWithoutProgress int
@@ -167,9 +167,13 @@ func (regr *MLPRegressor) inputs(prevOutputs int) (inputs int) {
 func (regr *MLPRegressor) allocLayers(nFeatures, nOutputs int, rnd func() float64) {
 	var thetaLen, thetaOffset, thetaLen1 int
 	regr.Layers = make([]*Layer, 0)
+	randFloat64 := rand.Float64
+	if regr.RandomState != nil {
+		randFloat64 = rand.New(rand.NewSource(*regr.RandomState)).Float64
+	}
 
 	if rnd == nil && regr.RandomState != nil {
-		rnd = func() float64 { return -.5 + 2*regr.RandomState.Float64() }
+		rnd = func() float64 { return -.5 + 2*randFloat64() }
 	}
 
 	prevOutputs := nFeatures

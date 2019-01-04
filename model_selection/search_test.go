@@ -55,17 +55,19 @@ func ExampleParameterGrid() {
 }
 
 func ExampleGridSearchCV() {
+	randomState := int64(7)
+
 	ds := datasets.LoadBoston()
 	X, Y := preprocessing.NewStandardScaler().FitTransform(ds.X, ds.Y)
 
 	mlp := neuralnetwork.NewMLPRegressor([]int{20}, "relu", "adam", 1e-4)
+	mlp.RandomState = &randomState
 	mlp.Shuffle = false
-	mlp.MiniBatchSize = 5
-	mlp.Epochs = 100
+	mlp.MiniBatchSize = 22
+	mlp.Epochs = 60
 	scorer := func(Y, Ypred *mat.Dense) float64 {
 		return metrics.MeanSquaredError(Y, Ypred, nil, "").At(0, 0)
 	}
-	randomState := RandomState(7)
 	gscv := &GridSearchCV{
 		Estimator:          mlp,
 		ParamGrid:          map[string][]interface{}{"Alpha": {0, 1e-4}, "WeightDecay": {0, 0.1}},

@@ -7,7 +7,7 @@ import (
 )
 
 // RandomState is to init a new random source for reproducibility
-type RandomState int64
+type RandomState = int64
 
 // KFold ...
 type KFold struct {

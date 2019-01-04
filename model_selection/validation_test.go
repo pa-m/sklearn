@@ -14,17 +14,21 @@ import (
 )
 
 func ExampleCrossValidate() {
+	randomState := int64(5)
+
 	ds := datasets.LoadBoston()
 	X, Y := ds.X, ds.Y
 	mlp := neuralnetwork.NewMLPRegressor([]int{20}, "identity", "adam", 1e-4)
+	mlp.RandomState = &randomState
 	mlp.Shuffle = false
 	mlp.MiniBatchSize = 5
-	mlp.Epochs = 100
+	mlp.WeightDecay = .1
+
+	mlp.Epochs = 50
 	m := pipeline.NewPipeline(
 		pipeline.NamedStep{Name: "standardize", Step: preprocessing.NewStandardScaler()},
 		pipeline.NamedStep{Name: "mlpregressor", Step: mlp},
 	)
-	randomState := RandomState(5)
 	scorer := func(Y, Ypred *mat.Dense) float64 {
 		e := metrics.MeanSquaredError(Y, Ypred, nil, "").At(0, 0)
 		return e
@@ -34,7 +38,7 @@ func ExampleCrossValidate() {
 		nil,
 		scorer,
 		&KFold{NSplits: 10, Shuffle: true, RandomState: &randomState}, 10)
-	fmt.Println(math.Sqrt(mean(res.TestScore)) < 25)
+	fmt.Println(math.Sqrt(mean(res.TestScore)) < 6.)
 	// Output:
 	// true
 }
