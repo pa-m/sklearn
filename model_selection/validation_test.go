@@ -3,7 +3,6 @@ package modelselection
 import (
 	"fmt"
 	"math"
-	"math/rand"
 
 	"github.com/pa-m/sklearn/datasets"
 	"github.com/pa-m/sklearn/metrics"
@@ -25,7 +24,7 @@ func ExampleCrossValidate() {
 		pipeline.NamedStep{Name: "standardize", Step: preprocessing.NewStandardScaler()},
 		pipeline.NamedStep{Name: "mlpregressor", Step: mlp},
 	)
-	RandomState := rand.NewSource(5)
+	randomState := RandomState(5)
 	scorer := func(Y, Ypred *mat.Dense) float64 {
 		e := metrics.MeanSquaredError(Y, Ypred, nil, "").At(0, 0)
 		return e
@@ -34,7 +33,7 @@ func ExampleCrossValidate() {
 	res := CrossValidate(m, X, Y,
 		nil,
 		scorer,
-		&KFold{NSplits: 10, Shuffle: true, RandomState: &RandomState}, 10)
+		&KFold{NSplits: 10, Shuffle: true, RandomState: &randomState}, 10)
 	fmt.Println(math.Sqrt(mean(res.TestScore)) < 25)
 	// Output:
 	// true

@@ -365,7 +365,7 @@ func ExampleMLPRegressor() {
 		pipeline.NamedStep{Name: "mlpregressor", Step: mlp},
 	)
 	_ = m
-	RandomState := rand.NewSource(7)
+	randomState := modelselection.RandomState(7)
 	scorer := func(Y, Ypred *mat.Dense) float64 {
 		e := metrics.MeanSquaredError(Y, Ypred, nil, "").At(0, 0)
 		return e
@@ -375,7 +375,7 @@ func ExampleMLPRegressor() {
 	res := modelselection.CrossValidate(m, X, Y,
 		nil,
 		scorer,
-		&modelselection.KFold{NSplits: 10, Shuffle: true, RandomState: &RandomState}, 10)
+		&modelselection.KFold{NSplits: 10, Shuffle: true, RandomState: &randomState}, 10)
 	fmt.Println(math.Sqrt(mean(res.TestScore)) < 20)
 
 	// Output:

@@ -6,11 +6,14 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
+// RandomState is to init a new random source for reproducibility
+type RandomState int64
+
 // KFold ...
 type KFold struct {
 	NSplits     int
 	Shuffle     bool
-	RandomState *rand.Source
+	RandomState *RandomState
 }
 
 var (
@@ -21,10 +24,17 @@ var (
 type Splitter interface {
 	Split(X, Y *mat.Dense) (ch chan Split)
 	GetNSplits(X, Y *mat.Dense) int
+	Clone() Splitter
 }
 
 // Split ...
 type Split struct{ TrainIndex, TestIndex []int }
+
+// Clone ...
+func (splitter *KFold) Clone() Splitter {
+	clone := *splitter
+	return &clone
+}
 
 // Split generate Split structs
 func (splitter *KFold) Split(X, Y *mat.Dense) (ch chan Split) {
@@ -35,7 +45,8 @@ func (splitter *KFold) Split(X, Y *mat.Dense) (ch chan Split) {
 
 	Shuffle, intn := rand.Shuffle, rand.Intn
 	if splitter.RandomState != nil {
-		r := rand.New(*splitter.RandomState)
+		source := rand.NewSource(int64(*splitter.RandomState))
+		r := rand.New(source)
 		Shuffle, intn = r.Shuffle, r.Intn
 
 	}

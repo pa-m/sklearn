@@ -103,7 +103,8 @@ func (gscv *GridSearchCV) Fit(X, Y *mat.Dense) base.Transformer {
 		for k, v := range sin.params {
 			setParam(sin.estimator, k, v)
 		}
-		cvres := CrossValidate(sin.estimator, X, Y, nil, gscv.Scorer, gscv.CV, gscv.NJobs)
+		CV := gscv.CV.Clone()
+		cvres := CrossValidate(sin.estimator, X, Y, nil, gscv.Scorer, CV, gscv.NJobs)
 		sin.score = floats.Sum(cvres.TestScore) / float64(len(cvres.TestScore))
 		bestFold := bestIdx(cvres.TestScore)
 		sin.estimator = cvres.Estimator[bestFold]

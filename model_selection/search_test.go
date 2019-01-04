@@ -3,7 +3,6 @@ package modelselection
 import (
 	"fmt"
 	"math"
-	"math/rand"
 	"sort"
 
 	"github.com/pa-m/sklearn/datasets"
@@ -66,13 +65,13 @@ func ExampleGridSearchCV() {
 	scorer := func(Y, Ypred *mat.Dense) float64 {
 		return metrics.MeanSquaredError(Y, Ypred, nil, "").At(0, 0)
 	}
-	RandomState := rand.NewSource(7)
+	randomState := RandomState(7)
 	gscv := &GridSearchCV{
 		Estimator:          mlp,
 		ParamGrid:          map[string][]interface{}{"Alpha": {0, 1e-4}, "WeightDecay": {0, 0.1}},
 		Scorer:             scorer,
 		LowerScoreIsBetter: true,
-		CV:                 &KFold{NSplits: 3, RandomState: &RandomState},
+		CV:                 &KFold{NSplits: 3, RandomState: &randomState},
 		Verbose:            true,
 		NJobs:              -1}
 	gscv.Fit(X, Y)

@@ -2,7 +2,6 @@ package modelselection
 
 import (
 	"fmt"
-	"math/rand"
 
 	"gonum.org/v1/gonum/mat"
 )
@@ -10,9 +9,9 @@ import (
 func ExampleKFold() {
 	X := mat.NewDense(6, 1, []float64{1, 2, 3, 4, 5, 6})
 	subtest := func(shuffle bool) {
-		RandomState := rand.NewSource(7)
+		randomState := RandomState(7)
 		fmt.Println("shuffle", shuffle)
-		kf := &KFold{NSplits: 3, Shuffle: shuffle, RandomState: &RandomState}
+		kf := &KFold{NSplits: 3, Shuffle: shuffle, RandomState: &randomState}
 		for sp := range kf.Split(X, nil) {
 			fmt.Printf("%#v\n", sp)
 		}
