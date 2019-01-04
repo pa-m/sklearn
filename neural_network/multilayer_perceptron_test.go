@@ -89,7 +89,7 @@ func testMLPRegressor(t *testing.T, activationName string, lossName string, solv
 		// })
 
 		//regr.SetOptimizer(OptimCreator, true)
-		regr.Epochs = 400
+		regr.Epochs = 40
 		regr.GradientClipping = 5.
 		testSetup := fmt.Sprintf("%T %s %s loss layers %v", regr, activationName, lossName, HiddenLayerSizes)
 		//Ypred := mat.NewDense(nSamples, nOutputs, nil)
