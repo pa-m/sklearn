@@ -179,7 +179,7 @@ func TestLogRegMicrochipTest(t *testing.T) {
 	// we allocate Coef here because we use it for loss and grad tests before Fit
 	regr.Coef = mat.NewDense(nFeatures, nOutputs, nil)
 
-	// Alpha=1 here because following test values require no regularization
+	// Alpha=1 here because following test requires it
 	regr.Alpha = 1.
 	regr.L1Ratio = 0.
 
@@ -223,8 +223,8 @@ func TestLogRegMicrochipTest(t *testing.T) {
 	// test Fit Microchip with various gonum/optimize Method
 
 	var GOMethodCreators = map[string]func() optimize.Method{
-		"bfgs": func() optimize.Method { return &optimize.BFGS{} },
-		"cg":   func() optimize.Method { return &optimize.CG{} },
+		//"bfgs": func() optimize.Method { return &optimize.BFGS{} },
+		//"cg":   func() optimize.Method { return &optimize.CG{} },
 		//&optimize.GradientDescent{},
 		"lbfgs": func() optimize.Method { return &optimize.LBFGS{} },
 		//&optimize.NelderMead{},
@@ -243,7 +243,7 @@ func TestLogRegMicrochipTest(t *testing.T) {
 		testSetup := fmt.Sprintf("(%T)", methodCreator())
 		regr.Options.GOMethodCreator = methodCreator
 		regr.Options.ThetaInitializer = func(Theta *mat.Dense) {
-			Theta.Apply(func(j, o int, _ float64) float64 { return 0. }, Theta)
+			Theta.Sub(Theta, Theta)
 		}
 		regr.Alpha = 1.
 
@@ -269,8 +269,8 @@ func TestLogRegMicrochipTest(t *testing.T) {
 
 	// test Fit with various base.Optimizer
 	var Optimizers = []string{
-		"sgd",
-		"adagrad",
+		//"sgd",
+		//"adagrad",
 		//"rmsprop",
 		//"adadelta",
 		"adam",
@@ -279,7 +279,7 @@ func TestLogRegMicrochipTest(t *testing.T) {
 	for _, optimizer := range Optimizers {
 		testSetup := optimizer
 		regr.Options.ThetaInitializer = func(Theta *mat.Dense) {
-			Theta.Scale(0, Theta)
+			Theta.Sub(Theta, Theta)
 		}
 		regr.Options.GOMethodCreator = nil
 		//regr.Options.Recorder = printer
