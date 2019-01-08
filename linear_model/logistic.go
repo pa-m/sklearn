@@ -27,6 +27,12 @@ func NewLogisticRegression() *LogisticRegression {
 	return regr
 }
 
+// Clone for LogisticRegression
+func (m *LogisticRegression) Clone() base.Transformer {
+	clone := *m
+	return &clone
+}
+
 // EncodeLabels applies a onehotencoder if Ytrue has only one column
 func (regr *LogisticRegression) EncodeLabels(Ytrue *mat.Dense) *mat.Dense {
 	Y := Ytrue

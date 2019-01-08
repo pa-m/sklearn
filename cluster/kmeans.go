@@ -21,6 +21,12 @@ type KMeans struct {
 	Centroids *mat.Dense
 }
 
+// Clone for KMeans
+func (m *KMeans) Clone() base.Transformer {
+	clone := *m
+	return &clone
+}
+
 // Nearest returns index of the nearest centroid
 func (m *KMeans) _nearest(scaledRow mat.Vector) int {
 	best := -1

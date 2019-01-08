@@ -1,5 +1,7 @@
 package linearmodel
 
+import "github.com/pa-m/sklearn/base"
+
 // Ridge is an alias for RegularizedRegression
 type Ridge = RegularizedRegression
 
@@ -12,4 +14,10 @@ func NewRidge() *RegularizedRegression {
 	regr.L1Ratio = 0.
 	//regr.MaxIter = 1000
 	return regr
+}
+
+// Clone for Ridge
+func (m *Ridge) Clone() base.Transformer {
+	clone := *m
+	return &clone
 }

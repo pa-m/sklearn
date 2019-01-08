@@ -61,6 +61,12 @@ func NewDBSCAN(config *DBSCANConfig) *DBSCAN {
 	return &DBSCAN{DBSCANConfig: *config}
 }
 
+// Clone for DBSCAN
+func (m *DBSCAN) Clone() base.Transformer {
+	clone := *m
+	return &clone
+}
+
 // Fit for DBSCAN
 // X : mat.Dense of shape (n_samples, n_features)
 // A feature array`.

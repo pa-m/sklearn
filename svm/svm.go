@@ -279,6 +279,12 @@ func NewSVC() *SVC {
 	return m
 }
 
+// Clone for SVC
+func (m *SVC) Clone() base.Transformer {
+	clone := *m
+	return &clone
+}
+
 // Fit for SVC
 func (m *SVC) Fit(X, Y *mat.Dense) base.Transformer {
 	NSamples, NFeatures := X.Dims()

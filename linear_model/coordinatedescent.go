@@ -35,6 +35,12 @@ type MultiTaskElasticNet = Lasso
 // MultiTaskLasso is an alias for ElasticNet/Lasso
 type MultiTaskLasso = Lasso
 
+// Clone for ElasticNet
+func (regr *ElasticNet) Clone() base.Transformer {
+	clone := *regr
+	return &clone
+}
+
 // Fit ElasticNetRegression with coordinate descent
 func (regr *ElasticNet) Fit(X0, Y0 *mat.Dense) base.Transformer {
 	var X, Y, YOffset *mat.Dense

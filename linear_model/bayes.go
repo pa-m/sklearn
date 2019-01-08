@@ -29,6 +29,12 @@ func NewBayesianRidge() *BayesianRidge {
 	return regr
 }
 
+// Clone for BayesianRidge
+func (regr *BayesianRidge) Clone() base.Transformer {
+	clone := *regr
+	return &clone
+}
+
 // Fit the model
 //         Parameters
 //         ----------

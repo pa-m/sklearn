@@ -75,6 +75,12 @@ func NewLinearRegression() *LinearRegression {
 	return regr
 }
 
+// Clone for LinearRegression
+func (m *LinearRegression) Clone() base.Transformer {
+	clone := *m
+	return &clone
+}
+
 // Fit fits Coef for a LinearRegression
 func (regr *LinearRegression) Fit(X0, Y0 *mat.Dense) base.Transformer {
 	var X, Y, YOffset *mat.Dense
@@ -143,6 +149,12 @@ func NewSGDRegressor() *SGDRegressor {
 	regr.FitIntercept = true
 	//regr.RegressorMixin1.Predicter = regr
 	return regr
+}
+
+// Clone for SGDRegressor
+func (m *SGDRegressor) Clone() base.Transformer {
+	clone := *m
+	return &clone
 }
 
 // Fit learns Coef
