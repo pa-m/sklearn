@@ -28,8 +28,8 @@ func NewLogisticRegression() *LogisticRegression {
 }
 
 // Clone for LogisticRegression
-func (m *LogisticRegression) Clone() base.Transformer {
-	clone := *m
+func (regr *LogisticRegression) Clone() base.Transformer {
+	clone := *regr
 	return &clone
 }
 

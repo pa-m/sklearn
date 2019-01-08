@@ -76,8 +76,8 @@ func NewLinearRegression() *LinearRegression {
 }
 
 // Clone for LinearRegression
-func (m *LinearRegression) Clone() base.Transformer {
-	clone := *m
+func (regr *LinearRegression) Clone() base.Transformer {
+	clone := *regr
 	return &clone
 }
 
@@ -152,8 +152,8 @@ func NewSGDRegressor() *SGDRegressor {
 }
 
 // Clone for SGDRegressor
-func (m *SGDRegressor) Clone() base.Transformer {
-	clone := *m
+func (regr *SGDRegressor) Clone() base.Transformer {
+	clone := *regr
 	return &clone
 }
 
