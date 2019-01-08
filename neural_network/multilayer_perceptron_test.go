@@ -287,7 +287,7 @@ func BenchmarkMnist(b *testing.B) {
 	mlp.Layers[0].Theta.Copy(Theta1.T())
 	mlp.Layers[1].Theta.Copy(Theta2.T())
 	mlp.fitEpoch(X, Ybin, 0)
-
+	b.ResetTimer()
 	for epoch := 1; epoch < b.N*1; epoch++ {
 		mlp.fitEpoch(X, Ybin, epoch)
 	}
@@ -295,14 +295,7 @@ func BenchmarkMnist(b *testing.B) {
 }
 
 //go test ./neural_network -run BenchmarkMnist -bench ^BenchmarkMnist -cpuprofile /tmp/cpu.prof -memprofile /tmp/mem.prof -benchmem
-//BenchmarkMnist-8   	      20	  62810454 ns/op	18984637 B/op	     201 allocs/op
-//BenchmarkMnist-8   	      20	  62243278 ns/op	18985050 B/op	     202 allocs/op
-//BenchmarkMnist-8   	      30	  41560266 ns/op	 2522941 B/op	     159 allocs/op
-//BenchmarkMnist-8   	      30	  37128304 ns/op	 2522653 B/op	     156 allocs/op
-//BenchmarkMnist-8   	      30	  35717715 ns/op	 2523106 B/op	     154 allocs/op
-//BenchmarkMnist-8   	      50	  26804534 ns/op	 1550716 B/op	     117 allocs/op
-//BenchmarkMnist-8   	      50	  26648869 ns/op	 1240290 B/op	     150 allocs/op
-//BenchmarkMnist-12    	     100	  17748256 ns/op	  667877 B/op	     137 allocs/op
+//BenchmarkMnist-12            100          17387518 ns/op           89095 B/op         30 allocs/op
 
 func ExampleMLPClassifier() {
 	ds := datasets.LoadBreastCancer()
@@ -352,14 +345,14 @@ func ExampleMLPClassifier() {
 func ExampleMLPRegressor() {
 	// exmaple inspired from # https://machinelearningmastery.com/regression-tutorial-keras-deep-learning-library-python/
 	// with wider_model
-	// added weight decay
+	// added weight decay and reduced epochs from 100 to 20
 	ds := datasets.LoadBoston()
 	X, Y := ds.X, ds.Y
 	mlp := NewMLPRegressor([]int{20}, "relu", "adam", 9.55e-5)
 	mlp.WeightDecay = .1
 	mlp.Shuffle = false
 	mlp.MiniBatchSize = 5
-	mlp.Epochs = 100
+	mlp.Epochs = 20
 	m := pipeline.NewPipeline(
 		pipeline.NamedStep{Name: "standardize", Step: preprocessing.NewStandardScaler()},
 		pipeline.NamedStep{Name: "mlpregressor", Step: mlp},

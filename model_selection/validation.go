@@ -44,8 +44,6 @@ func CrossValidate(estimator base.Transformer, X, Y *mat.Dense, groups []int, sc
 		score  float64
 	}
 	estimatorCloner := estimator.(base.TransformerCloner)
-	chin := make(chan structIn)
-	chout := make(chan structOut)
 	NSamples, NFeatures := X.Dims()
 	_, NOutputs := Y.Dims()
 	processSplit := func(job int, Xjob, Yjob *mat.Dense, sin structIn) structOut {
@@ -76,28 +74,45 @@ func CrossValidate(estimator base.Transformer, X, Y *mat.Dense, groups []int, sc
 		return structOut{sin.iSplit, score}
 
 	}
-	// launch workers
 	if NJobs > 1 {
-		for j := 0; j < NJobs; j++ {
-			go func(job int) {
-				var Xjob, Yjob = mat.NewDense(NSamples, NFeatures, nil), mat.NewDense(NSamples, NOutputs, nil)
-				for sin := range chin {
-					chout <- processSplit(job, Xjob, Yjob, sin)
+		/*var useChannels = false
+		if useChannels {
+			chin := make(chan structIn)
+			chout := make(chan structOut)
+			// launch workers
+			for j := 0; j < NJobs; j++ {
+				go func(job int) {
+					var Xjob, Yjob = mat.NewDense(NSamples, NFeatures, nil), mat.NewDense(NSamples, NOutputs, nil)
+					for sin := range chin {
+						chout <- processSplit(job, Xjob, Yjob, sin)
 
+					}
+				}(j)
+			}
+			var isplit int
+			for split := range cv.Split(X, Y) {
+				chin <- structIn{isplit, split}
+				isplit++
+			}
+			close(chin)
+			for range res.TestScore {
+				sout := <-chout
+				res.TestScore[sout.iSplit] = sout.score
+			}
+			close(chout)
+		} else*/{ // use workGroup
+			var sin = make([]structIn, 0, NSplits)
+			for split := range cv.Split(X, Y) {
+				sin = append(sin, structIn{iSplit: len(sin), Split: split})
+			}
+			base.Parallelize(NJobs, NSplits, func(th, start, end int) {
+				var Xjob, Yjob = mat.NewDense(NSamples, NFeatures, nil), mat.NewDense(NSamples, NOutputs, nil)
+				for i := start; i < end; i++ {
+					sout := processSplit(th, Xjob, Yjob, sin[i])
+					res.TestScore[sout.iSplit] = sout.score
 				}
-			}(j)
+			})
 		}
-		var isplit int
-		for split := range cv.Split(X, Y) {
-			chin <- structIn{isplit, split}
-			isplit++
-		}
-		close(chin)
-		for range res.TestScore {
-			sout := <-chout
-			res.TestScore[sout.iSplit] = sout.score
-		}
-		close(chout)
 	} else { // NJobs==1
 		var Xjob, Yjob = mat.NewDense(NSamples, NFeatures, nil), mat.NewDense(NSamples, NOutputs, nil)
 		var isplit int

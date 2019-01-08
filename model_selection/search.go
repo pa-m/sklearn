@@ -3,7 +3,6 @@ package modelselection
 import (
 	"fmt"
 	"reflect"
-	"runtime"
 
 	"github.com/pa-m/sklearn/base"
 	"gonum.org/v1/gonum/floats"
@@ -51,6 +50,7 @@ type GridSearchCV struct {
 	Verbose            bool
 	NJobs              int
 	LowerScoreIsBetter bool
+	UseChannels        bool
 
 	CVResults     map[string][]interface{}
 	BestEstimator base.Transformer
@@ -110,38 +110,61 @@ func (gscv *GridSearchCV) Fit(X, Y *mat.Dense) base.Transformer {
 		sin.estimator = cvres.Estimator[bestFold]
 		return sin
 	}
-	chin := make(chan structIn)
-	chout := make(chan structIn)
-	worker := func(j int) {
-		for sin := range chin {
-			chout <- dowork(sin)
-		}
-	}
-	if gscv.NJobs <= 0 {
-		gscv.NJobs = runtime.NumCPU()
-	}
-	for j := 0; j < gscv.NJobs; j++ {
-		go worker(j)
-	}
-	for cvindex, params := range paramArray {
-		chin <- structIn{cvindex: cvindex, params: params}
-	}
-	close(chin)
 	gscv.BestIndex = -1
-	for range paramArray {
-		sout := <-chout
-		for k, v := range sout.params {
-			gscv.CVResults[k][sout.cvindex] = v
+
+	/*if gscv.UseChannels { // use channels
+		chin := make(chan structIn)
+		chout := make(chan structIn)
+		worker := func(j int) {
+			for sin := range chin {
+				chout <- dowork(sin)
+			}
 		}
-		gscv.CVResults["score"][sout.cvindex] = sout.score
-		if gscv.BestIndex == -1 || isBetter(sout.score, gscv.CVResults["score"][gscv.BestIndex].(float64)) {
-			gscv.BestIndex = sout.cvindex
-			gscv.BestEstimator = sout.estimator
-			gscv.BestParams = sout.params
-			gscv.BestScore = sout.score
+		if gscv.NJobs <= 0 || gscv.NJobs > runtime.NumCPU() {
+			gscv.NJobs = runtime.NumCPU()
+		}
+		for j := 0; j < gscv.NJobs; j++ {
+			go worker(j)
+		}
+		for cvindex, params := range paramArray {
+			chin <- structIn{cvindex: cvindex, params: params}
+		}
+		close(chin)
+		for range paramArray {
+			sout := <-chout
+			for k, v := range sout.params {
+				gscv.CVResults[k][sout.cvindex] = v
+			}
+			gscv.CVResults["score"][sout.cvindex] = sout.score
+			if gscv.BestIndex == -1 || isBetter(sout.score, gscv.CVResults["score"][gscv.BestIndex].(float64)) {
+				gscv.BestIndex = sout.cvindex
+				gscv.BestEstimator = sout.estimator
+				gscv.BestParams = sout.params
+				gscv.BestScore = sout.score
+			}
+		}
+		close(chout)
+
+	} else*/{ // use sync.workGroup
+		sin := make([]structIn, len(paramArray))
+		for i, params := range paramArray {
+			sin[i] = structIn{cvindex: i, params: params, estimator: gscv.Estimator}
+		}
+		base.Parallelize(gscv.NJobs, len(paramArray), func(th, start, end int) {
+			for i := start; i < end; i++ {
+				sin[i] = dowork(sin[i])
+				gscv.CVResults["score"][sin[i].cvindex] = sin[i].score
+			}
+		})
+		for _, sout := range sin {
+			if gscv.BestIndex == -1 || isBetter(sout.score, gscv.CVResults["score"][gscv.BestIndex].(float64)) {
+				gscv.BestIndex = sout.cvindex
+				gscv.BestEstimator = sout.estimator
+				gscv.BestParams = sout.params
+				gscv.BestScore = sout.score
+			}
 		}
 	}
-	close(chout)
 
 	return gscv
 }
