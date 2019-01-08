@@ -13,6 +13,8 @@ import (
 )
 
 func ExamplePipeline() {
+	RandomState := int64(7)
+
 	ds := datasets.LoadBreastCancer()
 	fmt.Println("Dims", base.MatDimsString(ds.X, ds.Y))
 
@@ -25,8 +27,9 @@ func ExamplePipeline() {
 	poly.IncludeBias = false
 
 	m := nn.NewMLPClassifier([]int{}, "relu", "adam", 0.)
+	m.RandomState = &RandomState
 	m.Loss = "cross-entropy"
-	m.Epochs = 300
+	m.Epochs = 50
 	m.WeightDecay = .1
 
 	pl := MakePipeline(scaler, pca, poly, m)
