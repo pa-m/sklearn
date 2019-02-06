@@ -282,7 +282,7 @@ func ExampleSVR() {
 		svr.Predict(X, Ypred[opt.kernel])
 	}
 
-	if *visualDebug || true {
+	if *visualDebug {
 		// Look at the results
 		pngfile := fmt.Sprintf("/tmp/ExampleSVR.png")
 		os.Remove(pngfile)
