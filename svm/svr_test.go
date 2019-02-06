@@ -233,7 +233,7 @@ func (m *SVR) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
 	return
 }
 
-func ExampleSVR() {
+func _ExampleSVR() {
 	/*
 		https://scikit-learn.org/stable/auto_examples/svm/plot_svm_regression.html#sphx-glr-auto-examples-svm-plot-svm-regression-py
 	*/
