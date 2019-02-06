@@ -15,6 +15,7 @@ import (
 // https://github.com/ewalker544/libsvm-go
 // https://www.csie.ntu.edu.tw/~cjlin/papers/guide/guide.pdf
 // v andrew NG "machine learning" ex6
+// v https://github.com/cjlin1/libsvm
 
 // Model for SVM
 type Model struct {
@@ -88,9 +89,11 @@ func svmTrain(X *mat.Dense, Y []float64, C float64, KernelFunction func(X1, X2 [
 	}
 	for passes < MaxPasses {
 		numChangedAlphas := 0
+		// Step 1 Find a Lagrange multiplier α 1 {that violates the Karush–Kuhn–Tucker (KKT) conditions for the optimization problem.
 		for i := 0; i < m; i++ {
 			calcE(i)
 			if (Y[i]*E[i] < -Tol && alphas[i] < C) || (Y[i]*E[i] > Tol && alphas[i] > 0) {
+				// Step 2 Pick a second multiplier α 2  and optimize the pair ( α 1 , α 2 )
 				// % In practice, there are many heuristics one can use to select
 				// % the i and j. In this simplified code, we select them randomly.
 				j := rand.Intn(m - 1)
@@ -139,8 +142,14 @@ func svmTrain(X *mat.Dense, Y []float64, C float64, KernelFunction func(X1, X2 [
 				} else {
 					b = (b1 + b2) / 2
 				}
+				// {
+				// 	Eold := E[i]
+				// 	calcE(i)
+				// 	fmt.Printf("passes %d alpha[%d] %g => %g E[%d] %g=>%g\n", passes, i, alphaiold, alphas[i], i, Eold, E[i])
+				// }
 				numChangedAlphas++
 			}
+			// Step 3: Repeat steps 1 and 2 until convergence.
 		}
 		if numChangedAlphas == 0 {
 			passes++
@@ -182,90 +191,50 @@ func svmTrain(X *mat.Dense, Y []float64, C float64, KernelFunction func(X1, X2 [
 // %   trained SVM model (svmTrain). X is a mxn matrix where there each
 // %   example is a row. model is a svm model returned from svmTrain.
 // %   predictions pred is a m x 1 column of predictions of {0, 1} values.
-func svmPredict(model *Model, X *mat.Dense) (pred []float64) {
-	m, _ := X.Dims()
-	p := make([]float64, m, m)
-	pred = make([]float64, m, m)
-	for i := 0; i < m; i++ {
+func svmPredict(model *Model, X, Y *mat.Dense, output int, binary bool) {
+	NSamples, _ := X.Dims()
+
+	Ymat := Y.RawMatrix()
+	for i, yoff := 0, output; i < NSamples; i, yoff = i+1, yoff+Ymat.Stride {
 		prediction := 0.
 		for j := range model.Alphas {
 			prediction += model.Alphas[j] * model.Y[j] * model.KernelFunction(X.RawRowView(i), model.X.RawRowView(j))
 		}
-		p[i] = prediction + model.B
-		if p[i] >= 0 {
-			pred[i] = 1.
+		prediction += model.B
+		if binary {
+			var predi float64
+			if prediction >= 0 {
+				predi = 1.
+			}
+			Ymat.Data[yoff] = predi
+		} else {
+			Ymat.Data[yoff] = prediction
 		}
 	}
 	return
 }
 
-// Kernel is the interface for kernels
-type Kernel interface {
-	Func(a, b []float64) float64
-}
-
-// LinearKernel is dot product
-type LinearKernel struct{}
-
-// Func for LinearKernel
-func (LinearKernel) Func(a, b []float64) (sumprod float64) {
-	for i := range a {
-		sumprod += a[i] * b[i]
-	}
-	return
-}
-
-// PolynomialKernel ...
-type PolynomialKernel struct{ gamma, coef0, degree float64 }
-
-// Func for PolynomialKernel
-func (kdata PolynomialKernel) Func(a, b []float64) (sumprod float64) {
-	for i := range a {
-		sumprod += a[i] * b[i]
-	}
-	return math.Pow(kdata.gamma*sumprod+kdata.coef0, kdata.degree)
-}
-
-// RBFKernel ...
-type RBFKernel struct{ gamma float64 }
-
-// Func for RBFKernel
-func (kdata RBFKernel) Func(a, b []float64) float64 {
-	L2 := 0.
-	for i := range a {
-		v := a[i] - b[i]
-		L2 += v * v
-	}
-	return math.Exp(-kdata.gamma * L2)
-}
-
-// SigmoidKernel ...
-type SigmoidKernel struct{ gamma, coef0 float64 }
-
-// Func for SigmoidKernel
-func (kdata SigmoidKernel) Func(a, b []float64) (sumprod float64) {
-	for i := range a {
-		sumprod += a[i] * b[i]
-	}
-	return math.Tanh(kdata.gamma*sumprod + kdata.coef0)
-}
-
-// SVC struct
-type SVC struct {
+// BaseLibSVM is a base for SVC and SVR
+type BaseLibSVM struct {
 	C              float64
-	Kernel         interface{}
+	Kernel         interface{} // string or func(a, b []float64) float64
 	Degree         float64
 	Gamma          float64
 	Coef0          float64
-	Shrinking      bool
-	Probability    bool
 	Tol            float64
+	Shrinking      bool
 	CacheSize      uint
-	ClassWeight    []float64
 	MaxIter        int
 	Model          []*Model
 	Support        [][]int
 	SupportVectors [][][]float64
+}
+
+// SVC struct
+type SVC struct {
+	BaseLibSVM
+	Probability bool
+	ClassWeight []float64
 }
 
 // NewSVC ...
@@ -274,7 +243,7 @@ type SVC struct {
 // Cachesize is in MB. defaults to 200
 func NewSVC() *SVC {
 	m := &SVC{
-		C: 1., Kernel: "rbf", Degree: 3., Gamma: 0., Coef0: 0., Shrinking: true, Probability: false, Tol: 1e-3, CacheSize: 200,
+		BaseLibSVM: BaseLibSVM{C: 1., Kernel: "rbf", Degree: 3., Gamma: 0., Coef0: 0., Shrinking: true, Tol: 1e-3, CacheSize: 200},
 	}
 	return m
 }
@@ -287,6 +256,11 @@ func (m *SVC) Clone() base.Transformer {
 
 // Fit for SVC
 func (m *SVC) Fit(X, Y *mat.Dense) base.Transformer {
+	m.BaseLibSVM.fit(X, Y, svmTrain)
+	return m
+}
+
+func (m *BaseLibSVM) fit(X, Y *mat.Dense, svmTrain func(X *mat.Dense, Y []float64, C float64, KernelFunction func(X1, X2 []float64) float64, Tol float64, MaxPasses int, CacheSize uint) *Model) {
 	NSamples, NFeatures := X.Dims()
 	_, Noutputs := Y.Dims()
 	if m.Gamma <= 0. {
@@ -303,12 +277,10 @@ func (m *SVC) Fit(X, Y *mat.Dense) base.Transformer {
 			K = (LinearKernel{}).Func
 		case "poly", "polynomial":
 			K = (PolynomialKernel{gamma: m.Gamma, coef0: m.Coef0, degree: m.Degree}).Func
-		case "rbf":
-			K = (RBFKernel{gamma: m.Gamma}).Func
 		case "sigmoid":
 			K = (SigmoidKernel{gamma: m.Gamma, coef0: m.Coef0}).Func
-		case "default":
-			panic(fmt.Errorf("unknown kernel %s", v))
+		default: //rbf
+			K = (RBFKernel{gamma: m.Gamma}).Func
 		}
 	case Kernel:
 		K = v.Func
@@ -333,7 +305,6 @@ func (m *SVC) Fit(X, Y *mat.Dense) base.Transformer {
 			}
 		}
 	})
-	return m
 }
 
 // Predict for SVC
@@ -344,12 +315,13 @@ func (m *SVC) Predict(X, Y *mat.Dense) base.Transformer {
 		NOutputs = len(m.Model)
 		*Y = *mat.NewDense(NSamples, NOutputs, nil)
 	}
+	binary := true
 	base.Parallelize(-1, NOutputs, func(th, start, end int) {
 
 		for output := start; output < end; output++ {
 
-			pred := svmPredict(m.Model[output], X)
-			Y.SetCol(output, pred)
+			svmPredict(m.Model[output], X, Y, output, binary)
+
 		}
 	})
 	return m

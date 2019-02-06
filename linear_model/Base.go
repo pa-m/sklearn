@@ -207,7 +207,10 @@ func (regr *SGDRegressor) Fit(X0, y0 *mat.Dense) base.Transformer {
 			fd.Gradient(grad, p.Func, coef, settings)
 
 		}*/
-		p.Grad = func(grad, coef []float) {
+		p.Grad = func(grad, coef []float) []float {
+			if grad == nil {
+				grad = make([]float64, len(coef))
+			}
 			// X dot Ydiff+ alpha*l1ratio*sign+alpha*(1-l1ratio)*coef
 			tmp := mat.NewDense(nSamples, 1, nil)
 			regr.Coef.SetCol(o, coef)
@@ -230,6 +233,7 @@ func (regr *SGDRegressor) Fit(X0, y0 *mat.Dense) base.Transformer {
 				grad[j] = gradj + al1*sgn(gradj) + al2*gradj
 				return grad[j]
 			}, gradmat)
+			return grad
 		}
 		initialcoefs := make([]float, nFeatures, nFeatures)
 		/*for j := 0; j < nFeatures; j++ {
@@ -502,9 +506,16 @@ func LinFitGOM(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 					J := opts.Loss(Ytrue.ColView(o), X, mat.NewDense(nFeatures, 1, thetao), Ypred, Ydiff, nil, opts.Alpha, opts.L1Ratio, nSamples, opts.Activation, opts.DisableRegularizationOfFirstFeature)
 					return J
 				},
-				Grad: func(gradSlice, thetao []float64) {
-					opts.Loss(Ytrue.ColView(o), X, mat.NewDense(nFeatures, 1, thetao), Ypred, Ydiff, mat.NewDense(nFeatures, 1, gradSlice), opts.Alpha, opts.L1Ratio, nSamples, opts.Activation, opts.DisableRegularizationOfFirstFeature)
-					//floats.Scale(float64(nSamples), gradSlice)
+				Grad: func(grad, thetao []float64) []float64 {
+					if grad == nil {
+						grad = make([]float64, len(thetao))
+					}
+					if len(thetao) != len(grad) {
+						panic("incorrect size of the gradient")
+					}
+
+					opts.Loss(Ytrue.ColView(o), X, mat.NewDense(nFeatures, 1, thetao), Ypred, Ydiff, mat.NewDense(nFeatures, 1, grad), opts.Alpha, opts.L1Ratio, nSamples, opts.Activation, opts.DisableRegularizationOfFirstFeature)
+					return grad
 				},
 			}
 			mat.Col(thetao, o, thetaM)
@@ -536,8 +547,12 @@ func LinFitGOM(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 				J := opts.Loss(Ytrue, X, mat.NewDense(nFeatures, nOutputs, theta), Ypred, Ydiff, nil, opts.Alpha, opts.L1Ratio, nSamples, opts.Activation, opts.DisableRegularizationOfFirstFeature)
 				return J
 			},
-			Grad: func(gradSlice, theta []float64) {
-				opts.Loss(Ytrue, X, mat.NewDense(nFeatures, nOutputs, theta), Ypred, Ydiff, mat.NewDense(nFeatures, nOutputs, gradSlice), opts.Alpha, opts.L1Ratio, nSamples, opts.Activation, opts.DisableRegularizationOfFirstFeature)
+			Grad: func(grad, theta []float64) []float64 {
+				if grad == nil {
+					grad = make([]float64, len(theta))
+				}
+				opts.Loss(Ytrue, X, mat.NewDense(nFeatures, nOutputs, theta), Ypred, Ydiff, mat.NewDense(nFeatures, nOutputs, grad), opts.Alpha, opts.L1Ratio, nSamples, opts.Activation, opts.DisableRegularizationOfFirstFeature)
+				return grad
 			},
 		}
 		ret, err = optimize.Minimize(p, theta, fSettings(), opts.GOMethodCreator())

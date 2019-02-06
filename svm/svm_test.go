@@ -4,11 +4,8 @@ import (
 	"flag"
 	"fmt"
 	"image/color"
-	"math"
-	"math/rand"
 	"os"
 	"os/exec"
-	"sort"
 	"time"
 
 	"github.com/pa-m/sklearn/metrics"
@@ -174,66 +171,4 @@ func ExampleSVC() {
 	// linear kernel, accuracy:0.938
 	// poly kernel, accuracy:1.000
 	// rbf kernel, accuracy:1.000
-}
-
-func ExampleSVR() {
-	/*
-		https://scikit-learn.org/stable/auto_examples/svm/plot_svm_regression.html#sphx-glr-auto-examples-svm-plot-svm-regression-py
-	*/
-
-	// Generate sample data
-	X := mat.NewDense(40, 1, nil)
-	Y := mat.NewDense(40, 1, nil)
-	{
-		rnd := rand.New(rand.NewSource(5))
-		mX := X.RawMatrix()
-		for sample := 0; sample < mX.Rows; sample++ {
-			mX.Data[sample] = 5 * rnd.Float64()
-		}
-		sort.Float64s(mX.Data)
-		mY := Y.RawMatrix()
-		for sample := 0; sample < mY.Rows; sample++ {
-			mY.Data[sample] = math.Sin(mX.Data[sample])
-			if sample%5 == 0 {
-				mY.Data[sample] += 3 * (0.5 - rnd.Float64())
-			}
-		}
-	}
-	*visualDebug = false
-	if *visualDebug {
-		// Look at the results
-		pngfile := fmt.Sprintf("/tmp/ExampleSVR.png")
-		os.Remove(pngfile)
-
-		p, _ := plot.New()
-		p.Title.Text = "Support vector regression"
-		p.X.Label.Text = "data"
-		p.Y.Label.Text = "target"
-		xys := func(X, Y mat.Matrix) (xy plotter.XYs) {
-			imax, _ := Y.Dims()
-			for i := 0; i < imax; i++ {
-				xy = append(xy, struct{ X, Y float64 }{X.At(i, 0), Y.At(i, 0)})
-
-			}
-			return
-		}
-
-		s, _ := plotter.NewScatter(xys(X, Y))
-		s.GlyphStyle.Shape = draw.CircleGlyph{}
-		s.Color = color.RGBA{0xff, 0x80, 0x00, 0xFF}
-		p.Add(s)
-		p.Legend.Add("data", s)
-		if err := p.Save(6*vg.Inch, 4*vg.Inch, pngfile); err != nil {
-			panic(err)
-		}
-
-		cmd := exec.Command("display", pngfile)
-		err := cmd.Start()
-		if err != nil {
-			fmt.Println(err.Error())
-		}
-		time.Sleep(200 * time.Millisecond)
-		os.Remove(pngfile)
-	}
-	// Output:
 }

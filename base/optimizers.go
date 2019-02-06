@@ -1,6 +1,7 @@
 package base
 
 import (
+	"errors"
 	"fmt"
 	"math"
 
@@ -378,4 +379,12 @@ func (*SGDOptimizer) Needs() struct {
 		Gradient: true,
 		Hessian:  false,
 	}
+}
+
+// Uses  is for when SGDOptimizer is used as an optimize.Method
+func (*SGDOptimizer) Uses(has optimize.Available) (optimize.Available, error) {
+	if !has.Grad {
+		return has, errors.New("SGDOptimizer.Uses Grad not supplied")
+	}
+	return optimize.Available{Grad: true}, nil
 }

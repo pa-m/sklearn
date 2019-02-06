@@ -267,8 +267,12 @@ func (regr *MLPRegressor) fitGOM(X, Y *mat.Dense) float64 {
 			epoch++
 			return J
 		},
-		Grad: func(gradSlice []float64, thetaSlice []float64) {
+		Grad: func(gradSlice []float64, thetaSlice []float64) []float64 {
+			if gradSlice == nil {
+				gradSlice = make([]float64, len(thetaSlice))
+			}
 			copy(gradSlice, regr.gradSlice)
+			return gradSlice
 		},
 	}
 	method := base.GOMethodCreators[regr.Solver]()
