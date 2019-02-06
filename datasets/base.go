@@ -20,9 +20,21 @@ type MLDataset struct {
 	X, Y         *mat.Dense
 }
 
+// fix data path for travis
+func realPath(filepath string) string {
+	if _, err := os.Stat(filepath); err != nil {
+		p := "/home/travis/gopath/src/github.com/"
+		lp := len(p)
+		if len(filepath) > lp && filepath[0:lp] == p {
+			filepath = "/home/travis/build/" + filepath[lp:]
+		}
+	}
+	return filepath
+}
+
 // LoadIris load the iris dataset
 func loadJSON(filepath string) (ds *MLDataset) {
-	dat, err := ioutil.ReadFile(filepath)
+	dat, err := ioutil.ReadFile(realPath(filepath))
 	check(err)
 	ds = &MLDataset{}
 	err = json.Unmarshal(dat, &ds)
@@ -89,7 +101,7 @@ func LoadMnistWeights() (Theta1, Theta2 *mat.Dense) {
 }
 
 func loadCsv(filepath string, setupReader func(*csv.Reader), nOutputs int) (X, Y *mat.Dense) {
-	f, err := os.Open(filepath)
+	f, err := os.Open(realPath(filepath))
 	check(err)
 	defer f.Close()
 	r := csv.NewReader(f)

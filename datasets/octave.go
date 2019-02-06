@@ -58,7 +58,7 @@ func LoadOctaveBin(filename string) map[string]*mat.Dense {
 		}
 		return string(b), nil
 	}
-	f0, err = os.Open(filename)
+	f0, err = os.Open(realPath(filename))
 	check(err)
 	defer f0.Close()
 	f1 := bufio.NewReaderSize(f0, 65536)
