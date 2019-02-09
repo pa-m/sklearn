@@ -28,6 +28,42 @@ type Model struct {
 	Support        []int
 }
 
+func cachedKernel(X *mat.Dense, CacheSize uint, KernelFunction func(X1, X2 []float64) float64) func(i, j int) float64 {
+	m, _ := X.Dims()
+	type KcacheEntry struct {
+		i, j int
+		v    float64
+	}
+	KcacheEntrySize := uint(unsafe.Sizeof(KcacheEntry{}))
+
+	KcacheDiag := make([]KcacheEntry, 0, m)
+	KcacheNoDiag := make([]KcacheEntry, 0, CacheSize<<20/KcacheEntrySize)
+
+	return func(i, j int) float64 {
+		if i > j {
+			i, j = j, i
+		}
+		Kcache := &KcacheNoDiag
+		if i == j {
+			Kcache = &KcacheDiag
+		}
+		for off, e := range *Kcache {
+			if e.i == i && e.j == j {
+				copy((*Kcache)[1:off+1], (*Kcache)[0:off])
+				(*Kcache)[0] = e
+				return e.v
+			}
+		}
+		if uint(len(*Kcache))*KcacheEntrySize >= CacheSize {
+			*Kcache = (*Kcache)[0 : CacheSize/KcacheEntrySize]
+		}
+		e := KcacheEntry{i, j, KernelFunction(X.RawRowView(i), X.RawRowView(j))}
+		*Kcache = append([]KcacheEntry{e}, *Kcache...)
+		return e.v
+	}
+
+}
+
 // %svmTrain Trains an SVM classifier using a simplified version of the SMO
 // %algorithm.
 // %   [model] = SVMTRAIN(X, Y, C, kernelFunction, tol, max_passes) trains an
@@ -53,37 +89,14 @@ func svmTrain(X *mat.Dense, Y []float64, C float64, KernelFunction func(X1, X2 [
 	eta := 0.
 	passes := 0
 	L, H := 0., 0.
-	type KcacheEntry struct {
-		i, j int
-		v    float64
-	}
-	KcacheEntrySize := uint(unsafe.Sizeof(KcacheEntry{}))
-
-	Kcache := make([]KcacheEntry, 0, CacheSize<<20/KcacheEntrySize)
-
-	K := func(i, j int) float64 {
-		if i > j {
-			i, j = j, i
-		}
-		for off, e := range Kcache {
-			if e.i == i && e.j == j {
-				copy(Kcache[1:off+1], Kcache[0:off])
-				Kcache[0] = e
-				return e.v
-			}
-		}
-		if uint(len(Kcache))*KcacheEntrySize >= CacheSize {
-			Kcache = Kcache[0 : CacheSize/KcacheEntrySize]
-		}
-		e := KcacheEntry{i, j, KernelFunction(X.RawRowView(i), X.RawRowView(j))}
-		Kcache = append([]KcacheEntry{e}, Kcache...)
-		return e.v
-	}
+	K := cachedKernel(X, CacheSize, KernelFunction)
 	calcE := func(i int) {
 		//Calculate Ei = f(x(i)) - y(i) using E(i) = b + sum (alphas.*Y.*K(:,i)) - Y(i);
 		sumAlphaYK := 0.
 		for i1 := 0; i1 < m; i1++ {
-			sumAlphaYK += alphas[i1] * Y[i1] * K(i1, i)
+			if alphas[i1] != 0 {
+				sumAlphaYK += alphas[i1] * Y[i1] * K(i1, i)
+			}
 		}
 		E[i] = b + sumAlphaYK - Y[i]
 	}
@@ -92,7 +105,7 @@ func svmTrain(X *mat.Dense, Y []float64, C float64, KernelFunction func(X1, X2 [
 		// Step 1 Find a Lagrange multiplier α 1 {that violates the Karush–Kuhn–Tucker (KKT) conditions for the optimization problem.
 		for i := 0; i < m; i++ {
 			calcE(i)
-			if (Y[i]*E[i] < -Tol && alphas[i] < C) || (Y[i]*E[i] > Tol && alphas[i] > 0) {
+			if (E[i] < -Tol && alphas[i] < C) || (E[i] > Tol && alphas[i] > 0) {
 				// Step 2 Pick a second multiplier α 2  and optimize the pair ( α 1 , α 2 )
 				// % In practice, there are many heuristics one can use to select
 				// % the i and j. In this simplified code, we select them randomly.
@@ -132,7 +145,7 @@ func svmTrain(X *mat.Dense, Y []float64, C float64, KernelFunction func(X1, X2 [
 				// % Determine value for alpha i using (16).
 				alphas[i] += Y[i] * Y[j] * (alphajold - alphas[j])
 				// % Compute b1 and b2 using (17) and (18) respectively.
-				b1 := b - E[i] - Y[i]*(alphas[i]-alphaiold)*Kij - Y[j]*(alphas[j]-alphajold)*Kij
+				b1 := b - E[i] - Y[i]*(alphas[i]-alphaiold)*Kii - Y[j]*(alphas[j]-alphajold)*Kij
 				b2 := b - E[j] - Y[i]*(alphas[i]-alphaiold)*Kij - Y[j]*(alphas[j]-alphajold)*Kjj
 				// % Compute b by (19).
 				if 0 < alphas[i] && alphas[i] < C {
