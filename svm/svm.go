@@ -4,18 +4,18 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
-	"unsafe"
 
 	"github.com/pa-m/sklearn/base"
 	"gonum.org/v1/gonum/mat"
 )
 
 // links:
-// https://www.quora.com/What-does-support-vector-machine-SVM-mean-in-laymans-terms
 // https://github.com/ewalker544/libsvm-go
 // https://www.csie.ntu.edu.tw/~cjlin/papers/guide/guide.pdf
 // v andrew NG "machine learning" ex6
 // v https://github.com/cjlin1/libsvm
+// https://github.com/gwf/NODElib
+// https://link.springer.com/content/pdf/10.1023%2FA%3A1012474916001.pdf
 
 // Model for SVM
 type Model struct {
@@ -26,42 +26,6 @@ type Model struct {
 	Alphas         []float64
 	W              []float64
 	Support        []int
-}
-
-func cachedKernel(X *mat.Dense, CacheSize uint, KernelFunction func(X1, X2 []float64) float64) func(i, j int) float64 {
-	m, _ := X.Dims()
-	type KcacheEntry struct {
-		i, j int
-		v    float64
-	}
-	KcacheEntrySize := uint(unsafe.Sizeof(KcacheEntry{}))
-
-	KcacheDiag := make([]KcacheEntry, 0, m)
-	KcacheNoDiag := make([]KcacheEntry, 0, CacheSize<<20/KcacheEntrySize)
-
-	return func(i, j int) float64 {
-		if i > j {
-			i, j = j, i
-		}
-		Kcache := &KcacheNoDiag
-		if i == j {
-			Kcache = &KcacheDiag
-		}
-		for off, e := range *Kcache {
-			if e.i == i && e.j == j {
-				copy((*Kcache)[1:off+1], (*Kcache)[0:off])
-				(*Kcache)[0] = e
-				return e.v
-			}
-		}
-		if uint(len(*Kcache))*KcacheEntrySize >= CacheSize {
-			*Kcache = (*Kcache)[0 : CacheSize/KcacheEntrySize]
-		}
-		e := KcacheEntry{i, j, KernelFunction(X.RawRowView(i), X.RawRowView(j))}
-		*Kcache = append([]KcacheEntry{e}, *Kcache...)
-		return e.v
-	}
-
 }
 
 // %svmTrain Trains an SVM classifier using a simplified version of the SMO
