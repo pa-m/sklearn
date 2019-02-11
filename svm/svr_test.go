@@ -40,13 +40,13 @@ func ExampleSVR() {
 		for sample := 0; sample < mY.Rows; sample++ {
 			mY.Data[sample] = math.Sin(mX.Data[sample])
 			if sample%5 == 0 {
-				mY.Data[sample] += 3 * (0.5 - rnd.Float64())
+				mY.Data[sample] += (0.5 - rnd.Float64())
 			}
 		}
 	}
 	// rescale in -1,1
 	X, _ = preprocessing.NewMinMaxScaler([]float64{-1, 1}).FitTransform(X, nil)
-	//Y, _ = preprocessing.NewMinMaxScaler([]float64{-1, 1}).FitTransform(Y, nil)
+	Epsilon := 0.05
 
 	// # Fit regression model
 	Ypred := map[string]*mat.Dense{}
@@ -62,9 +62,10 @@ func ExampleSVR() {
 		svr := NewSVR()
 		svr.Kernel = opt.kernel
 		svr.C = opt.C
+		svr.Epsilon = Epsilon
 		svr.Gamma = opt.gamma
 		svr.Degree = opt.degree
-		svr.MaxIter = 2
+		svr.MaxIter = 5
 		svr.Fit(X, Y)
 		svr.Predict(X, Ypred[opt.kernel])
 		log.Println(base.MatStr(X, Y, Ypred[opt.kernel]))
@@ -79,15 +80,15 @@ func ExampleSVR() {
 		p.Title.Text = "Support vector regression"
 		p.X.Label.Text = "data"
 		p.Y.Label.Text = "target"
-		xys := func(X, Y mat.Matrix) (xy plotter.XYs) {
+		xys := func(X, Y mat.Matrix, dy float64) (xy plotter.XYs) {
 			imax, _ := Y.Dims()
 			for i := 0; i < imax; i++ {
-				xy = append(xy, struct{ X, Y float64 }{X.At(i, 0), Y.At(i, 0)})
+				xy = append(xy, struct{ X, Y float64 }{X.At(i, 0), Y.At(i, 0) + dy})
 
 			}
 			return
 		}
-		s, _ := plotter.NewScatter(xys(X, Y))
+		s, _ := plotter.NewScatter(xys(X, Y, 0))
 		s.GlyphStyle.Shape = draw.CircleGlyph{}
 		s.Color = color.RGBA{0xff, 0x80, 0x00, 0xFF}
 		p.Add(s)
@@ -104,23 +105,28 @@ func ExampleSVR() {
 			"poly":   "Polynomial model",
 		}
 		for kernel, Yp := range Ypred {
-			xys := func(X, Yp mat.Matrix) (xy plotter.XYs) {
-				imax, _ := X.Dims()
-				for i := 0; i < imax; i++ {
-					xy = append(xy, struct{ X, Y float64 }{X.At(i, 0), Yp.At(i, 0)})
+			// xys := func(X, Yp mat.Matrix) (xy plotter.XYs) {
+			// 	imax, _ := X.Dims()
+			// 	for i := 0; i < imax; i++ {
+			// 		xy = append(xy, struct{ X, Y float64 }{X.At(i, 0), Yp.At(i, 0)})
 
+			// 	}
+			// 	return
+			// }
+			for _, dy := range []float64{-Epsilon, 0, Epsilon} {
+				s, err := plotter.NewLine(xys(X, Yp, dy))
+				if err != nil {
+					panic(err)
 				}
-				return
+				s.Color = colors[kernel]
+				if dy != 0 {
+					s.LineStyle.Dashes = []vg.Length{3, 3}
+				}
+				p.Add(s)
+				if dy == 0 {
+					p.Legend.Add(labels[kernel], s)
+				}
 			}
-
-			s, err := plotter.NewLine(xys(X, Yp))
-			if err != nil {
-				panic(err)
-			}
-			s.Color = colors[kernel]
-			p.Add(s)
-			p.Legend.Add(labels[kernel], s)
-
 		}
 
 		if err := p.Save(6*vg.Inch, 4*vg.Inch, pngfile); err != nil {

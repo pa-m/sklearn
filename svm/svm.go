@@ -22,10 +22,10 @@ type Model struct {
 	X              *mat.Dense
 	Y              []float64
 	KernelFunction func(X1, X2 []float64) float64
-	B              float64
-	Alphas         []float64
-	W              []float64
-	Support        []int
+
+	B       float64
+	Alphas  []float64
+	Support []int
 }
 
 // %svmTrain Trains an SVM classifier using a simplified version of the SMO
@@ -45,7 +45,7 @@ type Model struct {
 // %
 // %           LIBSVM   (http://www.csie.ntu.edu.tw/~cjlin/libsvm/)
 // %           SVMLight (http://svmlight.joachims.org/)
-func svmTrain(X *mat.Dense, Y []float64, C float64, KernelFunction func(X1, X2 []float64) float64, Tol float64, MaxPasses int, CacheSize uint) *Model {
+func svmTrain(X *mat.Dense, Y []float64, C, Epsilon float64, KernelFunction func(X1, X2 []float64) float64, Tol float64, MaxPasses int, CacheSize uint) *Model {
 	m, n := X.Dims()
 	alphas := make([]float64, m, m)
 	b := 0.
@@ -54,22 +54,19 @@ func svmTrain(X *mat.Dense, Y []float64, C float64, KernelFunction func(X1, X2 [
 	passes := 0
 	L, H := 0., 0.
 	K := cachedKernel(X, CacheSize, KernelFunction)
-	calcE := func(i int) {
-		//Calculate Ei = f(x(i)) - y(i) using E(i) = b + sum (alphas.*Y.*K(:,i)) - Y(i);
-		sumAlphaYK := 0.
+	f := func(i int) float64 {
+		y := b
 		for i1 := 0; i1 < m; i1++ {
-			if alphas[i1] != 0 {
-				sumAlphaYK += alphas[i1] * Y[i1] * K(i1, i)
-			}
+			y += alphas[i1] * Y[i1] * K(i1, i)
 		}
-		E[i] = b + sumAlphaYK - Y[i]
+		return y
 	}
 	for passes < MaxPasses {
 		numChangedAlphas := 0
 		// Step 1 Find a Lagrange multiplier α 1 {that violates the Karush–Kuhn–Tucker (KKT) conditions for the optimization problem.
 		for i := 0; i < m; i++ {
-			calcE(i)
-			if (Y[i]*E[i] < -Tol && alphas[i] < C) || (Y[i]*E[i] > Tol && alphas[i] > 0) {
+			E[i] = f(i) - Y[i]
+			if (Y[i]*E[i] < -Epsilon && alphas[i] < C) || (Y[i]*E[i] > Epsilon && alphas[i] > 0) {
 				// Step 2 Pick a second multiplier α 2  and optimize the pair ( α 1 , α 2 )
 				// % In practice, there are many heuristics one can use to select
 				// % the i and j. In this simplified code, we select them randomly.
@@ -77,7 +74,7 @@ func svmTrain(X *mat.Dense, Y []float64, C float64, KernelFunction func(X1, X2 [
 				if j >= i {
 					j++
 				}
-				calcE(j)
+				E[j] = f(j) - Y[j]
 
 				alphaiold, alphajold := alphas[i], alphas[j]
 				//% Compute L and H by (10) or (11).
@@ -146,18 +143,12 @@ func svmTrain(X *mat.Dense, Y []float64, C float64, KernelFunction func(X1, X2 [
 		KernelFunction: KernelFunction,
 		B:              b,
 		Alphas:         make([]float64, len(idx)),
-		W:              make([]float64, n, n),
 		Support:        idx,
 	}
 	for ii, i := range idx {
 		model.X.SetRow(ii, X.RawRowView(i))
 		model.Y[ii] = Y[i]
 		model.Alphas[ii] = alphas[i]
-	}
-	for j := 0; j < n; j++ {
-		for _, i := range idx {
-			model.W[j] += alphas[i] * Y[i] * X.At(i, j)
-		}
 	}
 	return model
 }
@@ -193,7 +184,7 @@ func svmPredict(model *Model, X, Y *mat.Dense, output int, binary bool) {
 
 // BaseLibSVM is a base for SVC and SVR
 type BaseLibSVM struct {
-	C              float64
+	C, Epsilon     float64
 	Kernel         interface{} // string or func(a, b []float64) float64
 	Degree         float64
 	Gamma          float64
@@ -220,7 +211,7 @@ type SVC struct {
 // Cachesize is in MB. defaults to 200
 func NewSVC() *SVC {
 	m := &SVC{
-		BaseLibSVM: BaseLibSVM{C: 1., Kernel: "rbf", Degree: 3., Gamma: 0., Coef0: 0., Shrinking: true, Tol: 1e-3, CacheSize: 200},
+		BaseLibSVM: BaseLibSVM{C: 1., Epsilon: 0.1, Kernel: "rbf", Degree: 3., Gamma: 0., Coef0: 0., Shrinking: true, Tol: 1e-3, CacheSize: 200},
 	}
 	return m
 }
@@ -237,7 +228,7 @@ func (m *SVC) Fit(X, Y *mat.Dense) base.Transformer {
 	return m
 }
 
-func (m *BaseLibSVM) fit(X, Y *mat.Dense, svmTrain func(X *mat.Dense, Y []float64, C float64, KernelFunction func(X1, X2 []float64) float64, Tol float64, MaxPasses int, CacheSize uint) *Model) {
+func (m *BaseLibSVM) fit(X, Y *mat.Dense, svmTrain func(X *mat.Dense, Y []float64, C, Epsilon float64, KernelFunction func(X1, X2 []float64) float64, Tol float64, MaxPasses int, CacheSize uint) *Model) {
 	NSamples, NFeatures := X.Dims()
 	_, Noutputs := Y.Dims()
 	if m.Gamma <= 0. {
@@ -273,7 +264,7 @@ func (m *BaseLibSVM) fit(X, Y *mat.Dense, svmTrain func(X *mat.Dense, Y []float6
 		y := make([]float64, NSamples)
 		for output := start; output < end; output++ {
 			mat.Col(y, output, Y)
-			m.Model[output] = svmTrain(X, y, m.C, K, m.Tol, m.MaxIter, m.CacheSize)
+			m.Model[output] = svmTrain(X, y, m.C, m.Epsilon, K, m.Tol, m.MaxIter, m.CacheSize)
 			model := m.Model[output]
 			m.Support[output] = model.Support
 			m.SupportVectors[output] = make([][]float64, len(model.Support))

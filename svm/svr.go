@@ -11,7 +11,7 @@ import (
 // SVR struct
 type SVR struct {
 	BaseLibSVM
-	Probability bool
+
 	ClassWeight []float64
 }
 
@@ -21,7 +21,7 @@ type SVR struct {
 // Cachesize is in MB. defaults to 200
 func NewSVR() *SVR {
 	m := &SVR{
-		BaseLibSVM: BaseLibSVM{C: 1., Kernel: "rbf", Degree: 3., Gamma: 0., Coef0: 0., Shrinking: true, Tol: 1e-3, CacheSize: 200},
+		BaseLibSVM: BaseLibSVM{C: 1., Epsilon: 0.1, Kernel: "rbf", Degree: 3., Gamma: 0., Coef0: 0., Shrinking: true, Tol: 1e-3, CacheSize: 200},
 	}
 	return m
 }
@@ -32,7 +32,7 @@ func (m *SVR) Clone() base.Transformer {
 	return &clone
 }
 
-func svrTrain(X *mat.Dense, Y []float64, C float64, KernelFunction func(X1, X2 []float64) float64, Tol float64, MaxPasses int, CacheSize uint) *Model {
+func svrTrain(X *mat.Dense, Y []float64, C, Epsilon float64, KernelFunction func(X1, X2 []float64) float64, Tol float64, MaxPasses int, CacheSize uint) *Model {
 	m, n := X.Dims()
 	alphas := make([]float64, m, m)
 	b := 0.
@@ -48,18 +48,15 @@ func svrTrain(X *mat.Dense, Y []float64, C float64, KernelFunction func(X1, X2 [
 		}
 		return y
 	}
-	abs := func(x float64) float64 {
-		if x >= 0 {
-			return x
-		}
-		return -x
-	}
 	sgn := func(x float64) float64 {
 		if x >= 0 {
 			return 1
 		}
 		return -1
 	}
+	abs := math.Abs
+	max := math.Max
+	min := math.Min
 	step := func(x float64) float64 {
 		if x < 0 {
 			return 0
@@ -71,7 +68,7 @@ func svrTrain(X *mat.Dense, Y []float64, C float64, KernelFunction func(X1, X2 [
 		// Step 1 Find a Lagrange multiplier α 1 {that violates the Karush–Kuhn–Tucker (KKT) conditions for the optimization problem.
 		for i := 0; i < m; i++ {
 			E[i] = f(i) - Y[i]
-			if (E[i] < -Tol && alphas[i] < C) || (E[i] > Tol && alphas[i] > 0) {
+			if (E[i] < -Epsilon && alphas[i] < C) || (E[i] > Epsilon && alphas[i] > 0) {
 				// Step 2 Pick a second multiplier α 2  and optimize the pair ( α 1 , α 2 )
 				// % In practice, there are many heuristics one can use to select
 				// % the i and j. In this simplified code, we select them randomly.
@@ -84,29 +81,27 @@ func svrTrain(X *mat.Dense, Y []float64, C float64, KernelFunction func(X1, X2 [
 				Kii := K(i, i)
 				Kjj := K(j, j)
 				eta = 2*Kij - Kii - Kjj
-				if eta >= 0 {
-					continue
-				}
 				alphaiold, alphajold := alphas[i], alphas[j]
 				s := alphaiold + alphajold
-				delta := -2 * Tol / eta
+				delta := -2 * Epsilon / eta
 				alphas[j] = alphajold - (E[i]-E[j])/eta
 				alphas[i] = s - alphas[j]
 
 				if alphas[i]*alphas[j] < 0 {
-					if abs(alphas[i]) > delta || abs(alphas[j]) > delta {
+					aai, aaj := abs(alphas[i]), abs(alphas[j])
+					if aai > delta || aaj > delta {
 						alphas[j] -= sgn(alphas[j]) * delta
 					} else {
-						alphas[j] = step(abs(alphas[j])-abs(alphas[i])) * s
+						alphas[j] = step(aaj-aai) * s
 					}
 				}
 				//% Compute L and H by (10) or (11).
-				L, H = math.Max(s-C, -C), math.Min(C, C+s)
-				alphas[j] = math.Min(H, math.Max(L, alphas[j]))
+				L, H = max(s-C, -C), min(C, C+s)
+				alphas[j] = min(H, max(L, alphas[j]))
 				alphas[i] = s - alphas[j]
 
 				// % Check if change in alpha is significant
-				if math.Abs(alphas[j]-alphajold) < Tol {
+				if abs(alphas[j]-alphajold) < Tol {
 					alphas[i], alphas[j] = alphaiold, alphajold
 					continue
 				}
@@ -139,17 +134,11 @@ func svrTrain(X *mat.Dense, Y []float64, C float64, KernelFunction func(X1, X2 [
 		KernelFunction: KernelFunction,
 		B:              b,
 		Alphas:         make([]float64, len(idx)),
-		W:              make([]float64, n, n),
 		Support:        idx,
 	}
 	for ii, i := range idx {
 		model.X.SetRow(ii, X.RawRowView(i))
 		model.Alphas[ii] = alphas[i]
-	}
-	for j := 0; j < n; j++ {
-		for _, i := range idx {
-			model.W[j] += alphas[i] * X.At(i, j)
-		}
 	}
 	return model
 }
