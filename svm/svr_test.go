@@ -68,8 +68,9 @@ func ExampleSVR() {
 		svr.Coef0 = opt.coef0
 		svr.Degree = opt.degree
 		svr.RandomState = func() *int64 { seed := int64(5); return &seed }()
+		svr.Tol = math.Sqrt(Epsilon)
 
-		//svr.MaxIter = 5
+		svr.MaxIter = 1000
 		svr.Fit(Xsc, Ysc)
 		svr.Predict(Xsc, Ypred[opt.kernel])
 		Ypred[opt.kernel], _ = yscaler.InverseTransform(Ypred[opt.kernel], nil)

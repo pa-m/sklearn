@@ -73,10 +73,10 @@ func svrTrain(X *mat.Dense, Y []float64, C, Epsilon float64, KernelFunction func
 		numChangedAlphas := 0
 		// Step 1 Find a Lagrange multiplier α 1 {that violates the Karush–Kuhn–Tucker (KKT) conditions for the optimization problem.
 		var KKTviolated bool
-		for i := 0; i < m; i++ {
-			Kii := K(i, i)
+		for sample := 0; sample < m; sample++ {
+			i := sample
 			E[i] = f(i) - Y[i]
-			if (E[i] < -Epsilon && alphas[i] < C) || (E[i] > Epsilon && alphas[i] > -C) {
+			if (E[i] < -Epsilon && alphas[i] < C) || (E[i] > Epsilon && alphas[i] > 0) {
 				KKTviolated = true
 				// Step 2 Pick a second multiplier α 2  and optimize the pair ( α 1 , α 2 )
 				// % In practice, there are many heuristics one can use to select
@@ -85,7 +85,9 @@ func svrTrain(X *mat.Dense, Y []float64, C, Epsilon float64, KernelFunction func
 				if j >= i {
 					j++
 				}
+
 				E[j] = f(j) - Y[j]
+				Kii := K(i, i)
 				Kij := K(i, j)
 				Kjj := K(j, j)
 				eta = 2*Kij - Kii - Kjj
@@ -94,6 +96,13 @@ func svrTrain(X *mat.Dense, Y []float64, C, Epsilon float64, KernelFunction func
 				delta := -2 * Epsilon / eta
 				alphas[j] = alphajold - (E[i]-E[j])/eta
 				alphas[i] = s - alphas[j]
+
+				// if abs(alphas[j]) > abs(alphas[i]) {
+				// 	E[i], E[j] = E[j], E[i]
+				// 	Kij, Kjj = Kjj, Kii
+				// 	alphaiold, alphajold = alphajold, alphaiold
+				// 	alphas[i], alphas[j] = alphas[j], alphas[i]
+				// }
 
 				if alphas[i]*alphas[j] < 0 {
 					aai, aaj := abs(alphas[i]), abs(alphas[j])
