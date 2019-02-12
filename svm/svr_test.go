@@ -3,7 +3,6 @@ package svm
 import (
 	"fmt"
 	"image/color"
-	"log"
 	"math"
 	"math/rand"
 	"os"
@@ -11,7 +10,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/pa-m/sklearn/base"
 	"github.com/pa-m/sklearn/preprocessing"
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/plot"
@@ -51,12 +49,13 @@ func ExampleSVR() {
 	// # Fit regression model
 	Ypred := map[string]*mat.Dense{}
 	for _, opt := range []struct {
-		kernel           string
-		C, gamma, degree float64
+		kernel                  string
+		C, gamma, coef0, degree float64
 	}{
 		{kernel: "rbf", C: 1e3, gamma: .1},
 		{kernel: "linear", C: 1e3},
 		{kernel: "poly", C: 1e3, degree: 2},
+		//{kernel: "sigmoid", gamma: 1, coef0: 1},
 	} {
 		Ypred[opt.kernel] = &mat.Dense{}
 		svr := NewSVR()
@@ -64,11 +63,12 @@ func ExampleSVR() {
 		svr.C = opt.C
 		svr.Epsilon = Epsilon
 		svr.Gamma = opt.gamma
+		svr.Coef0 = opt.coef0
 		svr.Degree = opt.degree
-		svr.MaxIter = 5
+		//svr.MaxIter = 5
 		svr.Fit(X, Y)
 		svr.Predict(X, Ypred[opt.kernel])
-		log.Println(base.MatStr(X, Y, Ypred[opt.kernel]))
+		//log.Println(base.MatStr(X, Y, Ypred[opt.kernel]))
 	}
 
 	if *visualDebug {
@@ -95,24 +95,18 @@ func ExampleSVR() {
 		p.Legend.Add("data", s)
 
 		colors := map[string]color.Color{
-			"rbf":    color.RGBA{0, 0, 0xff, 0xff},       //navy,
-			"linear": color.RGBA{0, 0xff, 0xff, 0xff},    //cyan,
-			"poly":   color.RGBA{0x64, 0x95, 0xed, 0xff}, //cornflower blue
+			"rbf":     color.RGBA{0, 0, 0xff, 0xff},       //navy,
+			"linear":  color.RGBA{0, 0xff, 0xff, 0xff},    //cyan,
+			"poly":    color.RGBA{0x64, 0x95, 0xed, 0xff}, //cornflower blue
+			"sigmoid": color.RGBA{0x64, 0x95, 0xed, 0xff}, //cornflower blue
 		}
 		labels := map[string]string{
-			"rbf":    "RBF model",
-			"linear": "Linear model",
-			"poly":   "Polynomial model",
+			"rbf":     "RBF model",
+			"linear":  "Linear model",
+			"poly":    "Polynomial model",
+			"sigmoid": "Sigmoid model",
 		}
 		for kernel, Yp := range Ypred {
-			// xys := func(X, Yp mat.Matrix) (xy plotter.XYs) {
-			// 	imax, _ := X.Dims()
-			// 	for i := 0; i < imax; i++ {
-			// 		xy = append(xy, struct{ X, Y float64 }{X.At(i, 0), Yp.At(i, 0)})
-
-			// 	}
-			// 	return
-			// }
 			for _, dy := range []float64{-Epsilon, 0, Epsilon} {
 				s, err := plotter.NewLine(xys(X, Yp, dy))
 				if err != nil {

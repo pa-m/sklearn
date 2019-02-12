@@ -9,17 +9,17 @@ import (
 func cachedKernel(X *mat.Dense, CacheSize uint, KernelFunction func(X1, X2 []float64) float64) func(i, j int) float64 {
 	m, _ := X.Dims()
 	type DiagEntry struct {
-		bool
-		float64
+		bool    //presence in cache
+		float64 // cached value
 	}
 	type KcacheEntry struct {
-		i, j int
-		float64
+		uint64  // time last use
+		float64 // cached value
 	}
-	KcacheEntrySize := uint(unsafe.Sizeof(KcacheEntry{}))
-
+	KcacheCap := (CacheSize << 20) / uint(unsafe.Sizeof(KcacheEntry{}))
 	KcacheDiag := make([]DiagEntry, m, m)
-	KcacheNDiag := make([]KcacheEntry, 0, CacheSize<<20/KcacheEntrySize)
+	KcacheNDiag := map[[2]int]*KcacheEntry{}
+	Ktime := uint64(0)
 
 	return func(i, j int) float64 {
 		if i == j {
@@ -33,18 +33,26 @@ func cachedKernel(X *mat.Dense, CacheSize uint, KernelFunction func(X1, X2 []flo
 		if i > j {
 			i, j = j, i
 		}
-		for off, e := range KcacheNDiag {
-			if e.i == i && e.j == j {
-				copy(KcacheNDiag[1:off+1], KcacheNDiag[0:off])
-				KcacheNDiag[0] = e
-				return e.float64
+		if e, ok := KcacheNDiag[[2]int{i, j}]; ok {
+			Ktime++
+			e.uint64 = Ktime
+			return e.float64
+		}
+
+		if uint(len(KcacheNDiag)) == KcacheCap {
+			var oldt = Ktime
+			var old [2]int
+			for ij, e := range KcacheNDiag {
+				if e.uint64 < oldt {
+					oldt = e.uint64
+					old = ij
+				}
 			}
+			delete(KcacheNDiag, old)
 		}
-		if uint(len(KcacheNDiag))*KcacheEntrySize >= CacheSize {
-			KcacheNDiag = KcacheNDiag[0 : CacheSize/KcacheEntrySize]
-		}
-		e := KcacheEntry{i, j, KernelFunction(X.RawRowView(i), X.RawRowView(j))}
-		KcacheNDiag = append([]KcacheEntry{e}, KcacheNDiag...)
+		Ktime++
+		e := &KcacheEntry{Ktime, KernelFunction(X.RawRowView(i), X.RawRowView(j))}
+		KcacheNDiag[[2]int{i, j}] = e
 		return e.float64
 	}
 
