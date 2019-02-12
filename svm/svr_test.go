@@ -43,8 +43,11 @@ func ExampleSVR() {
 		}
 	}
 	// rescale in -1,1
-	X, _ = preprocessing.NewMinMaxScaler([]float64{-1, 1}).FitTransform(X, nil)
-	Epsilon := 0.05
+	xscaler := preprocessing.NewMinMaxScaler([]float64{-1, 1})
+	yscaler := preprocessing.NewMinMaxScaler([]float64{-1, 1})
+	Xsc, _ := xscaler.FitTransform(X, nil)
+	Ysc, _ := yscaler.FitTransform(Y, nil)
+	Epsilon := 0.1 * yscaler.Scale.At(0, 0)
 
 	// # Fit regression model
 	Ypred := map[string]*mat.Dense{}
@@ -55,7 +58,6 @@ func ExampleSVR() {
 		{kernel: "rbf", C: 1e3, gamma: .1},
 		{kernel: "linear", C: 1e3},
 		{kernel: "poly", C: 1e3, degree: 2},
-		//{kernel: "sigmoid", gamma: 1, coef0: 1},
 	} {
 		Ypred[opt.kernel] = &mat.Dense{}
 		svr := NewSVR()
@@ -65,13 +67,17 @@ func ExampleSVR() {
 		svr.Gamma = opt.gamma
 		svr.Coef0 = opt.coef0
 		svr.Degree = opt.degree
+		svr.RandomState = func() *int64 { seed := int64(5); return &seed }()
+
 		//svr.MaxIter = 5
-		svr.Fit(X, Y)
-		svr.Predict(X, Ypred[opt.kernel])
+		svr.Fit(Xsc, Ysc)
+		svr.Predict(Xsc, Ypred[opt.kernel])
+		Ypred[opt.kernel], _ = yscaler.InverseTransform(Ypred[opt.kernel], nil)
 		//log.Println(base.MatStr(X, Y, Ypred[opt.kernel]))
 	}
 
 	if *visualDebug {
+
 		// Look at the results
 		pngfile := fmt.Sprintf("/tmp/ExampleSVR.png")
 		os.Remove(pngfile)
@@ -84,7 +90,6 @@ func ExampleSVR() {
 			imax, _ := Y.Dims()
 			for i := 0; i < imax; i++ {
 				xy = append(xy, struct{ X, Y float64 }{X.At(i, 0), Y.At(i, 0) + dy})
-
 			}
 			return
 		}
@@ -95,16 +100,14 @@ func ExampleSVR() {
 		p.Legend.Add("data", s)
 
 		colors := map[string]color.Color{
-			"rbf":     color.RGBA{0, 0, 0xff, 0xff},       //navy,
-			"linear":  color.RGBA{0, 0xff, 0xff, 0xff},    //cyan,
-			"poly":    color.RGBA{0x64, 0x95, 0xed, 0xff}, //cornflower blue
-			"sigmoid": color.RGBA{0x64, 0x95, 0xed, 0xff}, //cornflower blue
+			"rbf":    color.RGBA{0, 0, 0xff, 0xff},       //navy,
+			"linear": color.RGBA{0, 0xff, 0xff, 0xff},    //cyan,
+			"poly":   color.RGBA{0x64, 0x95, 0xed, 0xff}, //cornflower blue
 		}
 		labels := map[string]string{
-			"rbf":     "RBF model",
-			"linear":  "Linear model",
-			"poly":    "Polynomial model",
-			"sigmoid": "Sigmoid model",
+			"rbf":    "RBF model",
+			"linear": "Linear model",
+			"poly":   "Polynomial model",
 		}
 		for kernel, Yp := range Ypred {
 			for _, dy := range []float64{-Epsilon, 0, Epsilon} {

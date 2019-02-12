@@ -32,7 +32,7 @@ func (m *SVR) Clone() base.Transformer {
 	return &clone
 }
 
-func svrTrain(X *mat.Dense, Y []float64, C, Epsilon float64, KernelFunction func(X1, X2 []float64) float64, Tol float64, MaxPasses int, CacheSize uint) *Model {
+func svrTrain(X *mat.Dense, Y []float64, C, Epsilon float64, KernelFunction func(X1, X2 []float64) float64, Tol float64, MaxPasses int, CacheSize uint, RandomState *int64) *Model {
 	m, n := X.Dims()
 	alphas := make([]float64, m, m)
 	b := 0.
@@ -63,24 +63,30 @@ func svrTrain(X *mat.Dense, Y []float64, C, Epsilon float64, KernelFunction func
 		}
 		return 1
 	}
+	randIntn := rand.Intn
+	if RandomState != nil {
+		r := rand.New(rand.NewSource(*RandomState))
+		randIntn = r.Intn
+	}
+
 	for passes < MaxPasses {
 		numChangedAlphas := 0
 		// Step 1 Find a Lagrange multiplier α 1 {that violates the Karush–Kuhn–Tucker (KKT) conditions for the optimization problem.
 		var KKTviolated bool
 		for i := 0; i < m; i++ {
+			Kii := K(i, i)
 			E[i] = f(i) - Y[i]
-			if (E[i] < -Epsilon && alphas[i] < C) || (E[i] > Epsilon && alphas[i] > 0) {
+			if (E[i] < -Epsilon && alphas[i] < C) || (E[i] > Epsilon && alphas[i] > -C) {
 				KKTviolated = true
 				// Step 2 Pick a second multiplier α 2  and optimize the pair ( α 1 , α 2 )
 				// % In practice, there are many heuristics one can use to select
 				// % the i and j. In this simplified code, we select them randomly.
-				j := rand.Intn(m - 1)
+				j := randIntn(m - 1)
 				if j >= i {
 					j++
 				}
 				E[j] = f(j) - Y[j]
 				Kij := K(i, j)
-				Kii := K(i, i)
 				Kjj := K(j, j)
 				eta = 2*Kij - Kii - Kjj
 				alphaiold, alphajold := alphas[i], alphas[j]
@@ -112,6 +118,7 @@ func svrTrain(X *mat.Dense, Y []float64, C, Epsilon float64, KernelFunction func
 				db := -(Einew + Ejnew) / 2
 				// Einew, Ejnew = Einew+db, Ejnew+db
 				// Edecrease := abs(E[i]) + abs(E[j]) - abs(Einew) - abs(Ejnew)
+				// log.Printf("%d,%d\tEdecrease = %.3f\n", i, j, Edecrease)
 				b += db
 
 				numChangedAlphas++

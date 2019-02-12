@@ -45,7 +45,7 @@ type Model struct {
 // %
 // %           LIBSVM   (http://www.csie.ntu.edu.tw/~cjlin/libsvm/)
 // %           SVMLight (http://svmlight.joachims.org/)
-func svmTrain(X *mat.Dense, Y []float64, C, Epsilon float64, KernelFunction func(X1, X2 []float64) float64, Tol float64, MaxPasses int, CacheSize uint) *Model {
+func svmTrain(X *mat.Dense, Y []float64, C, Epsilon float64, KernelFunction func(X1, X2 []float64) float64, Tol float64, MaxPasses int, CacheSize uint, RandomState *int64) *Model {
 	m, n := X.Dims()
 	alphas := make([]float64, m, m)
 	b := 0.
@@ -61,18 +61,24 @@ func svmTrain(X *mat.Dense, Y []float64, C, Epsilon float64, KernelFunction func
 		}
 		return y
 	}
+	randIntn := rand.Intn
+	if RandomState != nil {
+		r := rand.New(rand.NewSource(*RandomState))
+		randIntn = r.Intn
+	}
 	for passes < MaxPasses {
 		numChangedAlphas := 0
 		// Step 1 Find a Lagrange multiplier α 1 {that violates the Karush–Kuhn–Tucker (KKT) conditions for the optimization problem.
 		var KKTviolated bool
 		for i := 0; i < m; i++ {
+			Kii := K(i, i)
 			E[i] = f(i) - Y[i]
 			if (Y[i]*E[i] < -Epsilon && alphas[i] < C) || (Y[i]*E[i] > Epsilon && alphas[i] > 0) {
 				KKTviolated = true
 				// Step 2 Pick a second multiplier α 2  and optimize the pair ( α 1 , α 2 )
 				// % In practice, there are many heuristics one can use to select
 				// % the i and j. In this simplified code, we select them randomly.
-				j := rand.Intn(m - 1)
+				j := randIntn(m - 1)
 				if j >= i {
 					j++
 				}
@@ -89,7 +95,6 @@ func svmTrain(X *mat.Dense, Y []float64, C, Epsilon float64, KernelFunction func
 					continue
 				}
 				Kij := K(i, j)
-				Kii := K(i, i)
 				Kjj := K(j, j)
 				eta = 2*Kij - Kii - Kjj
 				if eta >= 0 {
@@ -189,14 +194,16 @@ func svmPredict(model *Model, X, Y *mat.Dense, output int, binary bool) {
 
 // BaseLibSVM is a base for SVC and SVR
 type BaseLibSVM struct {
-	C, Epsilon     float64
-	Kernel         interface{} // string or func(a, b []float64) float64
-	Degree         float64
-	Gamma          float64
-	Coef0          float64
-	Tol            float64
-	Shrinking      bool
-	CacheSize      uint
+	C, Epsilon  float64
+	Kernel      interface{} // string or func(a, b []float64) float64
+	Degree      float64
+	Gamma       float64
+	Coef0       float64
+	Tol         float64
+	Shrinking   bool
+	CacheSize   uint
+	RandomState *int64
+
 	MaxIter        int
 	Model          []*Model
 	Support        [][]int
@@ -233,7 +240,7 @@ func (m *SVC) Fit(X, Y *mat.Dense) base.Transformer {
 	return m
 }
 
-func (m *BaseLibSVM) fit(X, Y *mat.Dense, svmTrain func(X *mat.Dense, Y []float64, C, Epsilon float64, KernelFunction func(X1, X2 []float64) float64, Tol float64, MaxPasses int, CacheSize uint) *Model) {
+func (m *BaseLibSVM) fit(X, Y *mat.Dense, svmTrain func(X *mat.Dense, Y []float64, C, Epsilon float64, KernelFunction func(X1, X2 []float64) float64, Tol float64, MaxPasses int, CacheSize uint, RandomState *int64) *Model) {
 	NSamples, NFeatures := X.Dims()
 	_, Noutputs := Y.Dims()
 	if m.Gamma <= 0. {
@@ -269,7 +276,7 @@ func (m *BaseLibSVM) fit(X, Y *mat.Dense, svmTrain func(X *mat.Dense, Y []float6
 		y := make([]float64, NSamples)
 		for output := start; output < end; output++ {
 			mat.Col(y, output, Y)
-			m.Model[output] = svmTrain(X, y, m.C, m.Epsilon, K, m.Tol, m.MaxIter, m.CacheSize)
+			m.Model[output] = svmTrain(X, y, m.C, m.Epsilon, K, m.Tol, m.MaxIter, m.CacheSize, m.RandomState)
 			model := m.Model[output]
 			m.Support[output] = model.Support
 			m.SupportVectors[output] = make([][]float64, len(model.Support))
