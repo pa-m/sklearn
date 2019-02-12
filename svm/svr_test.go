@@ -57,7 +57,7 @@ func ExampleSVR() {
 	}{
 		{kernel: "rbf", C: 1e3, gamma: .1},
 		{kernel: "linear", C: 1e3},
-		{kernel: "poly", C: 1e3, degree: 2},
+		{kernel: "poly", gamma: 1, coef0: 1, C: 1e3, degree: 2},
 	} {
 		Ypred[opt.kernel] = &mat.Dense{}
 		svr := NewSVR()
@@ -70,7 +70,7 @@ func ExampleSVR() {
 		svr.RandomState = func() *int64 { seed := int64(5); return &seed }()
 		svr.Tol = math.Sqrt(Epsilon)
 
-		svr.MaxIter = 1000
+		svr.MaxIter = 5
 		svr.Fit(Xsc, Ysc)
 		svr.Predict(Xsc, Ypred[opt.kernel])
 		Ypred[opt.kernel], _ = yscaler.InverseTransform(Ypred[opt.kernel], nil)

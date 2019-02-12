@@ -76,7 +76,7 @@ func svrTrain(X *mat.Dense, Y []float64, C, Epsilon float64, KernelFunction func
 		for sample := 0; sample < m; sample++ {
 			i := sample
 			E[i] = f(i) - Y[i]
-			if (E[i] < -Epsilon && alphas[i] < C) || (E[i] > Epsilon && alphas[i] > 0) {
+			if (E[i] < -Epsilon && alphas[i] < C) || (E[i] > Epsilon && alphas[i] > -C) {
 				KKTviolated = true
 				// Step 2 Pick a second multiplier α 2  and optimize the pair ( α 1 , α 2 )
 				// % In practice, there are many heuristics one can use to select
@@ -85,8 +85,18 @@ func svrTrain(X *mat.Dense, Y []float64, C, Epsilon float64, KernelFunction func
 				if j >= i {
 					j++
 				}
-
-				E[j] = f(j) - Y[j]
+				for j2 := 0; j2 < m; j2++ {
+					j3 := (j + j2) % m
+					if j3 == i {
+						continue
+					}
+					E[j3] = f(j3) - Y[j3]
+					if (E[j3] < -Epsilon) || (E[j] > Epsilon) {
+						j = j3
+						break
+					}
+				}
+				//E[j] = f(j) - Y[j]
 				Kii := K(i, i)
 				Kij := K(i, j)
 				Kjj := K(j, j)
@@ -116,17 +126,17 @@ func svrTrain(X *mat.Dense, Y []float64, C, Epsilon float64, KernelFunction func
 				L, H = max(s-C, -C), min(C, C+s)
 				alphas[j] = min(H, max(L, alphas[j]))
 				alphas[i] = s - alphas[j]
-
-				// % Check if change in alpha is significant
-				if abs(alphas[j]-alphajold) < Tol {
-					alphas[i], alphas[j] = alphaiold, alphajold
-					continue
-				}
 				Einew := E[i] + (alphas[i]-alphaiold)*Kii + (alphas[j]-alphajold)*Kij
 				Ejnew := E[j] + (alphas[i]-alphaiold)*Kij + (alphas[j]-alphajold)*Kjj
 				db := -(Einew + Ejnew) / 2
-				// Einew, Ejnew = Einew+db, Ejnew+db
-				// Edecrease := abs(E[i]) + abs(E[j]) - abs(Einew) - abs(Ejnew)
+				Einew, Ejnew = Einew+db, Ejnew+db
+				Edecrease := abs(E[i])+abs(E[j]) > abs(Einew)+abs(Ejnew)
+
+				// % Check if change in alpha is significant
+				if abs(alphas[j]-alphajold) < Tol || !Edecrease {
+					alphas[i], alphas[j] = alphaiold, alphajold
+					continue
+				}
 				// log.Printf("%d,%d\tEdecrease = %.3f\n", i, j, Edecrease)
 				b += db
 
