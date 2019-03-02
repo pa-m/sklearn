@@ -7,16 +7,21 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
-type lossBaseStruct struct{}
-
 // LossFunctions is the interface for matLoss (matSquareLoss,...)
 type LossFunctions interface {
 	Loss(Ytrue, Ypred, Grad *mat.Dense, nSamples int) float64
 }
 
-type squareLoss struct{ lossBaseStruct }
+var (
+	_ LossFunctions = SquareLoss{}
+	_ LossFunctions = LogLoss{}
+	_ LossFunctions = CrossEntropyLoss{}
+)
 
-func (squareLoss) Loss(Ytrue, Ypred, Grad *mat.Dense, nSamples int) float64 {
+// SquareLoss ...
+type SquareLoss struct{ LossFunctions }
+
+func (SquareLoss) Loss(Ytrue, Ypred, Grad *mat.Dense, nSamples int) float64 {
 	// J:=(h-y)^2/2
 	// Ydiff := matSub{A: Ypred, B: Ytrue}
 	// J := metrics.MeanSquaredError(Ytrue, Ypred, nil, "").At(0, 0)
@@ -29,9 +34,9 @@ func (squareLoss) Loss(Ytrue, Ypred, Grad *mat.Dense, nSamples int) float64 {
 	return J
 }
 
-type logLoss struct{ lossBaseStruct }
+type LogLoss struct{}
 
-func (logLoss) Loss(Ytrue, Ypred, Grad *mat.Dense, nSamples int) float64 {
+func (LogLoss) Loss(Ytrue, Ypred, Grad *mat.Dense, nSamples int) float64 {
 	// J:=-y log(h)
 	//J := -mat.Sum(matMulElem{A: Ytrue, B: base.MatApply1{Matrix: Ypred, Func: math.Log}}) / float64(nSamples)
 	J := matx{}.SumApplied2(Ytrue, Ypred, func(y, h float64) float64 { return -y * math.Log(h) }) / float64(nSamples)
@@ -44,9 +49,9 @@ func (logLoss) Loss(Ytrue, Ypred, Grad *mat.Dense, nSamples int) float64 {
 	return J
 }
 
-type crossEntropyLoss struct{ lossBaseStruct }
+type CrossEntropyLoss struct{ LossFunctions }
 
-func (crossEntropyLoss) Loss(Ytrue, Ypred, Grad *mat.Dense, nSamples int) float64 {
+func (CrossEntropyLoss) Loss(Ytrue, Ypred, Grad *mat.Dense, nSamples int) float64 {
 	// J:=-y log(h)-(1-y) log(1-h)
 	Jfun := func(y, h float64) float64 {
 		eps := 1e-30
@@ -78,9 +83,9 @@ func (crossEntropyLoss) Loss(Ytrue, Ypred, Grad *mat.Dense, nSamples int) float6
 
 // SupportedLoss are the map[string]Losser of available matrix loss function providers
 var SupportedLoss = map[string]LossFunctions{
-	"square":        squareLoss{},
-	"log":           logLoss{},
-	"cross-entropy": crossEntropyLoss{},
+	"square":        SquareLoss{},
+	"log":           LogLoss{},
+	"cross-entropy": CrossEntropyLoss{},
 }
 
 // NewLoss creates a LossFunctions by its name

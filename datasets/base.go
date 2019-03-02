@@ -1,6 +1,7 @@
 package datasets
 
 import (
+	"bufio"
 	"encoding/csv"
 	"encoding/json"
 	"io/ioutil"
@@ -126,4 +127,26 @@ func check(err error) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+// LoadInternationalAirlinesPassengers ...
+func LoadInternationalAirlinesPassengers() (Y *mat.Dense) {
+	f, err := os.Open(realPath(os.Getenv("GOPATH") + "/src/github.com/pa-m/sklearn/datasets/data/international-airline-passengers.csv"))
+	check(err)
+	defer f.Close()
+	fb := bufio.NewReader(f)
+	fb.ReadLine()
+	r := csv.NewReader(fb)
+	r.Comma = ','
+
+	cells, err := r.ReadAll()
+	check(err)
+	nSamples, nOutputs := len(cells), 1
+	Y = mat.NewDense(nSamples, nOutputs, nil)
+	Y.Apply(func(i, o int, _ float64) float64 {
+		y, err := strconv.ParseFloat(cells[i][1], 64)
+		check(err)
+		return y
+	}, Y)
+	return
 }

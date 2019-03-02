@@ -125,3 +125,10 @@ func ExampleLoadMnistWeights() {
 	// Theta1 25,401 Theta2 10,26
 	// 9.242644 -100.083444
 }
+
+func ExampleLoadInternationalAirlinesPassengers() {
+	Y := LoadInternationalAirlinesPassengers()
+	fmt.Println(Y.Dims())
+	// Output:
+	// 144 1
+}

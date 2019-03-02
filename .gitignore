@@ -6,3 +6,4 @@ coverage.txt
 *.test
 _*.sh
 FIXME*
+exp/
