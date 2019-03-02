@@ -2,7 +2,7 @@ package linearmodel
 
 import (
 	"fmt"
-	"math/rand"
+	"golang.org/x/exp/rand"
 	"testing"
 
 	"gonum.org/v1/gonum/mat"

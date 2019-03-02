@@ -2,7 +2,7 @@ package interpolate
 
 import (
 	"fmt"
-	"math/rand"
+	"golang.org/x/exp/rand"
 	"sort"
 	"testing"
 )

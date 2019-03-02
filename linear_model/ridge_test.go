@@ -2,8 +2,8 @@ package linearmodel
 
 import (
 	"fmt"
+	"golang.org/x/exp/rand"
 	"math"
-	"math/rand"
 	"testing"
 	"time"
 

@@ -1,8 +1,8 @@
 package preprocessing
 
 import (
+	"golang.org/x/exp/rand"
 	"math"
-	"math/rand"
 	"sort"
 
 	"github.com/pa-m/sklearn/base"

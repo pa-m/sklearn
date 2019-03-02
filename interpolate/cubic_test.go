@@ -1,7 +1,7 @@
 package interpolate
 
 import (
-	"math/rand"
+	"golang.org/x/exp/rand"
 	"os"
 	"os/exec"
 

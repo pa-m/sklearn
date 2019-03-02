@@ -3,9 +3,9 @@ package base
 import (
 	"bytes"
 	"fmt"
+	"golang.org/x/exp/rand"
 	"io"
 	"math"
-	"math/rand"
 
 	"gonum.org/v1/gonum/blas/blas64"
 	"gonum.org/v1/gonum/mat"

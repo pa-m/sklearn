@@ -1,8 +1,8 @@
 package neuralnetwork
 
 import (
+	"golang.org/x/exp/rand"
 	"math"
-	"math/rand"
 	"testing"
 
 	"gonum.org/v1/gonum/diff/fd"

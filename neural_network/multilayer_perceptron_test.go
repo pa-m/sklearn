@@ -3,9 +3,10 @@ package neuralnetwork
 import (
 	"fmt"
 	"math"
-	"math/rand"
 	"testing"
 	"time"
+
+	"golang.org/x/exp/rand"
 
 	"github.com/pa-m/sklearn/base"
 	"github.com/pa-m/sklearn/datasets"
@@ -273,7 +274,7 @@ func TestMnist(t *testing.T) {
 	}
 }
 
-func BenchmarkMnist(b *testing.B) {
+func Benchmark_Fit_Mnist(b *testing.B) {
 
 	X, Y := datasets.LoadMnist()
 
@@ -286,12 +287,11 @@ func BenchmarkMnist(b *testing.B) {
 	mlp.allocLayers(400, 10, func() float64 { return 0. })
 	mlp.Layers[0].Theta.Copy(Theta1.T())
 	mlp.Layers[1].Theta.Copy(Theta2.T())
-	mlp.fitEpoch(X, Ybin, 0)
 	b.ResetTimer()
-	for epoch := 1; epoch < b.N*1; epoch++ {
-		mlp.fitEpoch(X, Ybin, epoch)
-	}
-
+	fmt.Println("Benchmark_Fit_Mnist b.N", b.N)
+	mlp.Epochs = b.N
+	mlp.Fit(X, Ybin)
+	fmt.Println("Benchmark_Fit_Mnist J", mlp.J)
 }
 
 //go test ./neural_network -run BenchmarkMnist -bench ^BenchmarkMnist -cpuprofile /tmp/cpu.prof -memprofile /tmp/mem.prof -benchmem

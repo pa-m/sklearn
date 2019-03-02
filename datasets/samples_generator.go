@@ -1,8 +1,8 @@
 package datasets
 
 import (
+	"golang.org/x/exp/rand"
 	"math"
-	"math/rand"
 	"runtime"
 	"sort"
 

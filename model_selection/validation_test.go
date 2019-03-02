@@ -14,7 +14,7 @@ import (
 )
 
 func ExampleCrossValidate() {
-	randomState := int64(5)
+	randomState := uint64(5)
 
 	ds := datasets.LoadBoston()
 	X, Y := ds.X, ds.Y

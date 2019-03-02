@@ -3,7 +3,8 @@ package svm
 import (
 	"fmt"
 	"math"
-	"math/rand"
+
+	"golang.org/x/exp/rand"
 
 	"github.com/pa-m/sklearn/base"
 	"gonum.org/v1/gonum/mat"
@@ -45,7 +46,7 @@ type Model struct {
 // %
 // %           LIBSVM   (http://www.csie.ntu.edu.tw/~cjlin/libsvm/)
 // %           SVMLight (http://svmlight.joachims.org/)
-func svmTrain(X *mat.Dense, Y []float64, C, Epsilon float64, KernelFunction func(X1, X2 []float64) float64, Tol float64, MaxPasses int, CacheSize uint, RandomState *int64) *Model {
+func svmTrain(X *mat.Dense, Y []float64, C, Epsilon float64, KernelFunction func(X1, X2 []float64) float64, Tol float64, MaxPasses int, CacheSize uint, RandomState *uint64) *Model {
 	m, n := X.Dims()
 	alphas := make([]float64, m, m)
 	b := 0.
@@ -202,7 +203,7 @@ type BaseLibSVM struct {
 	Tol         float64
 	Shrinking   bool
 	CacheSize   uint
-	RandomState *int64
+	RandomState *uint64
 
 	MaxIter        int
 	Model          []*Model
@@ -240,7 +241,7 @@ func (m *SVC) Fit(X, Y *mat.Dense) base.Transformer {
 	return m
 }
 
-func (m *BaseLibSVM) fit(X, Y *mat.Dense, svmTrain func(X *mat.Dense, Y []float64, C, Epsilon float64, KernelFunction func(X1, X2 []float64) float64, Tol float64, MaxPasses int, CacheSize uint, RandomState *int64) *Model) {
+func (m *BaseLibSVM) fit(X, Y *mat.Dense, svmTrain func(X *mat.Dense, Y []float64, C, Epsilon float64, KernelFunction func(X1, X2 []float64) float64, Tol float64, MaxPasses int, CacheSize uint, RandomState *uint64) *Model) {
 	NSamples, NFeatures := X.Dims()
 	_, Noutputs := Y.Dims()
 	if m.Gamma <= 0. {

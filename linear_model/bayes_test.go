@@ -3,8 +3,8 @@ package linearmodel
 import (
 	"fmt"
 	"github.com/pa-m/sklearn/metrics"
+	"golang.org/x/exp/rand"
 	"gonum.org/v1/gonum/mat"
-	"math/rand"
 	"testing"
 	"time"
 )

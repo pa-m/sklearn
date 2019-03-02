@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"image/color"
 	"math"
-	"math/rand"
 	"os"
 	"os/exec"
 	"sort"
 	"time"
+
+	"golang.org/x/exp/rand"
 
 	"github.com/pa-m/sklearn/preprocessing"
 	"gonum.org/v1/gonum/mat"
@@ -67,7 +68,7 @@ func ExampleSVR() {
 		svr.Gamma = opt.gamma
 		svr.Coef0 = opt.coef0
 		svr.Degree = opt.degree
-		svr.RandomState = func() *int64 { seed := int64(5); return &seed }()
+		svr.RandomState = func() *uint64 { seed := uint64(5); return &seed }()
 		svr.Tol = math.Sqrt(Epsilon)
 
 		svr.MaxIter = 5

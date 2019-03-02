@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"math/rand"
+
+	"golang.org/x/exp/rand"
 
 	"github.com/pa-m/sklearn/metrics"
 
@@ -90,15 +91,15 @@ var Regressors = []base.Regressor{&MLPRegressor{}}
 // MLPRegressor is a multilayer perceptron regressor
 // Activation is a string (identity,logistic,tanh,relu,paramrelu,elu) or implements ActivationFunctions
 type MLPRegressor struct {
-	Shuffle, UseBlas        bool
-	Optimizer               base.OptimCreator
-	Activation              interface{}
-	Solver                  string
-	HiddenLayerSizes        []int
-	RandomState             *int64
-	WeightDecay             float64
-	EarlyStopping           bool
-	MaxEpochWithoutProgress int
+	Shuffle          bool
+	Optimizer        base.OptimCreator
+	Activation       interface{}
+	Solver           string
+	HiddenLayerSizes []int
+	RandomState      *uint64
+	WeightDecay      float64
+	EarlyStopping    bool
+	NIterNoChange    int
 
 	Layers                           []*Layer
 	Alpha, L1Ratio, GradientClipping float64
@@ -116,7 +117,7 @@ type OptimCreator = base.OptimCreator
 
 // NewMLPRegressor returns a *MLPRegressor with defaults
 // activation is one of identity,logistic,tanh,relu, a string or implements ActivationFunctions
-// solver is on of agd,adagrad,rmsprop,adadelta,adam (one of the keys of base.Solvers) defaults to "adam"
+// solver is on of sgd,adagrad,rmsprop,adadelta,adam (one of the keys of base.Solvers) defaults to "adam"
 // Alpha is the regularization parameter
 // Loss is one of square,log,cross-entropy defaults: square for identity, log for logistic,tanh,relu
 func NewMLPRegressor(hiddenLayerSizes []int, activation interface{}, solver string, Alpha float64) *MLPRegressor {
@@ -128,7 +129,6 @@ func NewMLPRegressor(hiddenLayerSizes []int, activation interface{}, solver stri
 	}
 	regr := &MLPRegressor{
 		Shuffle:          true,
-		UseBlas:          true,
 		Solver:           solver,
 		Optimizer:        nil,
 		HiddenLayerSizes: hiddenLayerSizes,
@@ -233,14 +233,14 @@ func (regr *MLPRegressor) Fit(X, Y *mat.Dense) base.Transformer {
 	default:
 		prevLoss := math.Inf(1)
 		NNoProgress := 0
-		if regr.MaxEpochWithoutProgress <= 0 {
-			regr.MaxEpochWithoutProgress = 10
+		if regr.NIterNoChange <= 0 {
+			regr.NIterNoChange = 10
 		}
 		for epoch := 0; epoch < regr.Epochs; epoch++ {
 			loss := regr.fitEpoch(X, Y, epoch)
 			if loss >= prevLoss {
 				NNoProgress++
-				if NNoProgress == regr.MaxEpochWithoutProgress {
+				if NNoProgress == regr.NIterNoChange {
 					log.Printf("MLP Fit: %d epoch without progress", NNoProgress)
 					if regr.EarlyStopping {
 						break
@@ -370,16 +370,16 @@ func (regr *MLPRegressor) backprop(X, Y mat.Matrix, epoch, miniBatchStart, miniB
 			//delta2 = (delta3 * Theta2) .* [1 a2(t,:)] .* (1-[1 a2(t,:)])
 			nextLayer := regr.Layers[l+1]
 
-			if regr.UseBlas {
-				NextThetaG := nextLayer.Theta.RawMatrix()
-				NextThetaG1 := base.MatDenseSlice(nextLayer.Theta, 1, NextThetaG.Rows, 0, NextThetaG.Cols)
-				//  C = alpha * A * B + beta * C
-				blas64.Gemm(blas.NoTrans, blas.Trans, 1., nextLayer.Ydiff.RawMatrix(), NextThetaG1.RawMatrix(), 0., L.Ydiff.RawMatrix())
+			//			if useBlas {
+			NextThetaG := nextLayer.Theta.RawMatrix()
+			NextThetaG1 := base.MatDenseSlice(nextLayer.Theta, 1, NextThetaG.Rows, 0, NextThetaG.Cols)
+			//  C = alpha * A * B + beta * C
+			blas64.Gemm(blas.NoTrans, blas.Trans, 1., nextLayer.Ydiff.RawMatrix(), NextThetaG1.RawMatrix(), 0., L.Ydiff.RawMatrix())
 
-			} else {
-				L.Ydiff.Mul(nextLayer.Ydiff, base.MatFirstColumnRemoved{Matrix: nextLayer.Theta.T()})
+			// } else {
+			// 	L.Ydiff.Mul(nextLayer.Ydiff, base.MatFirstColumnRemoved{Matrix: nextLayer.Theta.T()})
 
-			}
+			// }
 
 			//L.Ydiff.Apply(func(_, _ int, v float64) float64 { return panicIfNaN(v) }, L.Ydiff)
 			L.Ydiff.MulElem(L.Ydiff, L.Hgrad)
@@ -408,12 +408,12 @@ func (regr *MLPRegressor) backprop(X, Y mat.Matrix, epoch, miniBatchStart, miniB
 		L.Ydiff.MulElem(L.Ydiff, L.Hgrad)
 
 		// put [1 X].T * (dJ/dh.*dh/dz) in L.Grad
-		if regr.UseBlas {
-			blas64.Gemm(blas.Trans, blas.NoTrans, 1., L.X1.RawMatrix(), L.Ydiff.RawMatrix(), 0., L.Grad.RawMatrix())
+		//		if useBlas {
+		blas64.Gemm(blas.Trans, blas.NoTrans, 1., L.X1.RawMatrix(), L.Ydiff.RawMatrix(), 0., L.Grad.RawMatrix())
 
-		} else {
-			L.Grad.Mul(L.X1.T(), L.Ydiff)
-		}
+		// } else {
+		// 	L.Grad.Mul(L.X1.T(), L.Ydiff)
+		// }
 
 		Alpha := regr.Alpha
 		// Add regularization to cost and grad
@@ -509,11 +509,11 @@ func (regr *MLPRegressor) forward(X, Y *mat.Dense) base.Regressor {
 		}
 
 		// compute activation.F([1 X] dot theta)
-		if regr.UseBlas {
-			blas64.Gemm(blas.NoTrans, blas.NoTrans, 1., L.X1.RawMatrix(), L.Theta.RawMatrix(), 0., L.Z.RawMatrix())
-		} else {
-			L.Z.Mul(L.X1, L.Theta)
-		}
+		//		if useBlas {
+		blas64.Gemm(blas.NoTrans, blas.NoTrans, 1., L.X1.RawMatrix(), L.Theta.RawMatrix(), 0., L.Z.RawMatrix())
+		// } else {
+		// 	L.Z.Mul(L.X1, L.Theta)
+		// }
 
 		L.activation.Func(L.Z, L.Ypred)
 	}

@@ -2,9 +2,9 @@ package linearmodel
 
 import (
 	"fmt"
+	"golang.org/x/exp/rand"
 	"image/color"
 	"math"
-	"math/rand"
 	"os"
 	"os/exec"
 	"time"

@@ -8,14 +8,6 @@ import (
 	"gonum.org/v1/gonum/stat"
 )
 
-//	"fmt"
-// nn "../neural_network"
-
-// LogLoss ...
-// func LogLoss(Ytrue, Ypred mat.Matrix) float64 {
-// 	return nn.LogLoss{}.Func(Ytrue, Ypred)
-// }
-
 // AccuracyScore reports (weighted) true values/nSamples
 func AccuracyScore(Ytrue, Ypred mat.Matrix, normalize bool, sampleWeight *mat.Dense) float64 {
 	nSamples, nOutputs := Ytrue.Dims()
@@ -46,28 +38,6 @@ func AccuracyScore(Ytrue, Ypred mat.Matrix, normalize bool, sampleWeight *mat.De
 	return N
 
 }
-
-/*func countTPFPTNFN(Ytrue, Ypred mat.Matrix, pivot float64) (TP, FP, TN, FN float64) {
-	nSamples, nOutputs := Ytrue.Dims()
-	for i := 0; i < nSamples; i++ {
-		for o := 0; o < nOutputs; o++ {
-			if Ypred.At(i, o) >= pivot {
-				if Ytrue.At(i, o) >= pivot {
-					TP += 1.
-				} else {
-					FP += 1.
-				}
-			} else {
-				if Ytrue.At(i, o) >= pivot {
-					FN += 1.
-				} else {
-					TN += 1.
-				}
-			}
-		}
-	}
-	return
-}*/
 
 // PrecisionScore v https://en.wikipedia.org/wiki/F1_score
 // average must be macro|micro|weighted.. //TODO binary,samples

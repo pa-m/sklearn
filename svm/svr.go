@@ -2,7 +2,8 @@ package svm
 
 import (
 	"math"
-	"math/rand"
+
+	"golang.org/x/exp/rand"
 
 	"github.com/pa-m/sklearn/base"
 	"gonum.org/v1/gonum/mat"
@@ -32,7 +33,7 @@ func (m *SVR) Clone() base.Transformer {
 	return &clone
 }
 
-func svrTrain(X *mat.Dense, Y []float64, C, Epsilon float64, KernelFunction func(X1, X2 []float64) float64, Tol float64, MaxPasses int, CacheSize uint, RandomState *int64) *Model {
+func svrTrain(X *mat.Dense, Y []float64, C, Epsilon float64, KernelFunction func(X1, X2 []float64) float64, Tol float64, MaxPasses int, CacheSize uint, RandomState *uint64) *Model {
 	m, n := X.Dims()
 	alphas := make([]float64, m, m)
 	b := 0.

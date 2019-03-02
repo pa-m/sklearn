@@ -4,11 +4,11 @@ package base
 
 // import (
 // 	"fmt"
-// 	"math/rand"
+// 	"golang.org/x/exp/rand"
 
 // 	//"gonum.org/v1/gonum/mat"
 // 	//"math"
-// 	//"math/rand"
+// 	//"golang.org/x/exp/rand"
 // 	"testing"
 
 // 	//lm "github.com/pa-m/sklearn/linear_model"

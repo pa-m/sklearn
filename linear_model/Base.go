@@ -10,8 +10,8 @@ import (
 	"github.com/pa-m/sklearn/preprocessing"
 
 	//"gonum.org/v1/gonum/diff/fd"
+	"golang.org/x/exp/rand"
 	"math"
-	"math/rand"
 	"runtime"
 
 	"gonum.org/v1/gonum/mat"

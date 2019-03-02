@@ -1,0 +1,130 @@
+package exp
+
+import (
+	"math"
+
+	"github.com/pa-m/sklearn/datasets"
+	. "github.com/pa-m/sklearn/neural_network"
+	"gonum.org/v1/gonum/blas"
+	"gonum.org/v1/gonum/blas/blas64"
+	"gonum.org/v1/gonum/mat"
+)
+
+// LSTM https://en.wikipedia.org/wiki/LSTM
+type LSTM struct {
+	Loss                   LossFunctions
+	Sigmag, Sigmac, Sigmah ActivationFunctions
+
+	Xcols, Ycols                   int
+	FIOC, W, B, H, U, CHprev, Grad *mat.Dense
+}
+
+func rm(Y mat.Matrix) blas64.General { return Y.(mat.RawMatrixer).RawMatrix() }
+
+func sigmawxuhb(Y *mat.Dense, W, X, U, H, B blas64.General, Sigma ActivationFunctions) {
+	Ym := rm(Y)
+	// compute Ot=Sigmag(Wo X + Uo Hprev +Bo)
+	// Y = X W
+	blas64.Gemm(blas.NoTrans, blas.NoTrans, 1, X, W, 0, Ym)
+	// Y += H U
+	blas64.Gemm(blas.NoTrans, blas.NoTrans, 1, H, U, 1, Ym)
+
+	for i, iy := 0, 0; i < Ym.Rows; i, iy = i+1, iy+Ym.Stride {
+		for j := 0; j < Ym.Cols; j = j + 1 {
+			Ym.Data[iy+j] += B.Data[j]
+		}
+	}
+	if Sigma != ActivationFunctions(nil) {
+		Sigma.Func(Y, Y)
+	}
+}
+
+func (m *LSTM) Fit(X, Y *mat.Dense) {
+	_, m.Ycols = Y.Dims()
+	nSamples := 0
+	nSamples, m.Xcols = X.Dims()
+	if m.Sigmag == ActivationFunctions(nil) {
+		m.Sigmag = &LogisticActivation{}
+	}
+	if m.Sigmac == ActivationFunctions(nil) {
+		m.Sigmac = &TanhActivation{}
+	}
+	if m.Sigmah == ActivationFunctions(nil) {
+		m.Sigmah = &IdentityActivation{}
+	}
+
+	d, h := m.Xcols, m.Ycols
+	// FIOC = X W + H U + b
+	// (1 4h) = (1 d) (d 4h) + (1 h) (h 4h) + (1 4h)
+	m.FIOC = mat.NewDense(1, 4*h, nil)
+	m.W = mat.NewDense(d, 4*h, nil)
+	m.H = mat.NewDense(1, h, nil)
+	m.CHprev = mat.NewDense(1, h+h, nil)
+	m.U = mat.NewDense(h, 4*h, nil)
+	m.B = mat.NewDense(1, 4*h, nil)
+	F := m.FIOC.Slice(0, 1, 0, h).(*mat.Dense)
+	Fm := F.RawMatrix()
+	I := m.FIOC.Slice(0, 1, h, 2*h).(*mat.Dense)
+	Im := I.RawMatrix()
+	O := m.FIOC.Slice(0, 1, 2*h, 3*h).(*mat.Dense)
+	FIO := m.FIOC.Slice(0, 1, 0, 3*h).(*mat.Dense)
+	C := m.FIOC.Slice(0, 1, 3*h, 4*h).(*mat.Dense)
+	Cp := m.CHprev.Slice(0, 1, 0, h).(*mat.Dense).RawMatrix()
+	J := math.MaxFloat64
+	_ = J
+	for t := 0; t < nSamples; t++ {
+		// Put Hprev into H. C shape's nSamples*h, H shapes's nSamples*d
+		Hprev := m.CHprev.Slice(0, 1, h, h+h)
+		m.H.Copy(Hprev)
+
+		// FIOC <- X [Wf Wi Wo Wc].T  +H U +B
+		sigmawxuhb(m.FIOC, m.W.RawMatrix(), X.Slice(t, t+1, 0, d).(*mat.Dense).RawMatrix(), m.U.RawMatrix(), m.H.RawMatrix(), m.B.RawMatrix(), nil)
+
+		m.Sigmag.Func(FIO, FIO)
+		m.Sigmac.Func(C, C)
+
+		// compute Ct= f .* Cprev + I .* C
+		C.Apply(func(i, j int, v float64) float64 {
+			return Fm.Data[i*Fm.Stride+j]*Cp.Data[i*Cp.Stride+j] + Im.Data[i*Im.Stride+j]*v
+		}, C)
+		// Copy C into Cprev
+		m.CHprev.Slice(0, 1, 0, h).(*mat.Dense).Copy(C)
+		_ = O
+		// put dJ/dh in Grad
+		J = m.Loss.Loss(Y.Slice(t, t+1, 0, h).(*mat.Dense), O, m.Grad, 1)
+
+		// Y = sigma(XW+HU+B)
+		//=> dY/dW = sigma'(Z)*X
+		//=> dY/dU = sigma'(Z)*H
+		//=> dY/dB = sigma'(Z)
+	}
+}
+
+func (m *LSTM) Predict(X, Y *mat.Dense) {
+	// compute Ot=Sigmag(Wo X + Uo Hprev +Bo)
+
+	// d, h := m.Xcols, m.Ycols
+	// Wo := m.W.Slice(0, d, 2*h, 3*h).(*mat.Dense).RawMatrix()
+	// Uo := m.U.Slice(0, d, 2*h, 3*h).(*mat.Dense).RawMatrix()
+	// H := m.CHprev.Slice(0, 1, h, h+d).(*mat.Dense).RawMatrix()
+	// Bo := m.B.Slice(0, 1, 2*h, 3*h).(*mat.Dense).RawMatrix()
+	// sigmawxuhb(Y.RawMatrix(), Wo, X.RawMatrix(), Uo, H, Bo, m.Sigmag)
+}
+
+func _ExampleLSTM() {
+	data := datasets.LoadInternationalAirlinesPassengers()
+	datalen, _ := data.Dims()
+	X := data.Slice(0, datalen-1, 0, 1).(*mat.Dense)
+	Y := mat.DenseCopyOf(data.Slice(1, datalen, 0, 1).(*mat.Dense))
+	trainlen := int((datalen - 1) * 2 / 3)
+	Xtrain := X.Slice(0, trainlen, 0, 1).(*mat.Dense)
+	Xtest := X.Slice(trainlen, datalen-1, 0, 1).(*mat.Dense)
+	Ytrain := Y.Slice(0, trainlen, 0, 1).(*mat.Dense)
+	Ytest := Y.Slice(trainlen, datalen-1, 0, 1).(*mat.Dense)
+	_, _, _, _, _, _ = X, Y, Xtrain, Xtest, Ytrain, Ytest
+
+	m := &LSTM{}
+	_ = m
+	// Output:
+
+}

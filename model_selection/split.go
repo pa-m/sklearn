@@ -1,13 +1,13 @@
 package modelselection
 
 import (
-	"math/rand"
+	"golang.org/x/exp/rand"
 
 	"gonum.org/v1/gonum/mat"
 )
 
 // RandomState is to init a new random source for reproducibility
-type RandomState = int64
+type RandomState = uint64
 
 // KFold ...
 type KFold struct {
@@ -45,7 +45,7 @@ func (splitter *KFold) Split(X, Y *mat.Dense) (ch chan Split) {
 
 	Shuffle, intn := rand.Shuffle, rand.Intn
 	if splitter.RandomState != nil {
-		source := rand.NewSource(int64(*splitter.RandomState))
+		source := rand.NewSource(uint64(*splitter.RandomState))
 		r := rand.New(source)
 		Shuffle, intn = r.Shuffle, r.Intn
 

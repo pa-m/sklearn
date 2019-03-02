@@ -1,7 +1,7 @@
 package base
 
 import (
-	"math/rand"
+	"golang.org/x/exp/rand"
 	"testing"
 
 	"gonum.org/v1/gonum/diff/fd"

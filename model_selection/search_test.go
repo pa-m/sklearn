@@ -55,7 +55,7 @@ func ExampleParameterGrid() {
 }
 
 func ExampleGridSearchCV() {
-	randomState := int64(7)
+	randomState := uint64(7)
 
 	ds := datasets.LoadBoston()
 	X, Y := preprocessing.NewStandardScaler().FitTransform(ds.X, ds.Y)
