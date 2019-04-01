@@ -9,6 +9,7 @@ import (
 	"github.com/pa-m/sklearn/metrics"
 	neuralnetwork "github.com/pa-m/sklearn/neural_network"
 	"github.com/pa-m/sklearn/preprocessing"
+	"golang.org/x/exp/rand"
 	"gonum.org/v1/gonum/mat"
 )
 
@@ -55,25 +56,24 @@ func ExampleParameterGrid() {
 }
 
 func ExampleGridSearchCV() {
-	randomState := uint64(7)
-
+	RandomState := rand.New(rand.NewSource(7))
 	ds := datasets.LoadBoston()
 	X, Y := preprocessing.NewStandardScaler().FitTransform(ds.X, ds.Y)
 
 	mlp := neuralnetwork.NewMLPRegressor([]int{20}, "relu", "adam", 1e-4)
-	mlp.RandomState = &randomState
+	mlp.RandomState = RandomState
 	mlp.Shuffle = false
-	mlp.MiniBatchSize = 22
-	mlp.Epochs = 60
+	mlp.BatchSize = 22
+	mlp.MaxIter = 100
 	scorer := func(Y, Ypred *mat.Dense) float64 {
 		return metrics.MeanSquaredError(Y, Ypred, nil, "").At(0, 0)
 	}
 	gscv := &GridSearchCV{
 		Estimator:          mlp,
-		ParamGrid:          map[string][]interface{}{"Alpha": {0, 1e-4}, "WeightDecay": {0, 0.1}},
+		ParamGrid:          map[string][]interface{}{"Alpha": {0, 1e-4}, "WeightDecay": {0, 0.01}},
 		Scorer:             scorer,
 		LowerScoreIsBetter: true,
-		CV:                 &KFold{NSplits: 3, RandomState: &randomState},
+		CV:                 &KFold{NSplits: 3, RandomState: RandomState},
 		Verbose:            true,
 		NJobs:              -1}
 	gscv.Fit(X, Y)

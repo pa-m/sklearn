@@ -15,6 +15,20 @@ type CrossValidateResult struct {
 	Estimator          []base.Transformer
 }
 
+// Len for CrossValidateResult to implement sort.Interface
+func (r CrossValidateResult) Len() int { return len(r.TestScore) }
+
+// Less  for CrossValidateResult to implement sort.Interface
+func (r CrossValidateResult) Less(i, j int) bool { return r.TestScore[j] < r.TestScore[i] }
+
+// Swap  for CrossValidateResult to implement sort.Interface
+func (r CrossValidateResult) Swap(i, j int) {
+	r.TestScore[i], r.TestScore[j] = r.TestScore[j], r.TestScore[i]
+	r.FitTime[i], r.FitTime[j] = r.FitTime[j], r.FitTime[i]
+	r.ScoreTime[i], r.ScoreTime[j] = r.ScoreTime[j], r.ScoreTime[i]
+	r.Estimator[i], r.Estimator[j] = r.Estimator[j], r.Estimator[i]
+}
+
 // CrossValidate Evaluate a score by cross-validation
 // scorer is a func(Ytrue,Ypred) float64
 // only mean_squared_error for now

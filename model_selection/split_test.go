@@ -3,15 +3,16 @@ package modelselection
 import (
 	"fmt"
 
+	"golang.org/x/exp/rand"
 	"gonum.org/v1/gonum/mat"
 )
 
 func ExampleKFold() {
+	randomState := rand.New(rand.NewSource(7))
 	X := mat.NewDense(6, 1, []float64{1, 2, 3, 4, 5, 6})
 	subtest := func(shuffle bool) {
-		randomState := RandomState(7)
 		fmt.Println("shuffle", shuffle)
-		kf := &KFold{NSplits: 3, Shuffle: shuffle, RandomState: &randomState}
+		kf := &KFold{NSplits: 3, Shuffle: shuffle, RandomState: randomState}
 		for sp := range kf.Split(X, nil) {
 			fmt.Printf("%#v\n", sp)
 		}
@@ -25,8 +26,7 @@ func ExampleKFold() {
 	// modelselection.Split{TrainIndex:[]int{4, 5, 2, 3}, TestIndex:[]int{0, 1}}
 	// modelselection.Split{TrainIndex:[]int{4, 1, 2, 3}, TestIndex:[]int{5, 0}}
 	// shuffle true
-	// modelselection.Split{TrainIndex:[]int{5, 2, 4, 1}, TestIndex:[]int{0, 3}}
-	// modelselection.Split{TrainIndex:[]int{4, 0, 1, 2}, TestIndex:[]int{3, 5}}
-	// modelselection.Split{TrainIndex:[]int{4, 5, 2, 1}, TestIndex:[]int{0, 3}}
-
+	// modelselection.Split{TrainIndex:[]int{5, 0, 4, 1}, TestIndex:[]int{2, 3}}
+	// modelselection.Split{TrainIndex:[]int{0, 5, 2, 1}, TestIndex:[]int{3, 4}}
+	// modelselection.Split{TrainIndex:[]int{4, 3, 0, 2}, TestIndex:[]int{1, 5}}
 }

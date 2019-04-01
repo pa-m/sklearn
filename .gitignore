@@ -4,5 +4,6 @@ coverage.txt
 .vscode
 *.bak
 *.test
+*.debug
 _*.sh
 FIXME*

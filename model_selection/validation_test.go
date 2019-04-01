@@ -2,43 +2,29 @@ package modelselection
 
 import (
 	"fmt"
-	"math"
+	"sort"
 
 	"github.com/pa-m/sklearn/datasets"
+	linearModel "github.com/pa-m/sklearn/linear_model"
 	"github.com/pa-m/sklearn/metrics"
-	"github.com/pa-m/sklearn/neural_network"
-	"github.com/pa-m/sklearn/pipeline"
-	"github.com/pa-m/sklearn/preprocessing"
-	"gonum.org/v1/gonum/floats"
+	"golang.org/x/exp/rand"
 	"gonum.org/v1/gonum/mat"
 )
 
 func ExampleCrossValidate() {
-	randomState := uint64(5)
-
-	ds := datasets.LoadBoston()
-	X, Y := ds.X, ds.Y
-	mlp := neuralnetwork.NewMLPRegressor([]int{20}, "identity", "adam", 1e-4)
-	mlp.RandomState = &randomState
-	mlp.Shuffle = false
-	mlp.MiniBatchSize = 5
-	mlp.WeightDecay = .1
-
-	mlp.Epochs = 50
-	m := pipeline.NewPipeline(
-		pipeline.NamedStep{Name: "standardize", Step: preprocessing.NewStandardScaler()},
-		pipeline.NamedStep{Name: "mlpregressor", Step: mlp},
-	)
+	// example adapted from https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.cross_validate.html#sklearn.model_selection.cross_validate
+	randomState := rand.New(rand.NewSource(5))
+	diabetes := datasets.LoadDiabetes()
+	X, y := diabetes.X.Slice(0, 150, 0, diabetes.X.RawMatrix().Cols).(*mat.Dense), diabetes.Y.Slice(0, 150, 0, 1).(*mat.Dense)
+	lasso := linearModel.NewLasso()
 	scorer := func(Y, Ypred *mat.Dense) float64 {
-		e := metrics.MeanSquaredError(Y, Ypred, nil, "").At(0, 0)
+		e := metrics.R2Score(Y, Ypred, nil, "").At(0, 0)
 		return e
 	}
-	mean := func(x []float64) float64 { return floats.Sum(x) / float64(len(x)) }
-	res := CrossValidate(m, X, Y,
-		nil,
-		scorer,
-		&KFold{NSplits: 10, Shuffle: true, RandomState: &randomState}, 10)
-	fmt.Println(math.Sqrt(mean(res.TestScore)) < 6.)
+	cvresults := CrossValidate(lasso, X, y, nil, scorer, &KFold{NSplits: 3, Shuffle: true, RandomState: randomState}, 3)
+	sort.Sort(cvresults)
+	fmt.Printf("%.8f", cvresults.TestScore)
 	// Output:
-	// true
+	// [0.38916221 0.33615684 0.28314305]
+
 }

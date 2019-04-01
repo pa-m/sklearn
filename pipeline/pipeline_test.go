@@ -3,20 +3,19 @@ package pipeline
 import (
 	"fmt"
 
-	"github.com/pa-m/sklearn/base"
 	"github.com/pa-m/sklearn/preprocessing"
 
 	"github.com/pa-m/sklearn/datasets"
 	"github.com/pa-m/sklearn/metrics"
 	nn "github.com/pa-m/sklearn/neural_network"
+	"golang.org/x/exp/rand"
 	"gonum.org/v1/gonum/mat"
 )
 
 func ExamplePipeline() {
-	RandomState := uint64(7)
+	randomState := rand.New(rand.NewSource(7))
 
 	ds := datasets.LoadBreastCancer()
-	fmt.Println("Dims", base.MatDimsString(ds.X, ds.Y))
 
 	scaler := preprocessing.NewStandardScaler()
 
@@ -26,11 +25,11 @@ func ExamplePipeline() {
 	poly := preprocessing.NewPolynomialFeatures(2)
 	poly.IncludeBias = false
 
-	m := nn.NewMLPClassifier([]int{}, "relu", "adam", 0.)
-	m.RandomState = &RandomState
-	m.Loss = "cross-entropy"
-	m.Epochs = 50
-	m.WeightDecay = .05
+	m := nn.NewMLPClassifier([]int{}, "relu", "adam", 0)
+	m.RandomState = randomState
+	m.MaxIter = 300
+	m.LearningRateInit = .02
+	m.WeightDecay = .001
 
 	pl := MakePipeline(scaler, pca, poly, m)
 
@@ -45,7 +44,6 @@ func ExamplePipeline() {
 		fmt.Println("accuracy:", accuracy)
 	}
 	// Output:
-	// Dims  569,30 569,1
 	// accuracy>0.999 ? true
 
 }

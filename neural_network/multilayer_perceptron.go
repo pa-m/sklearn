@@ -1,4 +1,4 @@
-package exp
+package neuralNetwork
 
 import (
 	"github.com/pa-m/sklearn/base"

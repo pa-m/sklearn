@@ -7,7 +7,7 @@ import (
 )
 
 // RandomState is to init a new random source for reproducibility
-type RandomState = uint64
+type RandomState = rand.Rand
 
 // KFold ...
 type KFold struct {
@@ -45,8 +45,7 @@ func (splitter *KFold) Split(X, Y *mat.Dense) (ch chan Split) {
 
 	Shuffle, intn := rand.Shuffle, rand.Intn
 	if splitter.RandomState != nil {
-		source := rand.NewSource(uint64(*splitter.RandomState))
-		r := rand.New(source)
+		r := splitter.RandomState
 		Shuffle, intn = r.Shuffle, r.Intn
 
 	}
