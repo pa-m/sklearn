@@ -2,8 +2,11 @@ package linearmodel
 
 import (
 	"fmt"
-	"golang.org/x/exp/rand"
 	"testing"
+
+	"github.com/pa-m/sklearn/base"
+
+	"golang.org/x/exp/rand"
 
 	"gonum.org/v1/gonum/mat"
 )
@@ -17,7 +20,7 @@ func TestEnetCoordinateDescent(t *testing.T) {
 	beta := .001
 	maxIter := 1500
 	tol := 1e-6
-	rng := rand.New(rand.NewSource(0))
+	rng := rand.New(base.NewLockedSource(0))
 	random := false
 	positive := false
 	enetCoordinateDescent(w, alpha, beta, X, Y, maxIter, tol, rng, random, positive)

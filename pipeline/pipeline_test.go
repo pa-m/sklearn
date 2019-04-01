@@ -3,17 +3,18 @@ package pipeline
 import (
 	"fmt"
 
-	"github.com/pa-m/sklearn/preprocessing"
+	"github.com/pa-m/sklearn/base"
 
 	"github.com/pa-m/sklearn/datasets"
 	"github.com/pa-m/sklearn/metrics"
 	nn "github.com/pa-m/sklearn/neural_network"
+	"github.com/pa-m/sklearn/preprocessing"
 	"golang.org/x/exp/rand"
 	"gonum.org/v1/gonum/mat"
 )
 
 func ExamplePipeline() {
-	randomState := rand.New(rand.NewSource(7))
+	randomState := rand.New(base.NewLockedSource(7))
 
 	ds := datasets.LoadBreastCancer()
 

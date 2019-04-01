@@ -5,6 +5,7 @@ import (
 	"math"
 	"sort"
 
+	"github.com/pa-m/sklearn/base"
 	"github.com/pa-m/sklearn/datasets"
 	"github.com/pa-m/sklearn/metrics"
 	neuralnetwork "github.com/pa-m/sklearn/neural_network"
@@ -56,7 +57,7 @@ func ExampleParameterGrid() {
 }
 
 func ExampleGridSearchCV() {
-	RandomState := rand.New(rand.NewSource(7))
+	RandomState := rand.New(base.NewLockedSource(7))
 	ds := datasets.LoadBoston()
 	X, Y := preprocessing.NewStandardScaler().FitTransform(ds.X, ds.Y)
 
@@ -64,6 +65,7 @@ func ExampleGridSearchCV() {
 	mlp.RandomState = RandomState
 	mlp.Shuffle = false
 	mlp.BatchSize = 22
+	mlp.LearningRateInit = .05
 	mlp.MaxIter = 100
 	scorer := func(Y, Ypred *mat.Dense) float64 {
 		return metrics.MeanSquaredError(Y, Ypred, nil, "").At(0, 0)
@@ -81,5 +83,5 @@ func ExampleGridSearchCV() {
 	//fmt.Printf("%#v\n", gscv.CVResults)
 
 	// Output:
-	// 0.0001 0.1
+	// 0 0.01
 }

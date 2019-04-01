@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/pa-m/sklearn/base"
 	"github.com/pa-m/sklearn/datasets"
 	linearModel "github.com/pa-m/sklearn/linear_model"
 	"github.com/pa-m/sklearn/metrics"
@@ -13,7 +14,7 @@ import (
 
 func ExampleCrossValidate() {
 	// example adapted from https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.cross_validate.html#sklearn.model_selection.cross_validate
-	randomState := rand.New(rand.NewSource(5))
+	randomState := rand.New(base.NewLockedSource(5))
 	diabetes := datasets.LoadDiabetes()
 	X, y := diabetes.X.Slice(0, 150, 0, diabetes.X.RawMatrix().Cols).(*mat.Dense), diabetes.Y.Slice(0, 150, 0, 1).(*mat.Dense)
 	lasso := linearModel.NewLasso()

@@ -1,4 +1,4 @@
-package neuralNetwork
+package neuralnetwork
 
 import (
 	"fmt"
@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/pa-m/sklearn/base"
 
 	"golang.org/x/exp/rand"
 	"gonum.org/v1/gonum/blas"
@@ -396,7 +398,7 @@ func (mlp *BaseMultilayerPerceptron32) initialize(y blas32General, layerUnits []
 
 	off = 0
 	if mlp.RandomState == (*rand.Rand)(nil) {
-		mlp.RandomState = rand.New(rand.NewSource(uint64(time.Now().UnixNano())))
+		mlp.RandomState = rand.New(base.NewLockedSource(uint64(time.Now().UnixNano())))
 	}
 
 	for i := 0; i < mlp.NLayers-1; i++ {
@@ -451,7 +453,7 @@ func (mlp *BaseMultilayerPerceptron32) fit(X, y blas32General, incremental bool)
 	layerUnits = append(layerUnits, mlp.NOutputs)
 
 	if mlp.RandomState == nil {
-		mlp.RandomState = rand.New(rand.NewSource(uint64(time.Now().UnixNano())))
+		mlp.RandomState = rand.New(base.NewLockedSource(uint64(time.Now().UnixNano())))
 	}
 	if !mlp.WarmStart && !incremental {
 		//# First time training the model
@@ -962,8 +964,13 @@ func r2Score32(yTrue, yPred blas32General) float32 {
 		// yDen = YTrue-YTrueAvg
 
 		for r, ypos := 0, 0; r < yTrue.Rows; r, ypos = r+1, ypos+yTrue.Stride {
-			yNum += yPred.Data[ypos+c] - yTrue.Data[ypos+c]
-			yDen += yTrue.Data[ypos+c] - yTrueAvg
+			t := yPred.Data[ypos+c] - yTrue.Data[ypos+c]
+			yNum += t * t
+			t = yTrue.Data[ypos+c] - yTrueAvg
+			yDen += t * t
+		}
+		if yDen == 0 {
+			panic("yDen=0")
 		}
 		r2 := 1 - yNum/yDen
 		r2acc += r2

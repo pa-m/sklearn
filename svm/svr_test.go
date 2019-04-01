@@ -11,6 +11,7 @@ import (
 
 	"golang.org/x/exp/rand"
 
+	"github.com/pa-m/sklearn/base"
 	"github.com/pa-m/sklearn/preprocessing"
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/plot"
@@ -29,7 +30,7 @@ func ExampleSVR() {
 	X := mat.NewDense(NSamples, NFeatures, nil)
 	Y := mat.NewDense(NSamples, NOutputs, nil)
 	{
-		rnd := rand.New(rand.NewSource(5))
+		rnd := rand.New(base.NewLockedSource(5))
 		mX := X.RawMatrix()
 		for sample := 0; sample < mX.Rows; sample++ {
 			mX.Data[sample] = 5 * rnd.Float64()

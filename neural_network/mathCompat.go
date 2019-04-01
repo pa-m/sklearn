@@ -1,4 +1,4 @@
-package neuralNetwork
+package neuralnetwork
 
 import (
 	m64 "math"

@@ -1,6 +1,8 @@
 package modelselection
 
 import (
+	"sync"
+
 	"golang.org/x/exp/rand"
 
 	"gonum.org/v1/gonum/mat"
@@ -44,6 +46,7 @@ func (splitter *KFold) Split(X, Y *mat.Dense) (ch chan Split) {
 	NSamples, _ := X.Dims()
 
 	Shuffle, intn := rand.Shuffle, rand.Intn
+	var randlk sync.Mutex
 	if splitter.RandomState != nil {
 		r := splitter.RandomState
 		Shuffle, intn = r.Shuffle, r.Intn
@@ -64,6 +67,7 @@ func (splitter *KFold) Split(X, Y *mat.Dense) (ch chan Split) {
 				a[i] = i
 			}
 			aSwap := func(i, j int) { a[i], a[j] = a[j], a[i] }
+			randlk.Lock()
 			if splitter.Shuffle {
 				Shuffle(len(a), aSwap)
 			} else {
@@ -72,6 +76,7 @@ func (splitter *KFold) Split(X, Y *mat.Dense) (ch chan Split) {
 					aSwap((start+i)%NSamples, NSamples-NTest+i)
 				}
 			}
+			randlk.Unlock()
 			sp := Split{
 				TrainIndex: a[:NSamples-NTest],
 				TestIndex:  a[NSamples-NTest:],

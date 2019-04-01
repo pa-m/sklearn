@@ -1,4 +1,4 @@
-package neuralNetwork
+package neuralnetwork
 
 import (
 	"fmt"
@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/chewxy/math32"
+	"github.com/pa-m/sklearn/base"
 	"github.com/pa-m/sklearn/datasets"
 	"github.com/pa-m/sklearn/metrics"
 	modelselection "github.com/pa-m/sklearn/model_selection"
@@ -14,6 +15,7 @@ import (
 	"golang.org/x/exp/rand"
 
 	"github.com/pa-m/sklearn/preprocessing"
+	"gonum.org/v1/gonum/blas/blas32"
 	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
 )
@@ -116,7 +118,7 @@ func TestMLPClassifierMicrochip(t *testing.T) {
 		t.Run(optimizer, func(t *testing.T) {
 			testSetup := optimizer
 			regr := NewMLPClassifier([]int{}, "logistic", optimizer, 1)
-			regr.RandomState = rand.New(rand.NewSource(1))
+			regr.RandomState = rand.New(base.NewLockedSource(1))
 			regr.initialize(Ytrue.RawMatrix(), []int{nFeatures, nOutputs}, true, false)
 			for i := range regr.packedParameters {
 				regr.packedParameters[i] = 0
@@ -229,7 +231,7 @@ func ExampleMLPClassifier_fit_breastCancer() {
 	X2, Y2 := poly.Fit(X1, Y1).Transform(X1, Y1)
 
 	m := NewMLPClassifier([]int{}, "logistic", "adam", 0.)
-	m.RandomState = rand.New(rand.NewSource(1))
+	m.RandomState = rand.New(base.NewLockedSource(1))
 	m.LearningRateInit = .02
 	m.WeightDecay = .001
 	m.MaxIter = 300
@@ -256,7 +258,7 @@ func ExampleMLPRegressor() {
 	ds := datasets.LoadBoston()
 	X, Y := ds.X, ds.Y
 	mlp := NewMLPRegressor([]int{20}, "relu", "adam", 0)
-	mlp.RandomState = rand.New(rand.NewSource(1))
+	mlp.RandomState = rand.New(base.NewLockedSource(1))
 	mlp.LearningRateInit = .05
 	mlp.WeightDecay = .01
 	mlp.Shuffle = false
@@ -267,7 +269,7 @@ func ExampleMLPRegressor() {
 		pipeline.NamedStep{Name: "mlpregressor", Step: mlp},
 	)
 	_ = m
-	randomState := rand.New(rand.NewSource(7))
+	randomState := rand.New(base.NewLockedSource(7))
 	scorer := func(Y, Ypred *mat.Dense) float64 {
 		e := metrics.MeanSquaredError(Y, Ypred, nil, "").At(0, 0)
 		return e
@@ -284,14 +286,14 @@ func ExampleMLPRegressor() {
 	// true
 }
 
-func Testr2Score32(t *testing.T) {
+func Test_r2Score32(t *testing.T) {
 	//1st example of sklearn metrics r2Score
-	yTrue := blas32General{Rows: 4, Cols: 1, Stride: 1, Data: []float32{3, -0.5, 2, 7}}
-	yPred := blas32General{Rows: 4, Cols: 1, Stride: 1, Data: []float32{2.5, 0.0, 2, 8}}
+	yTrue := blas32.General{Rows: 4, Cols: 1, Stride: 1, Data: []float32{3, -0.5, 2, 7}}
+	yPred := blas32.General{Rows: 4, Cols: 1, Stride: 1, Data: []float32{2.5, 0.0, 2, 8}}
 	r2Score := r2Score32(yTrue, yPred)
 	eps := float32(1e-3)
 	if math32.Abs(0.948-r2Score) > eps {
-		t.Error("expected 0.948")
+		t.Errorf("expected 0.948 got %g", r2Score)
 	}
 
 	yTrue = blas32General{Rows: 3, Cols: 1, Stride: 1, Data: []float32{1, 2, 3}}
@@ -311,7 +313,7 @@ func Testr2Score32(t *testing.T) {
 	}
 }
 
-func TestaccuracyScore32(t *testing.T) {
+func Test_accuracyScore32(t *testing.T) {
 	// adapted from example in https://github.com/scikit-learn/scikit-learn/blob/0.19.1/sklearn/metrics/classification.py
 	Ypred, Ytrue := blas32General{Rows: 4, Cols: 1, Stride: 1, Data: []float32{0, 2, 1, 3}}, blas32General{Rows: 4, Cols: 1, Stride: 1, Data: []float32{0, 1, 2, 3}}
 	expected, actual := float32(0.5), accuracyScore32(Ytrue, Ypred)

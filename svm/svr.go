@@ -66,7 +66,7 @@ func svrTrain(X *mat.Dense, Y []float64, C, Epsilon float64, KernelFunction func
 	}
 	randIntn := rand.Intn
 	if RandomState != nil {
-		r := rand.New(rand.NewSource(*RandomState))
+		r := rand.New(base.NewLockedSource(*RandomState))
 		randIntn = r.Intn
 	}
 

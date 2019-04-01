@@ -1,4 +1,4 @@
-package neuralNetwork
+package neuralnetwork
 
 import (
 	"fmt"
@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pa-m/sklearn/base"
 	"golang.org/x/exp/rand"
 	"gonum.org/v1/gonum/blas"
 	"gonum.org/v1/gonum/optimize"
@@ -396,7 +397,7 @@ func (mlp *BaseMultilayerPerceptron64) initialize(y blas64General, layerUnits []
 
 	off = 0
 	if mlp.RandomState == (*rand.Rand)(nil) {
-		mlp.RandomState = rand.New(rand.NewSource(uint64(time.Now().UnixNano())))
+		mlp.RandomState = rand.New(base.NewLockedSource(uint64(time.Now().UnixNano())))
 	}
 
 	for i := 0; i < mlp.NLayers-1; i++ {
@@ -451,7 +452,7 @@ func (mlp *BaseMultilayerPerceptron64) fit(X, y blas64General, incremental bool)
 	layerUnits = append(layerUnits, mlp.NOutputs)
 
 	if mlp.RandomState == nil {
-		mlp.RandomState = rand.New(rand.NewSource(uint64(time.Now().UnixNano())))
+		mlp.RandomState = rand.New(base.NewLockedSource(uint64(time.Now().UnixNano())))
 	}
 	if !mlp.WarmStart && !incremental {
 		//# First time training the model

@@ -3,6 +3,7 @@ package modelselection
 import (
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/pa-m/sklearn/base"
 	"gonum.org/v1/gonum/floats"
@@ -180,34 +181,56 @@ func (gscv *GridSearchCV) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
 	return
 }
 
+func fieldByNameNoCase(s interface{}, sname, k string) reflect.Value {
+	rv := reflect.Indirect(reflect.ValueOf(s))
+	if rv.Kind() == reflect.Interface {
+		rv = reflect.Indirect(rv.Elem())
+	}
+	if rv.Kind() != reflect.Struct {
+		panic(fmt.Errorf("%s is not a struct", sname))
+	}
+	for i := 0; i < rv.NumField(); i++ {
+		if strings.EqualFold(rv.Type().Field(i).Name, k) {
+			return rv.Field(i)
+		}
+		if rv.Field(i).CanInterface() && rv.Type().Field(i).Anonymous {
+			f1 := fieldByNameNoCase(rv.Field(i).Interface(), sname+"."+rv.Type().Field(i).Name, k)
+			if f1.Kind() != 0 {
+				return f1
+			}
+		}
+	}
+	return reflect.Value{}
+}
+
 func setParam(estimator base.Transformer, k string, v interface{}) {
 	est := reflect.ValueOf(estimator)
 	est = reflect.Indirect(est)
 	if est.Kind().String() != "struct" {
 		panic(est.Kind().String())
 	}
-	if field := est.FieldByName(k); field.Kind() != 0 {
-		switch field.Kind() {
-		case reflect.String:
-			field.SetString(v.(string))
-		case reflect.Float64:
-			switch vv := v.(type) {
-			case int:
-				field.SetFloat(float64(vv))
-			case float32:
-				field.SetFloat(float64(vv))
-			case float64:
-				field.SetFloat(float64(vv))
-			default:
-				panic(fmt.Errorf("failed to set %s %s to %v", k, field.Type().String(), v))
-			}
+	field := est.FieldByNameFunc(func(name string) bool { return strings.EqualFold(name, k) })
+	switch field.Kind() {
+	case 0:
+		panic(fmt.Errorf("no field %s in %T", k, estimator))
+	case reflect.String:
+		field.SetString(v.(string))
+	case reflect.Float64:
+		switch vv := v.(type) {
+		case int:
+			field.SetFloat(float64(vv))
+		case float32:
+			field.SetFloat(float64(vv))
+		case float64:
+			field.SetFloat(float64(vv))
 		default:
 			panic(fmt.Errorf("failed to set %s %s to %v", k, field.Type().String(), v))
-
 		}
+	case reflect.Interface:
+		field.Set(reflect.ValueOf(v))
+	default:
+		panic(fmt.Errorf("failed to set %s %s to %v", k, field.Type().String(), v))
 
-	} else {
-		panic(fmt.Errorf("no field %s in %T", k, estimator))
 	}
 
 }

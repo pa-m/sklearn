@@ -3,12 +3,13 @@ package modelselection
 import (
 	"fmt"
 
+	"github.com/pa-m/sklearn/base"
 	"golang.org/x/exp/rand"
 	"gonum.org/v1/gonum/mat"
 )
 
 func ExampleKFold() {
-	randomState := rand.New(rand.NewSource(7))
+	randomState := rand.New(base.NewLockedSource(7))
 	X := mat.NewDense(6, 1, []float64{1, 2, 3, 4, 5, 6})
 	subtest := func(shuffle bool) {
 		fmt.Println("shuffle", shuffle)
