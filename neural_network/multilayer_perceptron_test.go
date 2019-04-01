@@ -1,4 +1,4 @@
-package neuralnetwork
+package exp
 
 import (
 	"fmt"
@@ -6,15 +6,14 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/exp/rand"
-
-	"github.com/pa-m/sklearn/base"
+	"github.com/chewxy/math32"
 	"github.com/pa-m/sklearn/datasets"
 	"github.com/pa-m/sklearn/metrics"
 	modelselection "github.com/pa-m/sklearn/model_selection"
 	"github.com/pa-m/sklearn/pipeline"
-	"github.com/pa-m/sklearn/preprocessing"
+	"golang.org/x/exp/rand"
 
+	"github.com/pa-m/sklearn/preprocessing"
 	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
 )
@@ -24,122 +23,42 @@ type Problem struct {
 	MiniBatchSize int
 }
 
-func NewRandomProblem(nSamples, nFeatures, nOutputs int, activation string, loss string) *Problem {
-	X := mat.NewDense(nSamples, nFeatures, nil)
-	X.Apply(func(i, j int, v float64) float64 {
-		return rand.Float64()
-	}, X)
-	TrueTheta := mat.NewDense(nFeatures, nOutputs, nil)
-	TrueTheta.Apply(func(i, j int, v float64) float64 {
-		return rand.Float64()
-	}, TrueTheta)
-	Z := mat.NewDense(nSamples, nOutputs, nil)
-	Ytrue := mat.NewDense(nSamples, nOutputs, nil)
-	Z.Mul(X, TrueTheta)
-	NewActivation(activation).Func(Z, Ytrue)
-	if loss == "cross-entropy" {
-		for sample := 0; sample < nSamples; sample++ {
-			oTrue := floats.MaxIdx(Ytrue.RawRowView(sample))
-			for o := 0; o < nOutputs; o++ {
-				y := 0.
-				if o == oTrue {
-					y = 1
-				}
-				Ytrue.Set(sample, o, y)
-			}
-		}
-	}
-	return &Problem{X: X, Y: Ytrue}
-}
-
-func TestMLPRegressorIdentitySquareLoss(t *testing.T) {
-	testMLPRegressor(t, "identity", "square", "adam", 2)
-}
-
-func TestMLPRegressorLogisticLogLoss(t *testing.T) {
-	testMLPRegressor(t, "logistic", "log", "adam", 2)
-}
-
-func TestMLPRegressorLogisticCrossEntropyLoss(t *testing.T) {
-	testMLPRegressor(t, "logistic", "cross-entropy", "adam", 2)
-}
-
-// // tanh has values in -1..1 so cross entropy must be adapted
-// func TestMLPRegressorTanhCrossEntropyLoss(t *testing.T) {
-// 	testMLPRegressor(t, "tanh", "cross-entropy", "adam", 2)
-// }
-
-// func TestMLPRegressorReLUCrossEntropyLoss(t *testing.T) {
-// 	testMLPRegressor(t, "relu", "cross-entropy", "adam", 2)
-// }
-
-func testMLPRegressor(t *testing.T, activationName string, lossName string, solver string, maxLayers int) {
-	var nSamples, nFeatures, nOutputs = 2000, 3, 2
-	//activation := base.Activations[activationName]
-	var p = NewRandomProblem(nSamples, nFeatures, nOutputs, activationName, lossName)
-	var HiddenLayerSizes []int
-
-	for l := 0; l < maxLayers; l++ {
-		Alpha := 1e-14
-		regr := NewMLPRegressor(HiddenLayerSizes, activationName, solver, Alpha)
-
-		// regr.SetOptimizer(func() Optimizer {
-		// 	optimizer := base.NewAdamOptimizer()
-		// 	optimizer.StepSize = 0.1
-		// 	return optimizer
-		// })
-
-		//regr.SetOptimizer(OptimCreator, true)
-		regr.Epochs = 40
-		regr.GradientClipping = 5.
-		testSetup := fmt.Sprintf("%T %s %s loss layers %v", regr, activationName, lossName, HiddenLayerSizes)
-		//Ypred := mat.NewDense(nSamples, nOutputs, nil)
-
-		regr.Loss = lossName
-		start := time.Now()
-		regr.Fit(p.X, p.Y)
-		elapsed := time.Since(start)
-		unused(elapsed)
-
-		if regr.J > 0.01 && regr.J > 0.5*regr.JFirst {
-			t.Errorf("%s JFirst=%g J=%g", testSetup, regr.JFirst, regr.J)
-		} else {
-			//			fmt.Printf("%s ok J=%g elapsed=%s\n", testSetup, regr.J, elapsed)
-		}
-		HiddenLayerSizes = append(HiddenLayerSizes, 1+rand.Intn(9))
-	}
-}
-
 func TestMLPClassifierMicrochip(t *testing.T) {
 	X, Ytrue := datasets.LoadMicroChipTest()
-	nSamples, nFeatures := X.Dims()
+	nSamples, _ := X.Dims()
 
 	//Xp, _ := preprocessing.NewPolynomialFeatures(6).Fit(X, Ytrue).Transform(X, Ytrue)
 	// add poly features manually to have same order
 	Xp := mat.NewDense(nSamples, 27, nil)
-	c := 0
-	for i := 1; i <= 6; i++ {
-		for j := 0; j <= i; j++ {
-			for s := 0; s < nSamples; s++ {
-				Xp.Set(s, c, math.Pow(X.At(s, 0), float64(i-j))*math.Pow(X.At(s, 1), float64(j)))
+	{
+		c := 0
+		for i := 1; i <= 6; i++ {
+			for j := 0; j <= i; j++ {
+				for s := 0; s < nSamples; s++ {
+					Xp.Set(s, c, math.Pow(X.At(s, 0), float64(i-j))*math.Pow(X.At(s, 1), float64(j)))
+				}
+				c++
 			}
-			c++
 		}
 	}
-
-	_, nFeatures = Xp.Dims()
+	_, nFeatures := Xp.Dims()
 	_, nOutputs := Ytrue.Dims()
-	regr := NewMLPClassifier([]int{}, "logistic", "adam", 1.)
-	//regr.Loss = "cross-entropy"
+	Ypred := mat.NewDense(nSamples, nOutputs, nil)
+
+	Alpha := 1.
+	regr := NewMLPClassifier([]int{}, "logistic", "adam", Alpha)
+	regr.BatchSize = nSamples
 
 	// we allocate Coef here because we use it for loss and grad tests before Fit
-	regr.allocLayers(nFeatures, nOutputs, func() float64 { return 0. })
+	regr.initialize(Ytrue.RawMatrix(), []int{nFeatures, nOutputs}, true, false)
+	regr.WarmStart = true
+	regr.Shuffle = false
 
-	Ypred := mat.NewDense(nSamples, nOutputs, nil)
 	var J float64
 	loss := func() float64 {
-		regr.forward(Xp, Ypred)
-		return regr.fitEpoch(Xp, Ytrue, 1)
+		regr.MaxIter = 1
+		regr.Fit(Xp, Ytrue)
+		return regr.Loss
 	}
 	chkLoss := func(context string, expectedLoss float64) {
 		if math.Abs(J-expectedLoss) > 1e-3 {
@@ -147,7 +66,7 @@ func TestMLPClassifierMicrochip(t *testing.T) {
 		}
 	}
 	chkGrad := func(context string, expectedGradient []float64) {
-		actualGradient := regr.Layers[0].Grad.RawRowView(0)[0:len(expectedGradient)]
+		actualGradient := append([]float64{regr.InterceptsGrads[0][0]}, regr.CoefsGrads[0].Data[0:len(expectedGradient)-1]...)
 
 		//fmt.Printf("%s grad=%v expected %v\n", context, actualGradient, expectedGradient)
 		for j := 0; j < len(expectedGradient); j++ {
@@ -157,17 +76,27 @@ func TestMLPClassifierMicrochip(t *testing.T) {
 			}
 		}
 	}
+	t.Run("loss and grad with Alpha=0", func(t *testing.T) {
+		for i := range regr.packedParameters {
+			regr.packedParameters[i] = 0
+		}
+		regr.Alpha = 1
+		J = loss()
+		chkLoss("Microchip initial loss", 0.693)
+		chkGrad("Microchip initial gradient", []float64{0.0085, 0.0188, 0.0001, 0.0503, 0.0115})
+		for i := range regr.packedParameters {
+			regr.packedParameters[i] = 1
+		}
 
-	J = loss()
-	chkLoss("Microchip initial loss", 0.693)
-	chkGrad("Microchip initial gradient", []float64{0.0085, 0.0188, 0.0001, 0.0503, 0.0115})
+	})
+	t.Run("loss and grad with Alpha=10", func(t *testing.T) {
+		regr.Alpha = 10.
 
-	regr.Layers[0].Theta.Copy(base.MatApply0{Rows: 1 + nFeatures, Columns: nOutputs, Func: func() float64 { return 1 }})
-	regr.Alpha = 10.
-
-	J = loss()
-	chkLoss("At test theta", 3.164)
-	chkGrad("at test theta", []float64{0.3460, 0.1614, 0.1948, 0.2269, 0.0922})
+		J = loss()
+		chkLoss("At test theta", 3.164)
+		chkGrad("at test theta", []float64{0.3460, 0.1614, 0.1948, 0.2269, 0.0922})
+	})
+	// try different solvers
 
 	best := make(map[string]string)
 	bestLoss := math.Inf(1)
@@ -176,68 +105,49 @@ func TestMLPClassifierMicrochip(t *testing.T) {
 	// // test Fit with various base.Optimizer
 	var Optimizers = []string{
 		"sgd",
-		"adagrad",
-		"rmsprop",
-		"adadelta",
+		// "adagrad",
+		// "rmsprop",
+		// "adadelta",
 		"adam",
 		"lbfgs",
 	}
-	newOptimizer := func(name string) base.Optimizer {
 
-		switch name {
-		case "adadelta":
-			s := base.NewAdadeltaOptimizer()
-			//s.StepSize = 0.1
-			return s
-		case "adam":
-			s := base.NewAdamOptimizer()
-			//s.StepSize = 2
-			return s
-		case "lbfgs":
-			return nil
-		default:
-			s := base.NewOptimizer(name)
-			return s
-		}
-	}
-	//panic(fmt.Errorf("nSamples=%d", nSamples))
 	for _, optimizer := range Optimizers {
-		regr.Layers[0].Theta.Apply(func(feature, output int, _ float64) float64 { return 0. }, regr.Layers[0].Theta)
+		t.Run(optimizer, func(t *testing.T) {
+			testSetup := optimizer
+			regr := NewMLPClassifier([]int{}, "logistic", optimizer, 1)
+			regr.RandomState = rand.New(rand.NewSource(1))
+			regr.initialize(Ytrue.RawMatrix(), []int{nFeatures, nOutputs}, true, false)
+			for i := range regr.packedParameters {
+				regr.packedParameters[i] = 0
+			}
+			regr.WarmStart = true
+			regr.MaxIter = 400
+			regr.LearningRateInit = .11
+			regr.BatchSize = 118 //1,2,59,118
 
-		testSetup := optimizer
-		start := time.Now()
-		regr.Alpha = 1.
-		//regr.WeightDecay = .1
-		regr.Epochs = 50
-		regr.MiniBatchSize = 118 //1,2,59,118
-		regr.Solver = optimizer
-		switch optimizer {
-		case "lbfgs":
-			regr.Layers[0].Optimizer = nil
-		default:
-			regr.Layers[0].Optimizer = newOptimizer(optimizer)
-		}
+			start := time.Now()
+			regr.Fit(Xp, Ytrue)
+			elapsed := time.Since(start)
+			J := regr.Loss
 
-		regr.Fit(Xp, Ytrue)
-		elapsed := time.Since(start)
-		J = loss()
-		//fmt.Println(testSetup, "elapsed time", elapsed, "loss", J)
+			if J < bestLoss {
+				bestLoss = J
+				best["best for loss"] = testSetup + fmt.Sprintf("(%g)", J)
+			}
+			if elapsed < bestTime {
+				bestTime = elapsed
+				best["best for time"] = testSetup + fmt.Sprintf("(%s)", elapsed)
+			}
+			regr.Predict(Xp, Ypred)
+			accuracy := metrics.AccuracyScore(Ytrue, Ypred, true, nil)
+			// FIXME accuracy should be over 0.83
+			expectedAccuracy := 0.8305
+			if accuracy < expectedAccuracy {
+				t.Errorf("%s accuracy=%.3g expected:%.3g", optimizer, accuracy, expectedAccuracy)
+			}
 
-		if J < bestLoss {
-			bestLoss = J
-			best["best for loss"] = testSetup + fmt.Sprintf("(%g)", J)
-		}
-		if elapsed < bestTime {
-			bestTime = elapsed
-			best["best for time"] = testSetup + fmt.Sprintf("(%s)", elapsed)
-		}
-		regr.Predict(Xp, Ypred)
-		accuracy := metrics.AccuracyScore(Ytrue, Ypred, true, nil)
-		// FIXME accuracy should be over 0.83
-		expectedAccuracy := 0.82
-		if accuracy < expectedAccuracy {
-			t.Errorf("%s accuracy=%g expected:%g", optimizer, accuracy, expectedAccuracy)
-		}
+		})
 	}
 	fmt.Println("MLPClassifier BEST SETUP:", best)
 
@@ -245,65 +155,63 @@ func TestMLPClassifierMicrochip(t *testing.T) {
 	// fmt.Println("ok")
 }
 
-func TestMnist(t *testing.T) {
+func ExampleMLPClassifier_Predict_mnist() {
 	X, Y := datasets.LoadMnist()
-
-	X, Ybin := (&preprocessing.LabelBinarizer{}).FitTransform(X, Y)
-	Theta1, Theta2 := datasets.LoadMnistWeights()
-	mlp := NewMLPClassifier([]int{25}, "logistic", "adam", 0.)
-	mlp.Loss = "cross-entropy"
-	mlp.MiniBatchSize = 5000
+	lb := preprocessing.NewLabelBinarizer(0, 1)
+	X, Ybin := lb.FitTransform(X, Y)
+	Theta1T, Theta2T := datasets.LoadMnistWeights()
+	mlp := NewMLPClassifier([]int{25}, "logistic", "adam", 0)
 	mlp.Shuffle = false
-	mlp.allocLayers(400, 10, func() float64 { return 0. })
-	mlp.Layers[0].Theta.Copy(Theta1.T())
-	mlp.Layers[1].Theta.Copy(Theta2.T())
-	J := mlp.fitEpoch(X, Ybin, 0)
+	mlp.initialize(Ybin.RawMatrix(), []int{400, 25, 10}, true, true)
+	mat.NewDense(401, 25, mlp.packedParameters[:401*25]).Copy(Theta1T.T())
+	mat.NewDense(26, 10, mlp.packedParameters[401*25:]).Copy(Theta2T.T())
+	mlp.WarmStart = true
 
-	//fmt.Println("at test thetas J:=", J)
-	// check cost at loaded theta is 0.287629
-	if !floats.EqualWithinAbs(0.287629, J, 1e-6) {
-		t.Errorf("Expected cost: %g, got %g", 0.287629, J)
-	}
+	predBin := &mat.Dense{}
+	mlp.Predict(X, predBin)
+	//_, pred := lb.InverseTransform(nil, predBin)
+	acc := metrics.AccuracyScore(Ybin, predBin, true, nil)
+	fmt.Printf("Accuracy:%.2f%%\n", acc*100)
 
-	mlp.Alpha = 1.
-	mlp.Layers[0].Theta.Copy(Theta1.T())
-	mlp.Layers[1].Theta.Copy(Theta2.T())
-	J = mlp.fitEpoch(X, Ybin, 0)
-	if !floats.EqualWithinAbs(0.383770, J, 1e-6) {
-		t.Errorf("Expected cost: %g, got %g", 0.383770, J)
-	}
+	// Output:
+	// Accuracy:97.52%
 }
 
-func Benchmark_Fit_Mnist(b *testing.B) {
-
+func Benchmark_Fit_mnist(b *testing.B) {
+	// (cd exp && generate.sh)
+	// go test ./neural_network -run Benchmark_Fit_Mnist -bench ^Benchmark_Fit_Mnist -cpuprofile /tmp/cpu.prof -memprofile /tmp/mem.prof -benchmem
+	// go test ./exp -run BenchmarkMnist -bench ^Benchmark_Fit_Mnist -cpuprofile /tmp/cpu.prof -memprofile /tmp/mem.prof -benchmem
+	// go tool pprof /tmp/cpu.prof
 	X, Y := datasets.LoadMnist()
 
 	X, Ybin := (&preprocessing.LabelBinarizer{}).FitTransform(X, Y)
 	Theta1, Theta2 := datasets.LoadMnistWeights()
+	_, _ = Theta1, Theta2
 	mlp := NewMLPClassifier([]int{25}, "logistic", "adam", 0.)
-	mlp.Loss = "cross-entropy"
-	mlp.MiniBatchSize = 5000
-	mlp.Shuffle = false
-	mlp.allocLayers(400, 10, func() float64 { return 0. })
-	mlp.Layers[0].Theta.Copy(Theta1.T())
-	mlp.Layers[1].Theta.Copy(Theta2.T())
+	mlp.BatchSize = 5000
+	_, NFeatures := X.Dims()
+	_, NOutputs := Ybin.Dims()
+	mlp.initialize(Ybin.RawMatrix(), []int{NFeatures, 25, NOutputs}, true, true)
+	mat.NewDense(401, 25, mlp.packedParameters[:401*25]).Copy(Theta1.T())
+	mat.NewDense(26, 10, mlp.packedParameters[401*25:]).Copy(Theta2.T())
+	mlp.WarmStart = true
+	//J:=mlp.Loss
 	b.ResetTimer()
 	fmt.Println("Benchmark_Fit_Mnist b.N", b.N)
-	mlp.Epochs = b.N
+	mlp.MaxIter = b.N
 	mlp.Fit(X, Ybin)
-	fmt.Println("Benchmark_Fit_Mnist J", mlp.J)
+	fmt.Println("Benchmark_Fit_Mnist J", mlp.Loss)
 }
 
-//go test ./neural_network -run BenchmarkMnist -bench ^BenchmarkMnist -cpuprofile /tmp/cpu.prof -memprofile /tmp/mem.prof -benchmem
+//go test ./neural_network -run Benchmark_Fit_Mnist -bench ^Benchmark_Fit_Mnist -cpuprofile /tmp/cpu.prof -memprofile /tmp/mem.prof -benchmem
 //BenchmarkMnist-12            100          17387518 ns/op           89095 B/op         30 allocs/op
 
-func ExampleMLPClassifier() {
+func ExampleMLPClassifier_fit_breastCancer() {
 	ds := datasets.LoadBreastCancer()
-	fmt.Println("Dims", base.MatDimsString(ds.X, ds.Y))
 
 	scaler := preprocessing.NewStandardScaler()
 	X0, Y0 := scaler.Fit(ds.X, ds.Y).Transform(ds.X, ds.Y)
-	nSamples, nOutputs := Y0.Dims()
+	nSamples, _ := Y0.Dims()
 	pca := preprocessing.NewPCA()
 	X1, Y1 := pca.Fit(X0, Y0).Transform(X0, Y0)
 	thres := .995
@@ -314,31 +222,30 @@ func ExampleMLPClassifier() {
 	}
 	fmt.Printf("ExplainedVarianceRatio %.3f %.3f\n", ExplainedVarianceRatio, pca.ExplainedVarianceRatio[0:nComponents])
 	fmt.Printf("%d components explain %.2f%% of variance\n", nComponents, thres*100.)
-	X1 = base.MatDenseSlice(X1, 0, nSamples, 0, nComponents)
+	X1 = X1.Slice(0, nSamples, 0, nComponents).(*mat.Dense)
 
 	poly := preprocessing.NewPolynomialFeatures(2)
 	poly.IncludeBias = false
 	X2, Y2 := poly.Fit(X1, Y1).Transform(X1, Y1)
 
-	m := NewMLPClassifier([]int{}, "relu", "adam", 0.)
-	//m.WeightDecay = 0.005
-	m.Loss = "cross-entropy"
+	m := NewMLPClassifier([]int{}, "logistic", "adam", 0.)
+	m.RandomState = rand.New(rand.NewSource(1))
+	m.LearningRateInit = .02
+	m.WeightDecay = .001
+	m.MaxIter = 300
 
-	m.Epochs = 100
 	m.Fit(X2, Y2)
-	Ypred := mat.NewDense(nSamples, nOutputs, nil)
-	m.Predict(X2, Ypred)
-
-	accuracy := metrics.AccuracyScore(Y2, Ypred, true, nil)
-	fmt.Println("accuracy>0.994 ?", accuracy > 0.994)
-	if accuracy <= 0.994 {
-		fmt.Println("accuracy:", accuracy)
+	accuracy := m.Score(X2, Y2)
+	if accuracy <= .999 {
+		fmt.Printf("accuracy:%.9f\n", accuracy)
+	} else {
+		fmt.Println("accuracy>0.999 ? true")
 	}
+
 	// Output:
-	// Dims  569,30 569,1
 	// ExplainedVarianceRatio 0.996 [0.443 0.190 0.094 0.066 0.055 0.040 0.023 0.016 0.014 0.012 0.010 0.009 0.008 0.005 0.003 0.003 0.002 0.002 0.002 0.001]
 	// 20 components explain 99.50% of variance
-	// accuracy>0.994 ? true
+	// accuracy>0.999 ? true
 
 }
 
@@ -348,11 +255,13 @@ func ExampleMLPRegressor() {
 	// added weight decay and reduced epochs from 100 to 20
 	ds := datasets.LoadBoston()
 	X, Y := ds.X, ds.Y
-	mlp := NewMLPRegressor([]int{20}, "relu", "adam", 9.55e-5)
-	mlp.WeightDecay = .1
+	mlp := NewMLPRegressor([]int{20}, "relu", "adam", 0)
+	mlp.RandomState = rand.New(rand.NewSource(1))
+	mlp.LearningRateInit = .05
+	mlp.WeightDecay = .01
 	mlp.Shuffle = false
-	mlp.MiniBatchSize = 5
-	mlp.Epochs = 20
+	mlp.BatchSize = 5
+	mlp.MaxIter = 100
 	m := pipeline.NewPipeline(
 		pipeline.NamedStep{Name: "standardize", Step: preprocessing.NewStandardScaler()},
 		pipeline.NamedStep{Name: "mlpregressor", Step: mlp},
@@ -373,4 +282,45 @@ func ExampleMLPRegressor() {
 
 	// Output:
 	// true
+}
+
+func Testr2Score32(t *testing.T) {
+	//1st example of sklearn metrics r2Score
+	yTrue := blas32General{Rows: 4, Cols: 1, Stride: 1, Data: []float32{3, -0.5, 2, 7}}
+	yPred := blas32General{Rows: 4, Cols: 1, Stride: 1, Data: []float32{2.5, 0.0, 2, 8}}
+	r2Score := r2Score32(yTrue, yPred)
+	eps := float32(1e-3)
+	if math32.Abs(0.948-r2Score) > eps {
+		t.Error("expected 0.948")
+	}
+
+	yTrue = blas32General{Rows: 3, Cols: 1, Stride: 1, Data: []float32{1, 2, 3}}
+	yPred = blas32General{Rows: 3, Cols: 1, Stride: 1, Data: []float32{1, 2, 3}}
+	if math32.Abs(1.-r2Score32(yTrue, yPred)) >= 1e-3 {
+		t.Error("expected 1")
+	}
+	yTrue = blas32General{Rows: 3, Cols: 1, Stride: 1, Data: []float32{1, 2, 3}}
+	yPred = blas32General{Rows: 3, Cols: 1, Stride: 1, Data: []float32{2, 2, 2}}
+	if math32.Abs(0.-r2Score32(yTrue, yPred)) >= 1e-3 {
+		t.Error("expected 0")
+	}
+	yTrue = blas32General{Rows: 3, Cols: 1, Stride: 1, Data: []float32{1, 2, 3}}
+	yPred = blas32General{Rows: 3, Cols: 1, Stride: 1, Data: []float32{3, 2, 1}}
+	if math32.Abs(-3.-r2Score32(yTrue, yPred)) >= 1e-3 {
+		t.Error("expected -3")
+	}
+}
+
+func TestaccuracyScore32(t *testing.T) {
+	// adapted from example in https://github.com/scikit-learn/scikit-learn/blob/0.19.1/sklearn/metrics/classification.py
+	Ypred, Ytrue := blas32General{Rows: 4, Cols: 1, Stride: 1, Data: []float32{0, 2, 1, 3}}, blas32General{Rows: 4, Cols: 1, Stride: 1, Data: []float32{0, 1, 2, 3}}
+	expected, actual := float32(0.5), accuracyScore32(Ytrue, Ypred)
+	if actual != expected {
+		t.Errorf("expected %g, got %g", expected, actual)
+	}
+	Ypred, Ytrue = blas32General{Rows: 2, Cols: 2, Stride: 2, Data: []float32{0, 1, 1, 1}}, blas32General{Rows: 2, Cols: 2, Stride: 2, Data: []float32{1, 1, 1, 1}}
+	expected, actual = float32(0.5), accuracyScore32(Ytrue, Ypred)
+	if actual != expected {
+		t.Errorf("expected %g, got %g", expected, actual)
+	}
 }
