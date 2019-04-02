@@ -1,9 +1,11 @@
 package interpolate
 
 import (
-	"golang.org/x/exp/rand"
+	"flag"
 	"os"
 	"os/exec"
+
+	"golang.org/x/exp/rand"
 
 	"testing"
 
@@ -27,6 +29,8 @@ func BenchmarkCubicSpline(b *testing.B) {
 	}
 }
 
+var visualDebug = flag.Bool("visual", false, "show plots")
+
 func ExampleCubicSpline() {
 	xs := make([]float64, 20)
 	ys := make([]float64, len(xs))
@@ -48,8 +52,7 @@ func ExampleCubicSpline() {
 	line, err := plotter.NewLine(&xy{x2, y2})
 	p.Add(scatter, line)
 
-	showPlot := false
-	if showPlot {
+	if *visualDebug {
 		filename := "/tmp/spline.svg"
 		os.Remove(filename)
 		if err := p.Save(16*vg.Inch, 9*vg.Inch, filename); err != nil {

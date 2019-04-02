@@ -38,7 +38,7 @@ func CubicSpline(xs, ys []float64) func(x float64) float64 {
 		var err error
 		var chol mat.Cholesky
 		if chol.Factorize(A) {
-			err = chol.SolveVec(ksVec, Bd)
+			err = chol.SolveVecTo(ksVec, Bd)
 		} else {
 			err = errors.New("not positive definite")
 		}

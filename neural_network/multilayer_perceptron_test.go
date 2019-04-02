@@ -296,18 +296,18 @@ func Test_r2Score32(t *testing.T) {
 		t.Errorf("expected 0.948 got %g", r2Score)
 	}
 
-	yTrue = blas32General{Rows: 3, Cols: 1, Stride: 1, Data: []float32{1, 2, 3}}
-	yPred = blas32General{Rows: 3, Cols: 1, Stride: 1, Data: []float32{1, 2, 3}}
+	yTrue = blas32.General{Rows: 3, Cols: 1, Stride: 1, Data: []float32{1, 2, 3}}
+	yPred = blas32.General{Rows: 3, Cols: 1, Stride: 1, Data: []float32{1, 2, 3}}
 	if math32.Abs(1.-r2Score32(yTrue, yPred)) >= 1e-3 {
 		t.Error("expected 1")
 	}
-	yTrue = blas32General{Rows: 3, Cols: 1, Stride: 1, Data: []float32{1, 2, 3}}
-	yPred = blas32General{Rows: 3, Cols: 1, Stride: 1, Data: []float32{2, 2, 2}}
+	yTrue = blas32.General{Rows: 3, Cols: 1, Stride: 1, Data: []float32{1, 2, 3}}
+	yPred = blas32.General{Rows: 3, Cols: 1, Stride: 1, Data: []float32{2, 2, 2}}
 	if math32.Abs(0.-r2Score32(yTrue, yPred)) >= 1e-3 {
 		t.Error("expected 0")
 	}
-	yTrue = blas32General{Rows: 3, Cols: 1, Stride: 1, Data: []float32{1, 2, 3}}
-	yPred = blas32General{Rows: 3, Cols: 1, Stride: 1, Data: []float32{3, 2, 1}}
+	yTrue = blas32.General{Rows: 3, Cols: 1, Stride: 1, Data: []float32{1, 2, 3}}
+	yPred = blas32.General{Rows: 3, Cols: 1, Stride: 1, Data: []float32{3, 2, 1}}
 	if math32.Abs(-3.-r2Score32(yTrue, yPred)) >= 1e-3 {
 		t.Error("expected -3")
 	}
@@ -315,12 +315,12 @@ func Test_r2Score32(t *testing.T) {
 
 func Test_accuracyScore32(t *testing.T) {
 	// adapted from example in https://github.com/scikit-learn/scikit-learn/blob/0.19.1/sklearn/metrics/classification.py
-	Ypred, Ytrue := blas32General{Rows: 4, Cols: 1, Stride: 1, Data: []float32{0, 2, 1, 3}}, blas32General{Rows: 4, Cols: 1, Stride: 1, Data: []float32{0, 1, 2, 3}}
+	Ypred, Ytrue := blas32.General{Rows: 4, Cols: 1, Stride: 1, Data: []float32{0, 2, 1, 3}}, blas32.General{Rows: 4, Cols: 1, Stride: 1, Data: []float32{0, 1, 2, 3}}
 	expected, actual := float32(0.5), accuracyScore32(Ytrue, Ypred)
 	if actual != expected {
 		t.Errorf("expected %g, got %g", expected, actual)
 	}
-	Ypred, Ytrue = blas32General{Rows: 2, Cols: 2, Stride: 2, Data: []float32{0, 1, 1, 1}}, blas32General{Rows: 2, Cols: 2, Stride: 2, Data: []float32{1, 1, 1, 1}}
+	Ypred, Ytrue = blas32.General{Rows: 2, Cols: 2, Stride: 2, Data: []float32{0, 1, 1, 1}}, blas32.General{Rows: 2, Cols: 2, Stride: 2, Data: []float32{1, 1, 1, 1}}
 	expected, actual = float32(0.5), accuracyScore32(Ytrue, Ypred)
 	if actual != expected {
 		t.Errorf("expected %g, got %g", expected, actual)

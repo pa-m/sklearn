@@ -111,26 +111,26 @@ var Derivatives32 = map[string]func(Z, deltas blas32General){
 	"identity": func(Z, deltas blas32General) {
 	},
 	"logistic": func(Z, deltas blas32General) {
-		for row, zpos := 0, 0; row < Z.Rows; row, zpos = row+1, zpos+Z.Stride {
+		for row, zpos, dpos := 0, 0, 0; row < Z.Rows; row, zpos, dpos = row+1, zpos+Z.Stride, dpos+deltas.Stride {
 			for col := 0; col < Z.Cols; col++ {
 				z := Z.Data[zpos+col]
-				deltas.Data[zpos+col] *= z * (1 - z)
+				deltas.Data[dpos+col] *= z * (1 - z)
 			}
 		}
 	},
 	"tanh": func(Z, deltas blas32General) {
-		for row, zpos := 0, 0; row < Z.Rows; row, zpos = row+1, zpos+Z.Stride {
+		for row, zpos, dpos := 0, 0, 0; row < Z.Rows; row, zpos, dpos = row+1, zpos+Z.Stride, dpos+deltas.Stride {
 			for col := 0; col < Z.Cols; col++ {
 				z := Z.Data[zpos+col]
-				deltas.Data[zpos+col] *= 1 - z*z
+				deltas.Data[dpos+col] *= 1 - z*z
 			}
 		}
 	},
 	"relu": func(Z, deltas blas32General) {
-		for row, zpos := 0, 0; row < Z.Rows; row, zpos = row+1, zpos+Z.Stride {
+		for row, zpos, dpos := 0, 0, 0; row < Z.Rows; row, zpos, dpos = row+1, zpos+Z.Stride, dpos+deltas.Stride {
 			for col := 0; col < Z.Cols; col++ {
 				if Z.Data[zpos+col] == 0 {
-					deltas.Data[zpos+col] = 0
+					deltas.Data[dpos+col] = 0
 				}
 			}
 		}
@@ -141,9 +141,9 @@ var Derivatives32 = map[string]func(Z, deltas blas32General){
 var LossFunctions32 = map[string]func(y, h blas32General) float32{
 	"square_loss": func(y, h blas32General) float32 {
 		sum := float32(0)
-		for row, pos := 0, 0; row < y.Rows; row, pos = row+1, pos+y.Stride {
+		for row, hpos, ypos := 0, 0, 0; row < y.Rows; row, hpos, ypos = row+1, hpos+h.Stride, ypos+y.Stride {
 			for col := 0; col < y.Cols; col++ {
-				e := h.Data[pos+col] - y.Data[pos+col]
+				e := h.Data[hpos+col] - y.Data[ypos+col]
 				sum += e * e
 			}
 		}
@@ -152,16 +152,16 @@ var LossFunctions32 = map[string]func(y, h blas32General) float32{
 	"log_loss": func(y, h blas32General) float32 {
 		sum := float32(0)
 		hmin, hmax := M32.Nextafter(0, 1), M32.Nextafter(1, 0)
-		for row, pos := 0, 0; row < y.Rows; row, pos = row+1, pos+y.Stride {
+		for row, hpos, ypos := 0, 0, 0; row < y.Rows; row, hpos, ypos = row+1, hpos+h.Stride, ypos+y.Stride {
 			for col := 0; col < y.Cols; col++ {
-				hval := h.Data[pos+col]
+				hval := h.Data[hpos+col]
 				if hval < hmin {
 					hval = hmin
 				} else if hval > hmax {
 					hval = hmax
 				}
-				if y.Data[pos+col] != 0 {
-					sum += -y.Data[pos+col] * M32.Log(hval)
+				if y.Data[ypos+col] != 0 {
+					sum += -y.Data[ypos+col] * M32.Log(hval)
 				}
 			}
 		}
@@ -170,15 +170,15 @@ var LossFunctions32 = map[string]func(y, h blas32General) float32{
 	"binary_log_loss": func(y, h blas32General) float32 {
 		sum := float32(0)
 		hmin, hmax := M32.Nextafter(0, 1), M32.Nextafter(1, 0)
-		for row, pos := 0, 0; row < y.Rows; row, pos = row+1, pos+y.Stride {
+		for row, hpos, ypos := 0, 0, 0; row < y.Rows; row, hpos, ypos = row+1, hpos+h.Stride, ypos+y.Stride {
 			for col := 0; col < y.Cols; col++ {
-				hval := h.Data[pos+col]
+				hval := h.Data[hpos+col]
 				if hval < hmin {
 					hval = hmin
 				} else if hval > hmax {
 					hval = hmax
 				}
-				sum += -y.Data[pos+col]*M32.Log(hval) - (1-y.Data[pos+col])*M32.Log1p(-hval)
+				sum += -y.Data[ypos+col]*M32.Log(hval) - (1-y.Data[ypos+col])*M32.Log1p(-hval)
 			}
 		}
 		return sum / float32(h.Rows)
@@ -220,9 +220,9 @@ func matRowMean32(a blas32General, b []float32) {
 	}
 }
 func matSub32(a, b, dst blas32General) {
-	for arow, apos := 0, 0; arow < b.Rows; arow, apos = arow+1, apos+a.Stride {
+	for arow, apos, bpos := 0, 0, 0; arow < b.Rows; arow, apos, bpos = arow+1, apos+a.Stride, bpos+b.Stride {
 		for c := 0; c < a.Cols; c++ {
-			dst.Data[apos+c] = a.Data[apos+c] - b.Data[apos+c]
+			dst.Data[apos+c] = a.Data[apos+c] - b.Data[bpos+c]
 		}
 	}
 }
