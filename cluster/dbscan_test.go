@@ -24,7 +24,7 @@ func ExampleDBSCAN() {
 	// Generate sample data
 	centers := mat.NewDense(3, 2, []float64{1, 1, -1, -1, 1, -1})
 	NSamples := 750
-	X, _ := datasets.MakeBlobs(&datasets.MakeBlobsConfig{NSamples: NSamples, Centers: centers, ClusterStd: .3}) //RandomState: rand.New(NewLockedSource(0)),
+	X, _ := datasets.MakeBlobs(&datasets.MakeBlobsConfig{NSamples: NSamples, Centers: centers, ClusterStd: .3})
 
 	X, _ = preprocessing.NewStandardScaler().FitTransform(X, nil)
 	db := NewDBSCAN(&DBSCANConfig{Eps: .3, MinSamples: 10, Algorithm: "kd_tree"})

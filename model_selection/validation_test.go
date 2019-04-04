@@ -26,6 +26,6 @@ func ExampleCrossValidate() {
 	sort.Sort(cvresults)
 	fmt.Printf("%.8f", cvresults.TestScore)
 	// Output:
-	// [0.38916221 0.33615684 0.28314305]
+	// [0.29391770 0.25681807 0.24695688]
 
 }

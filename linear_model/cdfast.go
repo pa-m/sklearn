@@ -1,8 +1,10 @@
 package linearmodel
 
 import (
-	"golang.org/x/exp/rand"
 	"math"
+
+	"github.com/pa-m/sklearn/base"
+	"golang.org/x/exp/rand"
 
 	"gonum.org/v1/gonum/blas/blas64"
 	"gonum.org/v1/gonum/mat"
@@ -10,7 +12,7 @@ import (
 
 // coordinate descent algorithm for Elastic-Net
 // v https://github.com/scikit-learn/scikit-learn/blob/a24c8b464d094d2c468a16ea9f8bf8d42d949f84/sklearn/linear_model/cd_fast.pyx
-func enetCoordinateDescent(w *mat.VecDense, alpha, beta float64, X *mat.Dense, Y *mat.VecDense, maxIter int, tol float64, rng *rand.Rand, random, positive bool) *CDResult {
+func enetCoordinateDescent(w *mat.VecDense, alpha, beta float64, X *mat.Dense, Y *mat.VecDense, maxIter int, tol float64, rng base.Intner, random, positive bool) *CDResult {
 	/*
 	   coordinate descent algorithm
 	       for Elastic-Net regression

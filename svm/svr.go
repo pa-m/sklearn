@@ -33,7 +33,7 @@ func (m *SVR) Clone() base.Transformer {
 	return &clone
 }
 
-func svrTrain(X *mat.Dense, Y []float64, C, Epsilon float64, KernelFunction func(X1, X2 []float64) float64, Tol float64, MaxPasses int, CacheSize uint, RandomState *uint64) *Model {
+func svrTrain(X *mat.Dense, Y []float64, C, Epsilon float64, KernelFunction func(X1, X2 []float64) float64, Tol float64, MaxPasses int, CacheSize uint, RandomState base.Source) *Model {
 	m, n := X.Dims()
 	alphas := make([]float64, m, m)
 	b := 0.
@@ -66,8 +66,12 @@ func svrTrain(X *mat.Dense, Y []float64, C, Epsilon float64, KernelFunction func
 	}
 	randIntn := rand.Intn
 	if RandomState != nil {
-		r := rand.New(base.NewLockedSource(*RandomState))
-		randIntn = r.Intn
+		type Intner interface{ Intn(int) int }
+		if intner, ok := RandomState.(Intner); ok {
+			randIntn = intner.Intn
+		} else {
+			randIntn = rand.New(RandomState).Intn
+		}
 	}
 
 	for passes < MaxPasses {

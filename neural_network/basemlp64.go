@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/pa-m/sklearn/base"
+
 	"golang.org/x/exp/rand"
 	"gonum.org/v1/gonum/blas"
 	"gonum.org/v1/gonum/optimize"
@@ -27,7 +28,7 @@ type BaseMultilayerPerceptron64 struct {
 	LossFuncName       string
 	HiddenLayerSizes   []int
 	Shuffle            bool
-	RandomState        *rand.Rand
+	RandomState        base.RandomState
 	Tol                float64
 	Verbose            bool
 	WarmStart          bool
@@ -110,26 +111,26 @@ var Derivatives64 = map[string]func(Z, deltas blas64General){
 	"identity": func(Z, deltas blas64General) {
 	},
 	"logistic": func(Z, deltas blas64General) {
-		for row, zpos := 0, 0; row < Z.Rows; row, zpos = row+1, zpos+Z.Stride {
+		for row, zpos, dpos := 0, 0, 0; row < Z.Rows; row, zpos, dpos = row+1, zpos+Z.Stride, dpos+deltas.Stride {
 			for col := 0; col < Z.Cols; col++ {
 				z := Z.Data[zpos+col]
-				deltas.Data[zpos+col] *= z * (1 - z)
+				deltas.Data[dpos+col] *= z * (1 - z)
 			}
 		}
 	},
 	"tanh": func(Z, deltas blas64General) {
-		for row, zpos := 0, 0; row < Z.Rows; row, zpos = row+1, zpos+Z.Stride {
+		for row, zpos, dpos := 0, 0, 0; row < Z.Rows; row, zpos, dpos = row+1, zpos+Z.Stride, dpos+deltas.Stride {
 			for col := 0; col < Z.Cols; col++ {
 				z := Z.Data[zpos+col]
-				deltas.Data[zpos+col] *= 1 - z*z
+				deltas.Data[dpos+col] *= 1 - z*z
 			}
 		}
 	},
 	"relu": func(Z, deltas blas64General) {
-		for row, zpos := 0, 0; row < Z.Rows; row, zpos = row+1, zpos+Z.Stride {
+		for row, zpos, dpos := 0, 0, 0; row < Z.Rows; row, zpos, dpos = row+1, zpos+Z.Stride, dpos+deltas.Stride {
 			for col := 0; col < Z.Cols; col++ {
 				if Z.Data[zpos+col] == 0 {
-					deltas.Data[zpos+col] = 0
+					deltas.Data[dpos+col] = 0
 				}
 			}
 		}
@@ -140,9 +141,9 @@ var Derivatives64 = map[string]func(Z, deltas blas64General){
 var LossFunctions64 = map[string]func(y, h blas64General) float64{
 	"square_loss": func(y, h blas64General) float64 {
 		sum := float64(0)
-		for row, pos := 0, 0; row < y.Rows; row, pos = row+1, pos+y.Stride {
+		for row, hpos, ypos := 0, 0, 0; row < y.Rows; row, hpos, ypos = row+1, hpos+h.Stride, ypos+y.Stride {
 			for col := 0; col < y.Cols; col++ {
-				e := h.Data[pos+col] - y.Data[pos+col]
+				e := h.Data[hpos+col] - y.Data[ypos+col]
 				sum += e * e
 			}
 		}
@@ -151,16 +152,16 @@ var LossFunctions64 = map[string]func(y, h blas64General) float64{
 	"log_loss": func(y, h blas64General) float64 {
 		sum := float64(0)
 		hmin, hmax := M64.Nextafter(0, 1), M64.Nextafter(1, 0)
-		for row, pos := 0, 0; row < y.Rows; row, pos = row+1, pos+y.Stride {
+		for row, hpos, ypos := 0, 0, 0; row < y.Rows; row, hpos, ypos = row+1, hpos+h.Stride, ypos+y.Stride {
 			for col := 0; col < y.Cols; col++ {
-				hval := h.Data[pos+col]
+				hval := h.Data[hpos+col]
 				if hval < hmin {
 					hval = hmin
 				} else if hval > hmax {
 					hval = hmax
 				}
-				if y.Data[pos+col] != 0 {
-					sum += -y.Data[pos+col] * M64.Log(hval)
+				if y.Data[ypos+col] != 0 {
+					sum += -y.Data[ypos+col] * M64.Log(hval)
 				}
 			}
 		}
@@ -169,15 +170,15 @@ var LossFunctions64 = map[string]func(y, h blas64General) float64{
 	"binary_log_loss": func(y, h blas64General) float64 {
 		sum := float64(0)
 		hmin, hmax := M64.Nextafter(0, 1), M64.Nextafter(1, 0)
-		for row, pos := 0, 0; row < y.Rows; row, pos = row+1, pos+y.Stride {
+		for row, hpos, ypos := 0, 0, 0; row < y.Rows; row, hpos, ypos = row+1, hpos+h.Stride, ypos+y.Stride {
 			for col := 0; col < y.Cols; col++ {
-				hval := h.Data[pos+col]
+				hval := h.Data[hpos+col]
 				if hval < hmin {
 					hval = hmin
 				} else if hval > hmax {
 					hval = hmax
 				}
-				sum += -y.Data[pos+col]*M64.Log(hval) - (1-y.Data[pos+col])*M64.Log1p(-hval)
+				sum += -y.Data[ypos+col]*M64.Log(hval) - (1-y.Data[ypos+col])*M64.Log1p(-hval)
 			}
 		}
 		return sum / float64(h.Rows)
@@ -219,9 +220,9 @@ func matRowMean64(a blas64General, b []float64) {
 	}
 }
 func matSub64(a, b, dst blas64General) {
-	for arow, apos := 0, 0; arow < b.Rows; arow, apos = arow+1, apos+a.Stride {
+	for arow, apos, bpos := 0, 0, 0; arow < b.Rows; arow, apos, bpos = arow+1, apos+a.Stride, bpos+b.Stride {
 		for c := 0; c < a.Cols; c++ {
-			dst.Data[apos+c] = a.Data[apos+c] - b.Data[apos+c]
+			dst.Data[apos+c] = a.Data[apos+c] - b.Data[bpos+c]
 		}
 	}
 }
@@ -241,7 +242,7 @@ func NewBaseMultilayerPerceptron64() *BaseMultilayerPerceptron64 {
 		//LossFuncName       string
 		HiddenLayerSizes: []int{100},
 		Shuffle:          true,
-		//RandomState        *rand.Rand
+		//RandomState       base.Source
 		Tol:                1e-4,
 		Verbose:            false,
 		WarmStart:          false,
@@ -396,10 +397,16 @@ func (mlp *BaseMultilayerPerceptron64) initialize(y blas64General, layerUnits []
 	mlp.packedGrads = mem[off : 2*off]
 
 	off = 0
-	if mlp.RandomState == (*rand.Rand)(nil) {
-		mlp.RandomState = rand.New(base.NewLockedSource(uint64(time.Now().UnixNano())))
+	if mlp.RandomState == (base.RandomState)(nil) {
+		mlp.RandomState = base.NewLockedSource(uint64(time.Now().UnixNano()))
 	}
-
+	type Float64er interface{ Float64() float64 }
+	var rndFloat64 func() float64
+	if float64er, ok := mlp.RandomState.(Float64er); ok {
+		rndFloat64 = float64er.Float64
+	} else {
+		rndFloat64 = rand.New(mlp.RandomState).Float64
+	}
 	for i := 0; i < mlp.NLayers-1; i++ {
 		prevOff := off
 		mlp.Intercepts[i] = mem[off : off+layerUnits[i+1]]
@@ -415,7 +422,7 @@ func (mlp *BaseMultilayerPerceptron64) initialize(y blas64General, layerUnits []
 		}
 		initBound := M64.Sqrt(factor / float64(fanIn+fanOut))
 		for pos := prevOff; pos < off; pos++ {
-			mem[pos] = mlp.RandomState.Float64() * initBound
+			mem[pos] = rndFloat64() * initBound
 		}
 	}
 	for i := 0; i < mlp.NLayers-1; i++ {
@@ -666,6 +673,16 @@ func (mlp *BaseMultilayerPerceptron64) fitStochastic(X, y blas64General, activat
 	for i := range idx {
 		idx[i] = i
 	}
+	type Shuffler interface {
+		Shuffle(n int, swap func(i, j int))
+	}
+	var rndShuffle func(n int, swap func(i, j int))
+	if shuffler, ok := mlp.RandomState.(Shuffler); ok {
+		rndShuffle = shuffler.Shuffle
+
+	} else {
+		rndShuffle = rand.New(mlp.RandomState).Shuffle
+	}
 	func() {
 		if r := recover(); r != nil {
 			// ...
@@ -673,7 +690,7 @@ func (mlp *BaseMultilayerPerceptron64) fitStochastic(X, y blas64General, activat
 		}
 		for it := 0; it < mlp.MaxIter; it++ {
 			if mlp.Shuffle {
-				mlp.RandomState.Shuffle(nSamples, indexedXY{idx: sort.IntSlice(idx), X: General64(X), Y: General64(y)}.Swap)
+				rndShuffle(nSamples, indexedXY{idx: sort.IntSlice(idx), X: General64(X), Y: General64(y)}.Swap)
 			}
 			accumulatedLoss := float64(0.0)
 			for batch := [2]int{0, batchSize}; batch[0] < nSamples-testSize; batch = [2]int{batch[1], batch[1] + batchSize} {
@@ -963,8 +980,13 @@ func r2Score64(yTrue, yPred blas64General) float64 {
 		// yDen = YTrue-YTrueAvg
 
 		for r, ypos := 0, 0; r < yTrue.Rows; r, ypos = r+1, ypos+yTrue.Stride {
-			yNum += yPred.Data[ypos+c] - yTrue.Data[ypos+c]
-			yDen += yTrue.Data[ypos+c] - yTrueAvg
+			t := yPred.Data[ypos+c] - yTrue.Data[ypos+c]
+			yNum += t * t
+			t = yTrue.Data[ypos+c] - yTrueAvg
+			yDen += t * t
+		}
+		if yDen == 0 {
+			panic("yDen=0")
 		}
 		r2 := 1 - yNum/yDen
 		r2acc += r2

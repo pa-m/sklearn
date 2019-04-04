@@ -1,7 +1,7 @@
 package modelselection
 
 import (
-	"sync"
+	"github.com/pa-m/sklearn/base"
 
 	"golang.org/x/exp/rand"
 
@@ -15,7 +15,7 @@ type RandomState = rand.Rand
 type KFold struct {
 	NSplits     int
 	Shuffle     bool
-	RandomState *RandomState
+	RandomState base.RandomState
 }
 
 var (
@@ -35,6 +35,12 @@ type Split struct{ TrainIndex, TestIndex []int }
 // Clone ...
 func (splitter *KFold) Clone() Splitter {
 	clone := *splitter
+	type Cloner interface{ Clone() base.Source }
+	if clone.RandomState != nil {
+		if cloner, ok := clone.RandomState.(Cloner); ok {
+			clone.RandomState = cloner.Clone()
+		}
+	}
 	return &clone
 }
 
@@ -45,12 +51,20 @@ func (splitter *KFold) Split(X, Y *mat.Dense) (ch chan Split) {
 	}
 	NSamples, _ := X.Dims()
 
-	Shuffle, intn := rand.Shuffle, rand.Intn
-	var randlk sync.Mutex
-	if splitter.RandomState != nil {
-		r := splitter.RandomState
-		Shuffle, intn = r.Shuffle, r.Intn
+	type Shuffler interface {
+		Shuffle(n int, swap func(i, j int))
+	}
+	type Intner interface{ Intn(int) int }
+	var rndShuffle = rand.Shuffle
+	var rndIntn = rand.Intn
 
+	if splitter.RandomState != base.Source(nil) {
+		if shuffler, ok := splitter.RandomState.(Shuffler); ok {
+			rndShuffle = shuffler.Shuffle
+		}
+		if intner, ok := splitter.RandomState.(Intner); ok {
+			rndIntn = intner.Intn
+		}
 	}
 
 	ch = make(chan Split)
@@ -67,16 +81,14 @@ func (splitter *KFold) Split(X, Y *mat.Dense) (ch chan Split) {
 				a[i] = i
 			}
 			aSwap := func(i, j int) { a[i], a[j] = a[j], a[i] }
-			randlk.Lock()
 			if splitter.Shuffle {
-				Shuffle(len(a), aSwap)
+				rndShuffle(len(a), aSwap)
 			} else {
-				start := intn(NSamples)
+				start := rndIntn(NSamples)
 				for i := 0; i < NTest; i++ {
 					aSwap((start+i)%NSamples, NSamples-NTest+i)
 				}
 			}
-			randlk.Unlock()
 			sp := Split{
 				TrainIndex: a[:NSamples-NTest],
 				TestIndex:  a[NSamples-NTest:],

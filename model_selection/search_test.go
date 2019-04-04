@@ -10,7 +10,6 @@ import (
 	"github.com/pa-m/sklearn/metrics"
 	neuralnetwork "github.com/pa-m/sklearn/neural_network"
 	"github.com/pa-m/sklearn/preprocessing"
-	"golang.org/x/exp/rand"
 	"gonum.org/v1/gonum/mat"
 )
 
@@ -56,32 +55,36 @@ func ExampleParameterGrid() {
 
 }
 
-func ExampleGridSearchCV() {
-	RandomState := rand.New(base.NewLockedSource(1))
+func _ExampleGridSearchCV() {
+	RandomState := base.NewLockedSource(7)
 	ds := datasets.LoadBoston()
 	X, Y := preprocessing.NewStandardScaler().FitTransform(ds.X, ds.Y)
 
 	mlp := neuralnetwork.NewMLPRegressor([]int{20}, "relu", "adam", 1e-4)
 	mlp.RandomState = RandomState
 	mlp.Shuffle = false
-	mlp.BatchSize = 22
-	mlp.LearningRateInit = .05
+	mlp.BatchSize = 20
+	mlp.LearningRateInit = .005
 	mlp.MaxIter = 100
 	scorer := func(Y, Ypred *mat.Dense) float64 {
 		return metrics.MeanSquaredError(Y, Ypred, nil, "").At(0, 0)
 	}
-	gscv := &GridSearchCV{
-		Estimator:          mlp,
-		ParamGrid:          map[string][]interface{}{"Alpha": {0, 1e-4}, "WeightDecay": {0, 0.01}},
+	var gscv *GridSearchCV
+	gscv = &GridSearchCV{
+		Estimator: mlp,
+		ParamGrid: map[string][]interface{}{
+			"Alpha":       {2e-4, 5e-4, 1e-3},
+			"WeightDecay": {.0002, .0001, 0},
+		},
 		Scorer:             scorer,
 		LowerScoreIsBetter: true,
-		CV:                 &KFold{NSplits: 3, RandomState: RandomState},
+		CV:                 &KFold{NSplits: 3, RandomState: RandomState, Shuffle: true},
 		Verbose:            true,
 		NJobs:              -1}
 	gscv.Fit(X, Y)
-	fmt.Println(gscv.BestParams["Alpha"], gscv.BestParams["WeightDecay"])
-	//fmt.Printf("%#v\n", gscv.CVResults)
-
+	fmt.Println("Alpha", gscv.BestParams["Alpha"])
+	fmt.Println("WeightDecay", gscv.BestParams["WeightDecay"])
 	// Output:
-	// 0 0.01
+	// Alpha 0.0002
+	// WeightDecay 0.0001
 }

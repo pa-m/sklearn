@@ -24,7 +24,7 @@ func ExampleSVR() {
 	/*
 		https://scikit-learn.org/stable/auto_examples/svm/plot_svm_regression.html#sphx-glr-auto-examples-svm-plot-svm-regression-py
 	*/
-
+	randomState := base.NewLockedSource(7)
 	// Generate sample data
 	NSamples, NFeatures, NOutputs := 40, 1, 1
 	X := mat.NewDense(NSamples, NFeatures, nil)
@@ -69,7 +69,7 @@ func ExampleSVR() {
 		svr.Gamma = opt.gamma
 		svr.Coef0 = opt.coef0
 		svr.Degree = opt.degree
-		svr.RandomState = func() *uint64 { seed := uint64(5); return &seed }()
+		svr.RandomState = randomState
 		svr.Tol = math.Sqrt(Epsilon)
 
 		svr.MaxIter = 5

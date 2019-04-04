@@ -2,7 +2,8 @@ module github.com/pa-m/sklearn
 
 require (
 	github.com/chewxy/math32 v1.0.0
-	golang.org/x/exp v0.0.0-20190312203227-4b39c73a6495
+	github.com/pa-m/randomkit v0.0.0-20190402202301-70c3c46153e1
+	golang.org/x/exp v0.0.0-20190321205749-f0864edee7f3
 	golang.org/x/tools v0.0.0-20190401205534-4c644d7e323d // indirect
 	gonum.org/v1/gonum v0.0.0-20190331200053-3d26580ed485
 	gonum.org/v1/netlib v0.0.0-20190331212654-76723241ea4e // indirect

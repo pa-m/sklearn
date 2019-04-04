@@ -4,7 +4,6 @@ import (
 	"math"
 	"runtime"
 	"sort"
-	"sync"
 
 	"golang.org/x/exp/rand"
 
@@ -110,7 +109,7 @@ type MakeBlobsConfig struct {
 	ClusterStd  float64
 	CenterBox   []float64
 	Shuffle     bool
-	RandomState *rand.Rand
+	RandomState base.RandomState
 }
 
 // MakeBlobs Generate isotropic Gaussian blobs for clustering
@@ -148,17 +147,20 @@ func MakeBlobs(config *MakeBlobsConfig) (X, Y *mat.Dense) {
 	}
 	randNormFloat64 := rand.NormFloat64
 	randIntn := rand.Intn
-	var randlk sync.Mutex
 	if config.RandomState != nil {
-		randNormFloat64 = config.RandomState.NormFloat64
-		randIntn = config.RandomState.Intn
+		if normFloat64er, ok := config.RandomState.(base.NormFloat64er); ok {
+			randNormFloat64 = normFloat64er.NormFloat64
+		}
+		if intner, ok := config.RandomState.(base.Intner); ok {
+			randIntn = intner.Intn
+		}
 	}
+
 	if randomizeCenters {
 		boxCenter := (config.CenterBox[0] + config.CenterBox[1]) / 2
 		boxRadius := math.Abs(config.CenterBox[1]-config.CenterBox[0]) / 2
 
 		Craw := Centers.RawMatrix()
-		randlk.Lock()
 		for i := range Craw.Data {
 			for {
 				Craw.Data[i] = boxCenter + randNormFloat64()*boxRadius
@@ -167,7 +169,6 @@ func MakeBlobs(config *MakeBlobsConfig) (X, Y *mat.Dense) {
 				}
 			}
 		}
-		randlk.Unlock()
 	}
 
 	X = mat.NewDense(config.NSamples, config.NFeatures, nil)
@@ -182,14 +183,12 @@ func MakeBlobs(config *MakeBlobsConfig) (X, Y *mat.Dense) {
 		sigma.ScaleSym(config.ClusterStd*config.ClusterStd, sigma)
 		normal, _ := distmv.NewNormal(mu, sigma, nil)
 		_ = normal
-		randlk.Lock()
 		for sample := start; sample < end; sample++ {
 			cluster := randIntn(NCenters)
 			Y.Set(sample, 0, float64(cluster))
 			normal.Rand(X.RawRowView(sample))
 			floats.Add(X.RawRowView(sample), Centers.RawRowView(cluster))
 		}
-		randlk.Unlock()
 	})
 	if config.Shuffle {
 		X, Y = preprocessing.NewShuffler().FitTransform(X, Y)

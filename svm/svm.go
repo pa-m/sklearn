@@ -46,7 +46,7 @@ type Model struct {
 // %
 // %           LIBSVM   (http://www.csie.ntu.edu.tw/~cjlin/libsvm/)
 // %           SVMLight (http://svmlight.joachims.org/)
-func svmTrain(X *mat.Dense, Y []float64, C, Epsilon float64, KernelFunction func(X1, X2 []float64) float64, Tol float64, MaxPasses int, CacheSize uint, RandomState *uint64) *Model {
+func svmTrain(X *mat.Dense, Y []float64, C, Epsilon float64, KernelFunction func(X1, X2 []float64) float64, Tol float64, MaxPasses int, CacheSize uint, RandomState base.RandomState) *Model {
 	m, n := X.Dims()
 	alphas := make([]float64, m, m)
 	b := 0.
@@ -64,8 +64,12 @@ func svmTrain(X *mat.Dense, Y []float64, C, Epsilon float64, KernelFunction func
 	}
 	randIntn := rand.Intn
 	if RandomState != nil {
-		r := rand.New(base.NewLockedSource(*RandomState))
-		randIntn = r.Intn
+		type Intner interface{ Intn(int) int }
+		if intner, ok := RandomState.(Intner); ok {
+			randIntn = intner.Intn
+		} else {
+			randIntn = rand.New(RandomState).Intn
+		}
 	}
 	for passes < MaxPasses {
 		numChangedAlphas := 0
@@ -203,7 +207,7 @@ type BaseLibSVM struct {
 	Tol         float64
 	Shrinking   bool
 	CacheSize   uint
-	RandomState *uint64
+	RandomState base.Source
 
 	MaxIter        int
 	Model          []*Model
@@ -241,7 +245,7 @@ func (m *SVC) Fit(X, Y *mat.Dense) base.Transformer {
 	return m
 }
 
-func (m *BaseLibSVM) fit(X, Y *mat.Dense, svmTrain func(X *mat.Dense, Y []float64, C, Epsilon float64, KernelFunction func(X1, X2 []float64) float64, Tol float64, MaxPasses int, CacheSize uint, RandomState *uint64) *Model) {
+func (m *BaseLibSVM) fit(X, Y *mat.Dense, svmTrain func(X *mat.Dense, Y []float64, C, Epsilon float64, KernelFunction func(X1, X2 []float64) float64, Tol float64, MaxPasses int, CacheSize uint, RandomState base.Source) *Model) {
 	NSamples, NFeatures := X.Dims()
 	_, Noutputs := Y.Dims()
 	if m.Gamma <= 0. {

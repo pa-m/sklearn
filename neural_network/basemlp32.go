@@ -28,7 +28,7 @@ type BaseMultilayerPerceptron32 struct {
 	LossFuncName       string
 	HiddenLayerSizes   []int
 	Shuffle            bool
-	RandomState        *rand.Rand
+	RandomState        base.RandomState
 	Tol                float32
 	Verbose            bool
 	WarmStart          bool
@@ -242,7 +242,7 @@ func NewBaseMultilayerPerceptron32() *BaseMultilayerPerceptron32 {
 		//LossFuncName       string
 		HiddenLayerSizes: []int{100},
 		Shuffle:          true,
-		//RandomState        *rand.Rand
+		//RandomState        base.Source,
 		Tol:                1e-4,
 		Verbose:            false,
 		WarmStart:          false,
@@ -397,10 +397,18 @@ func (mlp *BaseMultilayerPerceptron32) initialize(y blas32General, layerUnits []
 	mlp.packedGrads = mem[off : 2*off]
 
 	off = 0
-	if mlp.RandomState == (*rand.Rand)(nil) {
-		mlp.RandomState = rand.New(base.NewLockedSource(uint64(time.Now().UnixNano())))
+	if mlp.RandomState == (base.RandomState)(nil) {
+		mlp.RandomState = base.NewLockedSource(uint64(time.Now().UnixNano()))
 	}
-
+	type Float32er interface {
+		Float32() float32
+	}
+	var rndFloat32 func() float32
+	if float32er, ok := mlp.RandomState.(Float32er); ok {
+		rndFloat32 = float32er.Float32
+	} else {
+		rndFloat32 = rand.New(mlp.RandomState).Float32
+	}
 	for i := 0; i < mlp.NLayers-1; i++ {
 		prevOff := off
 		mlp.Intercepts[i] = mem[off : off+layerUnits[i+1]]
@@ -414,9 +422,10 @@ func (mlp *BaseMultilayerPerceptron32) initialize(y blas32General, layerUnits []
 		if strings.EqualFold(mlp.Activation, "logistic") {
 			factor = 2.
 		}
+
 		initBound := M32.Sqrt(factor / float32(fanIn+fanOut))
 		for pos := prevOff; pos < off; pos++ {
-			mem[pos] = mlp.RandomState.Float32() * initBound
+			mem[pos] = rndFloat32() * initBound
 		}
 	}
 	for i := 0; i < mlp.NLayers-1; i++ {
@@ -667,6 +676,16 @@ func (mlp *BaseMultilayerPerceptron32) fitStochastic(X, y blas32General, activat
 	for i := range idx {
 		idx[i] = i
 	}
+	type Shuffler interface {
+		Shuffle(n int, swap func(i, j int))
+	}
+	var rndShuffle func(n int, swap func(i, j int))
+	if shuffler, ok := mlp.RandomState.(Shuffler); ok {
+		rndShuffle = shuffler.Shuffle
+
+	} else {
+		rndShuffle = rand.New(mlp.RandomState).Shuffle
+	}
 	func() {
 		if r := recover(); r != nil {
 			// ...
@@ -674,7 +693,7 @@ func (mlp *BaseMultilayerPerceptron32) fitStochastic(X, y blas32General, activat
 		}
 		for it := 0; it < mlp.MaxIter; it++ {
 			if mlp.Shuffle {
-				mlp.RandomState.Shuffle(nSamples, indexedXY{idx: sort.IntSlice(idx), X: General32(X), Y: General32(y)}.Swap)
+				rndShuffle(nSamples, indexedXY{idx: sort.IntSlice(idx), X: General32(X), Y: General32(y)}.Swap)
 			}
 			accumulatedLoss := float32(0.0)
 			for batch := [2]int{0, batchSize}; batch[0] < nSamples-testSize; batch = [2]int{batch[1], batch[1] + batchSize} {

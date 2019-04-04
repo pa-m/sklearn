@@ -118,7 +118,7 @@ func TestMLPClassifierMicrochip(t *testing.T) {
 		t.Run(optimizer, func(t *testing.T) {
 			testSetup := optimizer
 			regr := NewMLPClassifier([]int{}, "logistic", optimizer, 1)
-			regr.RandomState = rand.New(base.NewLockedSource(1))
+			regr.RandomState = base.NewLockedSource(1)
 			regr.initialize(Ytrue.RawMatrix(), []int{nFeatures, nOutputs}, true, false)
 			for i := range regr.packedParameters {
 				regr.packedParameters[i] = 0
@@ -231,7 +231,7 @@ func ExampleMLPClassifier_fit_breastCancer() {
 	X2, Y2 := poly.Fit(X1, Y1).Transform(X1, Y1)
 
 	m := NewMLPClassifier([]int{}, "logistic", "adam", 0.)
-	m.RandomState = rand.New(base.NewLockedSource(1))
+	m.RandomState = base.NewLockedSource(1)
 	m.LearningRateInit = .02
 	m.WeightDecay = .001
 	m.MaxIter = 300
@@ -258,7 +258,7 @@ func ExampleMLPRegressor() {
 	ds := datasets.LoadBoston()
 	X, Y := ds.X, ds.Y
 	mlp := NewMLPRegressor([]int{20}, "relu", "adam", 0)
-	mlp.RandomState = rand.New(base.NewLockedSource(1))
+	mlp.RandomState = base.NewLockedSource(1)
 	mlp.LearningRateInit = .05
 	mlp.WeightDecay = .01
 	mlp.Shuffle = false

@@ -86,6 +86,18 @@ func (gscv *GridSearchCV) Fit(X, Y *mat.Dense) base.Transformer {
 	}
 
 	estCloner := gscv.Estimator.(base.TransformerCloner)
+	// get seed for all estimator clone
+
+	type ClonableRandomState interface {
+		Clone() base.Source
+	}
+	var clonableRandomState ClonableRandomState
+	if rs, ok := getParam(gscv.Estimator, "RandomState"); ok {
+		if rs1, ok := rs.(ClonableRandomState); ok {
+			clonableRandomState = rs1
+		}
+	}
+
 	paramArray := ParameterGrid(gscv.ParamGrid)
 	gscv.CVResults = make(map[string][]interface{})
 	for k := range gscv.ParamGrid {
@@ -100,7 +112,15 @@ func (gscv *GridSearchCV) Fit(X, Y *mat.Dense) base.Transformer {
 		score     float64
 	}
 	dowork := func(sin structIn) structIn {
+
 		sin.estimator = estCloner.Clone()
+
+		if clonableRandomState != ClonableRandomState(nil) {
+
+			//setParam(sin.estimator, "RandomState", rand.New(base.NewLockedSource(clonesSeed)))
+			setParam(sin.estimator, "RandomState", clonableRandomState)
+		}
+
 		for k, v := range sin.params {
 			setParam(sin.estimator, k, v)
 		}
@@ -181,26 +201,18 @@ func (gscv *GridSearchCV) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
 	return
 }
 
-func fieldByNameNoCase(s interface{}, sname, k string) reflect.Value {
-	rv := reflect.Indirect(reflect.ValueOf(s))
-	if rv.Kind() == reflect.Interface {
-		rv = reflect.Indirect(rv.Elem())
+func getParam(estimator interface{}, k string) (v interface{}, ok bool) {
+	est := reflect.ValueOf(estimator)
+	est = reflect.Indirect(est)
+	if est.Kind().String() != "struct" {
+		panic(est.Kind().String())
 	}
-	if rv.Kind() != reflect.Struct {
-		panic(fmt.Errorf("%s is not a struct", sname))
+	field := est.FieldByNameFunc(func(name string) bool { return strings.EqualFold(name, k) })
+	if ok = field.Kind() != 0; ok {
+		v = field.Interface()
+
 	}
-	for i := 0; i < rv.NumField(); i++ {
-		if strings.EqualFold(rv.Type().Field(i).Name, k) {
-			return rv.Field(i)
-		}
-		if rv.Field(i).CanInterface() && rv.Type().Field(i).Anonymous {
-			f1 := fieldByNameNoCase(rv.Field(i).Interface(), sname+"."+rv.Type().Field(i).Name, k)
-			if f1.Kind() != 0 {
-				return f1
-			}
-		}
-	}
-	return reflect.Value{}
+	return
 }
 
 func setParam(estimator base.Transformer, k string, v interface{}) {
@@ -226,10 +238,14 @@ func setParam(estimator base.Transformer, k string, v interface{}) {
 		default:
 			panic(fmt.Errorf("failed to set %s %s to %v", k, field.Type().String(), v))
 		}
+	case reflect.Int:
+		field.Set(reflect.ValueOf(v))
+
 	case reflect.Interface:
 		field.Set(reflect.ValueOf(v))
 	default:
-		panic(fmt.Errorf("failed to set %s %s to %v", k, field.Type().String(), v))
+		field.Set(reflect.ValueOf(v))
+		//panic(fmt.Errorf("failed to set %s %s to %v", k, field.Type().String(), v))
 
 	}
 
