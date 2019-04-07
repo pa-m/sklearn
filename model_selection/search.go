@@ -191,8 +191,8 @@ func (gscv *GridSearchCV) Fit(X, Y *mat.Dense) base.Transformer {
 }
 
 // Predict ...
-func (gscv *GridSearchCV) Predict(X, Y *mat.Dense) base.Transformer {
-	return gscv
+func (gscv *GridSearchCV) Predict(X, Y *mat.Dense) {
+	gscv.BestEstimator.(base.Predicter).Predict(X, Y)
 }
 
 // Transform ...

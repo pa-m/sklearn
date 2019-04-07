@@ -120,8 +120,7 @@ func (m *DBSCAN) Fit(X, Y *mat.Dense) base.Transformer {
 }
 
 // Predict for DBSCAN
-func (m *DBSCAN) Predict(X, Y *mat.Dense) base.Transformer {
-	return m
+func (m *DBSCAN) Predict(X, Y *mat.Dense) {
 
 }
 

@@ -1,8 +1,10 @@
 package neuralnetwork
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -16,37 +18,37 @@ import (
 
 // BaseMultilayerPerceptron32 closely matches sklearn/neural_network/multilayer_perceptron.py
 type BaseMultilayerPerceptron32 struct {
-	Activation         string
-	Solver             string
-	Alpha              float32
-	WeightDecay        float32
-	BatchSize          int
-	LearningRate       string
-	LearningRateInit   float32
-	PowerT             float32
-	MaxIter            int
-	LossFuncName       string
-	HiddenLayerSizes   []int
-	Shuffle            bool
-	RandomState        base.RandomState
-	Tol                float32
-	Verbose            bool
-	WarmStart          bool
-	Momentum           float32
-	NesterovsMomentum  bool
-	EarlyStopping      bool
-	ValidationFraction float32
-	Beta1              float32
-	Beta2              float32
-	Epsilon            float32
-	NIterNoChange      int
+	Activation         string           `json:"activation"`
+	Solver             string           `json:"solver"`
+	Alpha              float32          `json:"alpha"`
+	WeightDecay        float32          `json:"weight_decay"`
+	BatchSize          int              `json:"batch_size"`
+	LearningRate       string           `json:"learning_rate"`
+	LearningRateInit   float32          `json:"learning_rate_init"`
+	PowerT             float32          `json:"power_t"`
+	MaxIter            int              `json:"max_iter"`
+	LossFuncName       string           `json:"loss_func_name"`
+	HiddenLayerSizes   []int            `json:"hidden_layer_sizes"`
+	Shuffle            bool             `json:"shuffle"`
+	RandomState        base.RandomState `json:"random_state"`
+	Tol                float32          `json:"tol"`
+	Verbose            bool             `json:"verbose"`
+	WarmStart          bool             `json:"warm_start"`
+	Momentum           float32          `json:"momentum"`
+	NesterovsMomentum  bool             `json:"nesterovs_momentum"`
+	EarlyStopping      bool             `json:"early_stopping"`
+	ValidationFraction float32          `json:"validation_fraction"`
+	Beta1              float32          `json:"beta_1"`
+	Beta2              float32          `json:"beta_2"`
+	Epsilon            float32          `json:"epsilon"`
+	NIterNoChange      int              `json:"n_iter_no_change"`
 
 	// Outputs
 	NLayers       int
 	NIter         int
 	NOutputs      int
-	Intercepts    [][]float32
-	Coefs         []blas32General
+	Intercepts    [][]float32     `json:"intercepts_"`
+	Coefs         []blas32General `json:"coefs_"`
 	OutActivation string
 	Loss          float32
 
@@ -360,12 +362,12 @@ func (mlp *BaseMultilayerPerceptron32) backprop(X, y blas32General, activations,
 	return loss
 }
 
-func (mlp *BaseMultilayerPerceptron32) initialize(y blas32General, layerUnits []int, isClassifier, isMultiClass bool) {
+func (mlp *BaseMultilayerPerceptron32) initialize(yCols int, layerUnits []int, isClassifier, isMultiClass bool) {
 	// # set all attributes, allocate weights etc for first call
 	// # Initialize parameters
 	mlp.NIter = 0
 	mlp.t = 0
-	mlp.NOutputs = y.Cols
+	mlp.NOutputs = yCols
 
 	//# Compute the number of layers
 	mlp.NLayers = len(layerUnits)
@@ -473,7 +475,7 @@ func (mlp *BaseMultilayerPerceptron32) fit(X, y blas32General, incremental bool)
 				break
 			}
 		}
-		mlp.initialize(y, layerUnits, isClassifier, isMulticlass)
+		mlp.initialize(y.Cols, layerUnits, isClassifier, isMulticlass)
 	}
 
 	//    # lbfgs does not support mini-batches
@@ -538,7 +540,7 @@ func (mlp *BaseMultilayerPerceptron32) Predict(X, Y Matrix) {
 
 	ymut, ok := Y.(Mutable)
 	if !ok {
-		log.Panicf("Y bus be mutable")
+		log.Panicf("Y must be mutable")
 	}
 
 	for r, rpos := 0, 0; r < yg.Rows; r, rpos = r+1, rpos+yg.Stride {
@@ -1010,4 +1012,80 @@ func accuracyScore32(Y, H blas32General) float32 {
 	}
 	return float32(N) / float32(Y.Rows)
 
+}
+
+// SetParams allow settings params from a map. (used by Unmarshal)
+func (mlp *BaseMultilayerPerceptron32) SetParams(params map[string]interface{}) {
+	r := reflect.Indirect(reflect.ValueOf(mlp))
+	for k, v := range params {
+		field := r.FieldByNameFunc(func(s string) bool {
+			return strings.EqualFold(s, k)
+		})
+		if field.Kind() != 0 {
+			field.Set(reflect.ValueOf(v))
+		}
+	}
+}
+
+// Unmarshal init params intercepts_ coefs_ from json
+func (mlp *BaseMultilayerPerceptron32) Unmarshal(buf []byte) error {
+	type Map = map[string]interface{}
+	mp := Map{}
+	err := json.Unmarshal(buf, &mp)
+	if err != nil {
+		panic(err)
+	}
+	if params, ok := mp["params"]; ok {
+		if pmap, ok := params.(Map); ok {
+			mlp.SetParams(pmap)
+		}
+	} else {
+		mlp.SetParams(mp)
+	}
+	if coefs, ok := mp["coefs_"]; ok {
+		intercepts, ok := mp["intercepts_"]
+		if !ok {
+			return fmt.Errorf("intercepts_ not set")
+		}
+		intercepts2, ok := intercepts.([]interface{})
+		if !ok {
+			return fmt.Errorf("intercepts_ must be an array")
+		}
+		if c64, ok := coefs.([]interface{}); ok {
+
+			if len(c64) == 0 {
+				return fmt.Errorf("coefs_ must be non-empty")
+			}
+			b64coefs := make([]blas64General, len(c64), len(c64))
+			for i := range b64coefs {
+				b64coefs[i] = blas64FromInterface(c64[i])
+			}
+			mlp.NLayers = len(b64coefs) + 1
+			mlp.HiddenLayerSizes = make([]int, mlp.NLayers-2, mlp.NLayers-2)
+
+			NInputs := b64coefs[0].Rows
+			mlp.NOutputs = b64coefs[len(b64coefs)-1].Cols
+			layerUnits := make([]int, mlp.NLayers)
+			layerUnits[0] = NInputs
+			packedSize := 0
+			for il := range c64 {
+				layerUnits[il+1] = b64coefs[il].Cols
+				packedSize += (1 + layerUnits[il]) * layerUnits[il+1]
+			}
+			layerUnits[mlp.NLayers-1] = mlp.NOutputs
+			mlp.initialize(mlp.NOutputs, layerUnits, true, mlp.NOutputs > 1)
+
+			for i := 0; i < mlp.NLayers-1; i++ {
+				intercept64 := floats64FromInterface(intercepts2[i])
+				for off := 0; off < len(mlp.Intercepts[i]); off++ {
+					mlp.Intercepts[i][off] = float32(intercept64[off])
+				}
+				g := General32(mlp.Coefs[i])
+				(&g).Copy(General64(b64coefs[i]))
+			}
+		} else {
+			return fmt.Errorf("coefs_ must be [][][]float64, found %T", coefs)
+		}
+	}
+	return err
 }

@@ -10,9 +10,10 @@ import (
 	"github.com/pa-m/sklearn/preprocessing"
 
 	//"gonum.org/v1/gonum/diff/fd"
-	"golang.org/x/exp/rand"
 	"math"
 	"runtime"
+
+	"golang.org/x/exp/rand"
 
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/optimize"
@@ -111,9 +112,8 @@ func (regr *RegularizedRegression) Fit(X0, Y0 *mat.Dense) base.Transformer {
 }
 
 // Predict predicts y for X using Coef
-func (regr *LinearRegression) Predict(X, Y *mat.Dense) base.Regressor {
+func (regr *LinearRegression) Predict(X, Y *mat.Dense) {
 	regr.DecisionFunction(X, Y)
-	return regr
 }
 
 // FitTransform is for Pipeline
@@ -273,9 +273,8 @@ func (regr *SGDRegressor) Fit(X0, y0 *mat.Dense) base.Transformer {
 }
 
 // Predict predicts y from X using Coef
-func (regr *SGDRegressor) Predict(X, Y *mat.Dense) base.Regressor {
+func (regr *SGDRegressor) Predict(X, Y *mat.Dense) {
 	regr.DecisionFunction(X, Y)
-	return regr
 }
 
 // FitTransform is for Pipeline

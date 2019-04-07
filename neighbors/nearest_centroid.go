@@ -69,8 +69,8 @@ func (m *NearestCentroid) Fit(X, Y *mat.Dense) base.Transformer {
 }
 
 // Predict  for NearestCentroid
-func (m *NearestCentroid) Predict(X, Y *mat.Dense) base.Transformer {
-	return m._predict(X, Y, false)
+func (m *NearestCentroid) Predict(X, Y *mat.Dense) {
+	m._predict(X, Y, false)
 }
 
 // PredictProba for NearestCentroid

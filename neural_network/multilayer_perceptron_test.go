@@ -52,7 +52,7 @@ func TestMLPClassifierMicrochip(t *testing.T) {
 	regr.BatchSize = nSamples
 
 	// we allocate Coef here because we use it for loss and grad tests before Fit
-	regr.initialize(Ytrue.RawMatrix(), []int{nFeatures, nOutputs}, true, false)
+	regr.initialize(Ytrue.RawMatrix().Cols, []int{nFeatures, nOutputs}, true, false)
 	regr.WarmStart = true
 	regr.Shuffle = false
 
@@ -119,7 +119,7 @@ func TestMLPClassifierMicrochip(t *testing.T) {
 			testSetup := optimizer
 			regr := NewMLPClassifier([]int{}, "logistic", optimizer, 1)
 			regr.RandomState = base.NewLockedSource(1)
-			regr.initialize(Ytrue.RawMatrix(), []int{nFeatures, nOutputs}, true, false)
+			regr.initialize(Ytrue.RawMatrix().Cols, []int{nFeatures, nOutputs}, true, false)
 			for i := range regr.packedParameters {
 				regr.packedParameters[i] = 0
 			}
@@ -157,6 +157,50 @@ func TestMLPClassifierMicrochip(t *testing.T) {
 	// fmt.Println("ok")
 }
 
+func ExampleMLPClassifier_Unmarshal() {
+	// json save from scikit learn using json.dumps({"params":mlp.get_params(True),"intercepts_":[e.tolist() for e in mlp.intercepts_],"coefs_":[e.tolist() for e in mlp.coefs_]})
+
+	json := []byte(`{"params": {"activation": "logistic", "alpha": 0.0001, "batch_size": "auto", "beta_1": 0.9, "beta_2": 0.999, "early_stopping": false, "epsilon": 1e-08, "hidden_layer_sizes": [], "learning_rate": "constant", "learning_rate_init": 0.001, "max_iter": 400, "momentum": 0.9, "n_iter_no_change": 10, "nesterovs_momentum": true, "power_t": 0.5, "random_state": 7, "shuffle": true, "solver": "adam", "tol": 0.0001, "validation_fraction": 0.1, "verbose": false, "warm_start": false}, "intercepts_": [[0.5082271055138958]], "coefs_": [[[-0.18963335144967644], [0.2744326667319166], [-0.0068960058868800505], [-0.1870170339590578], [0.33640123639043934], [0.14343164310877599], [-0.2840940844068544], [-0.06035740527894848], [-0.015548157556294752], [-0.09766841821748058], [-0.13516966516561582], [0.01180873002271984], [-0.37004002347719184], [-0.3146740174229507], [-0.010236340304847167], [0.034725564039145625], [0.07596312959511524], [0.07031424991074327], [0.03226286238715042], [-0.11777688776136522], [-0.0862585580460505], [0.046039278168215306], [-0.32297687193126345], [0.004283074654547827], [0.013040383833634088], [-0.047491825368820184], [-0.12259098577236986]]]}`)
+	mlp := NewMLPClassifier([]int{}, "", "", 0)
+	err := mlp.Unmarshal(json)
+	if err != nil {
+		panic(err)
+	}
+
+	X, Ytrue := datasets.LoadMicroChipTest()
+	nSamples, _ := X.Dims()
+
+	X, _ = preprocessing.NewStandardScaler().FitTransform(X, nil)
+	//Xp, _ := preprocessing.NewPolynomialFeatures(6).Fit(X, Ytrue).Transform(X, Ytrue)
+	// add poly features manually to have same order
+	Xp := mat.NewDense(nSamples, 27, nil)
+	{
+		c := 0
+		for i := 1; i <= 6; i++ {
+			for j := 0; j <= i; j++ {
+				for s := 0; s < nSamples; s++ {
+					Xp.Set(s, c, math.Pow(X.At(s, 0), float64(i-j))*math.Pow(X.At(s, 1), float64(j)))
+				}
+				c++
+			}
+		}
+	}
+	Ypred := &mat.Dense{}
+	// reset OutActivation because it's not in params
+	mlp.OutActivation = "logistic"
+	mlp.Predict(Xp, Ypred)
+	accuracy := metrics.AccuracyScore(Ytrue, Ypred, true, nil)
+	if accuracy > .83 {
+		fmt.Println("ok")
+	} else {
+		fmt.Println("accuracy", accuracy)
+		fmt.Println("Ytrue", Ytrue.RawMatrix().Data)
+		fmt.Println("Ypred", Ypred.RawMatrix().Data)
+	}
+	// Output:
+	// ok
+}
+
 func ExampleMLPClassifier_Predict_mnist() {
 	X, Y := datasets.LoadMnist()
 	lb := preprocessing.NewLabelBinarizer(0, 1)
@@ -164,7 +208,7 @@ func ExampleMLPClassifier_Predict_mnist() {
 	Theta1T, Theta2T := datasets.LoadMnistWeights()
 	mlp := NewMLPClassifier([]int{25}, "logistic", "adam", 0)
 	mlp.Shuffle = false
-	mlp.initialize(Ybin.RawMatrix(), []int{400, 25, 10}, true, true)
+	mlp.initialize(Ybin.RawMatrix().Cols, []int{400, 25, 10}, true, true)
 	mat.NewDense(401, 25, mlp.packedParameters[:401*25]).Copy(Theta1T.T())
 	mat.NewDense(26, 10, mlp.packedParameters[401*25:]).Copy(Theta2T.T())
 	mlp.WarmStart = true
@@ -193,7 +237,7 @@ func Benchmark_Fit_mnist(b *testing.B) {
 	mlp.BatchSize = 5000
 	_, NFeatures := X.Dims()
 	_, NOutputs := Ybin.Dims()
-	mlp.initialize(Ybin.RawMatrix(), []int{NFeatures, 25, NOutputs}, true, true)
+	mlp.initialize(Ybin.RawMatrix().Cols, []int{NFeatures, 25, NOutputs}, true, true)
 	mat.NewDense(401, 25, mlp.packedParameters[:401*25]).Copy(Theta1.T())
 	mat.NewDense(26, 10, mlp.packedParameters[401*25:]).Copy(Theta2.T())
 	mlp.WarmStart = true

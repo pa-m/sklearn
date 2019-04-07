@@ -208,18 +208,17 @@ func (regr *BayesianRidge) Fit(X0, Y0 *mat.Dense) base.Transformer {
 // yMean : array, shape = (nSamples,)
 //     Mean of predictive distribution of query points.
 // """
-func (regr *BayesianRidge) Predict(X, Y *mat.Dense) base.Regressor {
+func (regr *BayesianRidge) Predict(X, Y *mat.Dense) {
 	// d := func(X mat.Matrix) string { r, c := X.Dims(); return fmt.Sprintf("%d,%d", r, c) }
 	// fmt.Println("Predict", d(X), d(regr.Coef))
 	Y.Mul(X, regr.Coef)
 	Y.Apply(func(i int, j int, y float64) float64 {
 		return y + regr.Intercept.At(0, j)
 	}, Y)
-	return regr
 }
 
 // Predict2 returns y and stddev
-func (regr *BayesianRidge) Predict2(X, Y, yStd *mat.Dense) base.Regressor {
+func (regr *BayesianRidge) Predict2(X, Y, yStd *mat.Dense) {
 	nSamples, nFeatures := X.Dims()
 	regr.Predict(X, Y)
 	Xn := mat.DenseCopyOf(X)
@@ -243,8 +242,6 @@ func (regr *BayesianRidge) Predict2(X, Y, yStd *mat.Dense) base.Regressor {
 	yStd.Apply(func(i int, j int, sigmasSquaredData float64) float64 {
 		return sigmasSquaredData + 1./regr.Alpha
 	}, sigmasSquaredData)
-
-	return regr
 }
 
 // FitTransform is for Pipeline

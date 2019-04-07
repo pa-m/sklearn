@@ -40,9 +40,8 @@ func (regr *MLPRegressor) Fit(X, Y *mat.Dense) base.Transformer {
 }
 
 // Predict return the forward result
-func (regr *MLPRegressor) Predict(X, Y *mat.Dense) base.Regressor {
+func (regr *MLPRegressor) Predict(X, Y *mat.Dense) {
 	regr.BaseMultilayerPerceptron64.predict(X.RawMatrix(), Y.RawMatrix())
-	return regr
 }
 
 // FitTransform is for Pipeline
@@ -97,15 +96,17 @@ func (regr *MLPClassifier) Fit(X, Y *mat.Dense) base.Transformer {
 }
 
 // Predict return the forward result for MLPClassifier
-func (regr *MLPClassifier) Predict(X, Y *mat.Dense) base.Regressor {
+func (regr *MLPClassifier) Predict(X, Y *mat.Dense) {
 	nSamples, _ := X.Dims()
 	nOutputs := regr.NOutputs
+	if regr.LossFuncName == "" {
+		regr.LossFuncName = "binary_log_loss"
+	}
 	yr, _ := Y.Dims()
 	if yr == 0 {
 		*Y = *mat.NewDense(nSamples, nOutputs, nil)
 	}
 	regr.BaseMultilayerPerceptron64.Predict(X, Y)
-	return regr
 }
 
 // Transform for pipeline

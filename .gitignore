@@ -7,3 +7,5 @@ coverage.txt
 *.debug
 _*.sh
 FIXME*
+cover.out
+coverage.txt

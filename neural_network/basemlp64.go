@@ -1,8 +1,10 @@
 package neuralnetwork
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -16,37 +18,37 @@ import (
 
 // BaseMultilayerPerceptron64 closely matches sklearn/neural_network/multilayer_perceptron.py
 type BaseMultilayerPerceptron64 struct {
-	Activation         string
-	Solver             string
-	Alpha              float64
-	WeightDecay        float64
-	BatchSize          int
-	LearningRate       string
-	LearningRateInit   float64
-	PowerT             float64
-	MaxIter            int
-	LossFuncName       string
-	HiddenLayerSizes   []int
-	Shuffle            bool
-	RandomState        base.RandomState
-	Tol                float64
-	Verbose            bool
-	WarmStart          bool
-	Momentum           float64
-	NesterovsMomentum  bool
-	EarlyStopping      bool
-	ValidationFraction float64
-	Beta1              float64
-	Beta2              float64
-	Epsilon            float64
-	NIterNoChange      int
+	Activation         string           `json:"activation"`
+	Solver             string           `json:"solver"`
+	Alpha              float64          `json:"alpha"`
+	WeightDecay        float64          `json:"weight_decay"`
+	BatchSize          int              `json:"batch_size"`
+	LearningRate       string           `json:"learning_rate"`
+	LearningRateInit   float64          `json:"learning_rate_init"`
+	PowerT             float64          `json:"power_t"`
+	MaxIter            int              `json:"max_iter"`
+	LossFuncName       string           `json:"loss_func_name"`
+	HiddenLayerSizes   []int            `json:"hidden_layer_sizes"`
+	Shuffle            bool             `json:"shuffle"`
+	RandomState        base.RandomState `json:"random_state"`
+	Tol                float64          `json:"tol"`
+	Verbose            bool             `json:"verbose"`
+	WarmStart          bool             `json:"warm_start"`
+	Momentum           float64          `json:"momentum"`
+	NesterovsMomentum  bool             `json:"nesterovs_momentum"`
+	EarlyStopping      bool             `json:"early_stopping"`
+	ValidationFraction float64          `json:"validation_fraction"`
+	Beta1              float64          `json:"beta_1"`
+	Beta2              float64          `json:"beta_2"`
+	Epsilon            float64          `json:"epsilon"`
+	NIterNoChange      int              `json:"n_iter_no_change"`
 
 	// Outputs
 	NLayers       int
 	NIter         int
 	NOutputs      int
-	Intercepts    [][]float64
-	Coefs         []blas64General
+	Intercepts    [][]float64     `json:"intercepts_"`
+	Coefs         []blas64General `json:"coefs_"`
 	OutActivation string
 	Loss          float64
 
@@ -242,7 +244,7 @@ func NewBaseMultilayerPerceptron64() *BaseMultilayerPerceptron64 {
 		//LossFuncName       string
 		HiddenLayerSizes: []int{100},
 		Shuffle:          true,
-		//RandomState       base.Source
+		//RandomState        base.Source,
 		Tol:                1e-4,
 		Verbose:            false,
 		WarmStart:          false,
@@ -360,12 +362,12 @@ func (mlp *BaseMultilayerPerceptron64) backprop(X, y blas64General, activations,
 	return loss
 }
 
-func (mlp *BaseMultilayerPerceptron64) initialize(y blas64General, layerUnits []int, isClassifier, isMultiClass bool) {
+func (mlp *BaseMultilayerPerceptron64) initialize(yCols int, layerUnits []int, isClassifier, isMultiClass bool) {
 	// # set all attributes, allocate weights etc for first call
 	// # Initialize parameters
 	mlp.NIter = 0
 	mlp.t = 0
-	mlp.NOutputs = y.Cols
+	mlp.NOutputs = yCols
 
 	//# Compute the number of layers
 	mlp.NLayers = len(layerUnits)
@@ -400,7 +402,9 @@ func (mlp *BaseMultilayerPerceptron64) initialize(y blas64General, layerUnits []
 	if mlp.RandomState == (base.RandomState)(nil) {
 		mlp.RandomState = base.NewLockedSource(uint64(time.Now().UnixNano()))
 	}
-	type Float64er interface{ Float64() float64 }
+	type Float64er interface {
+		Float64() float64
+	}
 	var rndFloat64 func() float64
 	if float64er, ok := mlp.RandomState.(Float64er); ok {
 		rndFloat64 = float64er.Float64
@@ -420,6 +424,7 @@ func (mlp *BaseMultilayerPerceptron64) initialize(y blas64General, layerUnits []
 		if strings.EqualFold(mlp.Activation, "logistic") {
 			factor = 2.
 		}
+
 		initBound := M64.Sqrt(factor / float64(fanIn+fanOut))
 		for pos := prevOff; pos < off; pos++ {
 			mem[pos] = rndFloat64() * initBound
@@ -470,7 +475,7 @@ func (mlp *BaseMultilayerPerceptron64) fit(X, y blas64General, incremental bool)
 				break
 			}
 		}
-		mlp.initialize(y, layerUnits, isClassifier, isMulticlass)
+		mlp.initialize(y.Cols, layerUnits, isClassifier, isMulticlass)
 	}
 
 	//    # lbfgs does not support mini-batches
@@ -535,7 +540,7 @@ func (mlp *BaseMultilayerPerceptron64) Predict(X, Y Matrix) {
 
 	ymut, ok := Y.(Mutable)
 	if !ok {
-		log.Panicf("Y bus be mutable")
+		log.Panicf("Y must be mutable")
 	}
 
 	for r, rpos := 0, 0; r < yg.Rows; r, rpos = r+1, rpos+yg.Stride {
@@ -1007,4 +1012,80 @@ func accuracyScore64(Y, H blas64General) float64 {
 	}
 	return float64(N) / float64(Y.Rows)
 
+}
+
+// SetParams allow settings params from a map. (used by Unmarshal)
+func (mlp *BaseMultilayerPerceptron64) SetParams(params map[string]interface{}) {
+	r := reflect.Indirect(reflect.ValueOf(mlp))
+	for k, v := range params {
+		field := r.FieldByNameFunc(func(s string) bool {
+			return strings.EqualFold(s, k)
+		})
+		if field.Kind() != 0 {
+			field.Set(reflect.ValueOf(v))
+		}
+	}
+}
+
+// Unmarshal init params intercepts_ coefs_ from json
+func (mlp *BaseMultilayerPerceptron64) Unmarshal(buf []byte) error {
+	type Map = map[string]interface{}
+	mp := Map{}
+	err := json.Unmarshal(buf, &mp)
+	if err != nil {
+		panic(err)
+	}
+	if params, ok := mp["params"]; ok {
+		if pmap, ok := params.(Map); ok {
+			mlp.SetParams(pmap)
+		}
+	} else {
+		mlp.SetParams(mp)
+	}
+	if coefs, ok := mp["coefs_"]; ok {
+		intercepts, ok := mp["intercepts_"]
+		if !ok {
+			return fmt.Errorf("intercepts_ not set")
+		}
+		intercepts2, ok := intercepts.([]interface{})
+		if !ok {
+			return fmt.Errorf("intercepts_ must be an array")
+		}
+		if c64, ok := coefs.([]interface{}); ok {
+
+			if len(c64) == 0 {
+				return fmt.Errorf("coefs_ must be non-empty")
+			}
+			b64coefs := make([]blas64General, len(c64), len(c64))
+			for i := range b64coefs {
+				b64coefs[i] = blas64FromInterface(c64[i])
+			}
+			mlp.NLayers = len(b64coefs) + 1
+			mlp.HiddenLayerSizes = make([]int, mlp.NLayers-2, mlp.NLayers-2)
+
+			NInputs := b64coefs[0].Rows
+			mlp.NOutputs = b64coefs[len(b64coefs)-1].Cols
+			layerUnits := make([]int, mlp.NLayers)
+			layerUnits[0] = NInputs
+			packedSize := 0
+			for il := range c64 {
+				layerUnits[il+1] = b64coefs[il].Cols
+				packedSize += (1 + layerUnits[il]) * layerUnits[il+1]
+			}
+			layerUnits[mlp.NLayers-1] = mlp.NOutputs
+			mlp.initialize(mlp.NOutputs, layerUnits, true, mlp.NOutputs > 1)
+
+			for i := 0; i < mlp.NLayers-1; i++ {
+				intercept64 := floats64FromInterface(intercepts2[i])
+				for off := 0; off < len(mlp.Intercepts[i]); off++ {
+					mlp.Intercepts[i][off] = float64(intercept64[off])
+				}
+				g := General64(mlp.Coefs[i])
+				(&g).Copy(General64(b64coefs[i]))
+			}
+		} else {
+			return fmt.Errorf("coefs_ must be [][][]float64, found %T", coefs)
+		}
+	}
+	return err
 }

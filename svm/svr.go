@@ -200,7 +200,7 @@ func svrPredict(model *Model, X, Y *mat.Dense, output int) {
 }
 
 // Predict for SVR
-func (m *SVR) Predict(X, Y *mat.Dense) base.Transformer {
+func (m *SVR) Predict(X, Y *mat.Dense) {
 	_, NOutputs := Y.Dims()
 	if NOutputs == 0 {
 		NSamples, _ := X.Dims()
@@ -215,7 +215,6 @@ func (m *SVR) Predict(X, Y *mat.Dense) base.Transformer {
 
 		}
 	})
-	return m
 }
 
 // Transform for SVR for pipeline

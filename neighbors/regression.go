@@ -45,7 +45,7 @@ func (m *KNeighborsRegressor) Fit(X, Y *mat.Dense) base.Transformer {
 }
 
 // Predict ...
-func (m *KNeighborsRegressor) Predict(X, Y *mat.Dense) base.Regressor {
+func (m *KNeighborsRegressor) Predict(X, Y *mat.Dense) {
 	NFitSamples, _ := m.Xscaled.Dims()
 	NX, _ := X.Dims()
 	_, outputs := m.Y.Dims()
@@ -79,7 +79,6 @@ func (m *KNeighborsRegressor) Predict(X, Y *mat.Dense) base.Regressor {
 
 		}
 	})
-	return m
 }
 
 // Transform for KNeighborsRegressor

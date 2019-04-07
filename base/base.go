@@ -21,10 +21,15 @@ type TransformerCloner interface {
 	Clone() Transformer
 }
 
+// Predicter predicts
+type Predicter interface {
+	Predict(X, Y *mat.Dense)
+}
+
 // Regressor is the common interface for all regressors
 type Regressor interface {
 	Transformer
-	Predict(X, Y *mat.Dense) Regressor
+	Predicter
 	Score(X, T *mat.Dense) float64
 }
 

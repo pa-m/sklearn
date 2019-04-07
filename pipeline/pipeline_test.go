@@ -38,6 +38,7 @@ func ExamplePipeline() {
 	nSamples, _ := ds.X.Dims()
 	_, nOutputs := ds.Y.Dims()
 	Ypred := mat.NewDense(nSamples, nOutputs, nil)
+
 	pl.Predict(ds.X, Ypred)
 	accuracy := metrics.AccuracyScore(ds.Y, Ypred, true, nil)
 	fmt.Println("accuracy>0.999 ?", accuracy > 0.999)

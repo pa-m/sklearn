@@ -293,7 +293,7 @@ func (m *BaseLibSVM) fit(X, Y *mat.Dense, svmTrain func(X *mat.Dense, Y []float6
 }
 
 // Predict for SVC
-func (m *SVC) Predict(X, Y *mat.Dense) base.Transformer {
+func (m *SVC) Predict(X, Y *mat.Dense) {
 	_, NOutputs := Y.Dims()
 	if NOutputs == 0 {
 		NSamples, _ := X.Dims()
@@ -309,7 +309,6 @@ func (m *SVC) Predict(X, Y *mat.Dense) base.Transformer {
 
 		}
 	})
-	return m
 }
 
 // Transform for SVC for pipeline

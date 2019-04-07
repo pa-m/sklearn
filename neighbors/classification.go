@@ -47,8 +47,8 @@ func (m *KNeighborsClassifier) Fit(X, Y *mat.Dense) base.Transformer {
 }
 
 // Predict  for KNeighborsClassifier
-func (m *KNeighborsClassifier) Predict(X, Y *mat.Dense) base.Transformer {
-	return m._predict(X, Y, false)
+func (m *KNeighborsClassifier) Predict(X, Y *mat.Dense) {
+	m._predict(X, Y, false)
 }
 
 // PredictProba for KNeighborsClassifier

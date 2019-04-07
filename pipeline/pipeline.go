@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"fmt"
+	// "log"
 	"strings"
 
 	"github.com/pa-m/sklearn/base"
@@ -42,7 +43,7 @@ func (p *Pipeline) Fit(X, Y *mat.Dense) base.Transformer {
 }
 
 // Predict ...
-func (p *Pipeline) Predict(X, Y *mat.Dense) base.Regressor {
+func (p *Pipeline) Predict(X, Y *mat.Dense) {
 	Xtmp, Ytmp := X, Y
 	for _, step := range p.NamedSteps {
 		Xtmp, Ytmp = step.Step.Transform(Xtmp, Ytmp)
@@ -54,8 +55,6 @@ func (p *Pipeline) Predict(X, Y *mat.Dense) base.Regressor {
 
 	}
 	Y.Copy(Ytmp)
-	return p
-
 }
 
 // Transform for pipeline
@@ -79,16 +78,6 @@ func (p *Pipeline) Clone() base.Transformer {
 		}
 	}
 	return &clone
-}
-
-// Score for base.Regressor
-func (p *Pipeline) Score(X, Y *mat.Dense) float64 {
-	Xtmp, Ytmp := X, Y
-	for _, step := range p.NamedSteps[:len(p.NamedSteps)-1] {
-		Xtmp, Ytmp = step.Step.Transform(Xtmp, Ytmp)
-
-	}
-	return p.NamedSteps[len(p.NamedSteps)-1].Step.(base.Regressor).Score(Xtmp, Y)
 }
 
 // MakePipeline returns a Pipeline from unnamed steps
