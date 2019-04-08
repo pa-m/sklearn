@@ -49,7 +49,7 @@ type BaseMultilayerPerceptron32 struct {
 	NOutputs      int
 	Intercepts    [][]float32     `json:"intercepts_"`
 	Coefs         []blas32General `json:"coefs_"`
-	OutActivation string
+	OutActivation string          `json:"out_activation_"`
 	Loss          float32
 
 	// internal

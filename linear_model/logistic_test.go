@@ -158,18 +158,9 @@ func TestLogRegMicrochipTest(t *testing.T) {
 	X, Ytrue := datasets.LoadMicroChipTest()
 	nSamples, nFeatures := X.Dims()
 
-	//Xp, _ := preprocessing.NewPolynomialFeatures(6).Fit(X, Ytrue).Transform(X, Ytrue)
-	// add poly features manually to have same order
-	Xp := mat.NewDense(nSamples, 28, nil)
-	c := 0
-	for i := 0; i <= 6; i++ {
-		for j := 0; j <= i; j++ {
-			for s := 0; s < nSamples; s++ {
-				Xp.Set(s, c, math.Pow(X.At(s, 0), float64(i-j))*math.Pow(X.At(s, 1), float64(j)))
-			}
-			c++
-		}
-	}
+	poly := preprocessing.NewPolynomialFeatures(6).Fit(X, Ytrue)
+
+	Xp, _ := poly.Transform(X, nil)
 
 	_, nFeatures = Xp.Dims()
 	_, nOutputs := Ytrue.Dims()

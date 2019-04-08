@@ -29,20 +29,12 @@ func TestMLPClassifierMicrochip(t *testing.T) {
 	X, Ytrue := datasets.LoadMicroChipTest()
 	nSamples, _ := X.Dims()
 
-	//Xp, _ := preprocessing.NewPolynomialFeatures(6).Fit(X, Ytrue).Transform(X, Ytrue)
-	// add poly features manually to have same order
-	Xp := mat.NewDense(nSamples, 27, nil)
-	{
-		c := 0
-		for i := 1; i <= 6; i++ {
-			for j := 0; j <= i; j++ {
-				for s := 0; s < nSamples; s++ {
-					Xp.Set(s, c, math.Pow(X.At(s, 0), float64(i-j))*math.Pow(X.At(s, 1), float64(j)))
-				}
-				c++
-			}
-		}
-	}
+	// add polynomial features
+	poly := preprocessing.NewPolynomialFeatures(6)
+	poly.IncludeBias = false
+	poly.Fit(X, nil)
+	Xp, _ := poly.Transform(X, nil)
+
 	_, nFeatures := Xp.Dims()
 	_, nOutputs := Ytrue.Dims()
 	Ypred := mat.NewDense(nSamples, nOutputs, nil)
@@ -158,36 +150,31 @@ func TestMLPClassifierMicrochip(t *testing.T) {
 }
 
 func ExampleMLPClassifier_Unmarshal() {
-	// json save from scikit learn using json.dumps({"params":mlp.get_params(True),"intercepts_":[e.tolist() for e in mlp.intercepts_],"coefs_":[e.tolist() for e in mlp.coefs_]})
-
-	json := []byte(`{"params": {"activation": "logistic", "alpha": 0.0001, "batch_size": "auto", "beta_1": 0.9, "beta_2": 0.999, "early_stopping": false, "epsilon": 1e-08, "hidden_layer_sizes": [], "learning_rate": "constant", "learning_rate_init": 0.001, "max_iter": 400, "momentum": 0.9, "n_iter_no_change": 10, "nesterovs_momentum": true, "power_t": 0.5, "random_state": 7, "shuffle": true, "solver": "adam", "tol": 0.0001, "validation_fraction": 0.1, "verbose": false, "warm_start": false}, "intercepts_": [[0.5082271055138958]], "coefs_": [[[-0.18963335144967644], [0.2744326667319166], [-0.0068960058868800505], [-0.1870170339590578], [0.33640123639043934], [0.14343164310877599], [-0.2840940844068544], [-0.06035740527894848], [-0.015548157556294752], [-0.09766841821748058], [-0.13516966516561582], [0.01180873002271984], [-0.37004002347719184], [-0.3146740174229507], [-0.010236340304847167], [0.034725564039145625], [0.07596312959511524], [0.07031424991074327], [0.03226286238715042], [-0.11777688776136522], [-0.0862585580460505], [0.046039278168215306], [-0.32297687193126345], [0.004283074654547827], [0.013040383833634088], [-0.047491825368820184], [-0.12259098577236986]]]}`)
+	// json saved from scikit learn using:
+	// dic=mlp.get_params(True)
+	// for k in ['out_activation_']:
+	//   dic[k] = getattr(mlp,k)
+	// for k in ['intercepts_','coefs_']:
+	//   dic[k] = [x.tolist() for x in getattr(mlp,k)]
+	// json.dumps(dic)
+	buf := []byte(`{"activation": "logistic", "alpha": 0.0001, "batch_size": "auto", "beta_1": 0.9, "beta_2": 0.999, "early_stopping": false, "epsilon": 1e-08, "hidden_layer_sizes": [], "learning_rate": "constant", "learning_rate_init": 0.001, "max_iter": 400, "momentum": 0.9, "n_iter_no_change": 10, "nesterovs_momentum": true, "power_t": 0.5, "random_state": 7, "shuffle": true, "solver": "adam", "tol": 0.0001, "validation_fraction": 0.1, "verbose": false, "warm_start": false, "out_activation_": "logistic", "intercepts_": [[0.5082271055138958]], "coefs_": [[[-0.18963335144967644], [0.2744326667319166], [-0.0068960058868800505], [-0.1870170339590578], [0.33640123639043934], [0.14343164310877599], [-0.2840940844068544], [-0.06035740527894848], [-0.015548157556294752], [-0.09766841821748058], [-0.13516966516561582], [0.01180873002271984], [-0.37004002347719184], [-0.3146740174229507], [-0.010236340304847167], [0.034725564039145625], [0.07596312959511524], [0.07031424991074327], [0.03226286238715042], [-0.11777688776136522], [-0.0862585580460505], [0.046039278168215306], [-0.32297687193126345], [0.004283074654547827], [0.013040383833634088], [-0.047491825368820184], [-0.12259098577236986]]]}`)
 	mlp := NewMLPClassifier([]int{}, "", "", 0)
-	err := mlp.Unmarshal(json)
+	err := mlp.Unmarshal(buf)
 	if err != nil {
 		panic(err)
 	}
 
 	X, Ytrue := datasets.LoadMicroChipTest()
 	nSamples, _ := X.Dims()
-
+	_ = nSamples
 	X, _ = preprocessing.NewStandardScaler().FitTransform(X, nil)
-	//Xp, _ := preprocessing.NewPolynomialFeatures(6).Fit(X, Ytrue).Transform(X, Ytrue)
-	// add poly features manually to have same order
-	Xp := mat.NewDense(nSamples, 27, nil)
-	{
-		c := 0
-		for i := 1; i <= 6; i++ {
-			for j := 0; j <= i; j++ {
-				for s := 0; s < nSamples; s++ {
-					Xp.Set(s, c, math.Pow(X.At(s, 0), float64(i-j))*math.Pow(X.At(s, 1), float64(j)))
-				}
-				c++
-			}
-		}
-	}
+	// add polynomial features
+	pf := preprocessing.NewPolynomialFeatures(6)
+	pf.IncludeBias = false
+	Xp, _ := pf.Fit(X, Ytrue).Transform(X, Ytrue)
 	Ypred := &mat.Dense{}
 	// reset OutActivation because it's not in params
-	mlp.OutActivation = "logistic"
+	// mlp.OutActivation = "logistic"
 	mlp.Predict(Xp, Ypred)
 	accuracy := metrics.AccuracyScore(Ytrue, Ypred, true, nil)
 	if accuracy > .83 {
@@ -269,10 +256,11 @@ func ExampleMLPClassifier_fit_breastCancer() {
 	fmt.Printf("ExplainedVarianceRatio %.3f %.3f\n", ExplainedVarianceRatio, pca.ExplainedVarianceRatio[0:nComponents])
 	fmt.Printf("%d components explain %.2f%% of variance\n", nComponents, thres*100.)
 	X1 = X1.Slice(0, nSamples, 0, nComponents).(*mat.Dense)
-
 	poly := preprocessing.NewPolynomialFeatures(2)
 	poly.IncludeBias = false
-	X2, Y2 := poly.Fit(X1, Y1).Transform(X1, Y1)
+
+	poly.Fit(X1, Y1)
+	X2, Y2 := poly.Transform(X1, Y1)
 
 	m := NewMLPClassifier([]int{}, "logistic", "adam", 0.)
 	m.RandomState = base.NewLockedSource(1)

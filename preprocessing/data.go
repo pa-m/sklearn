@@ -1,9 +1,10 @@
 package preprocessing
 
 import (
-	"golang.org/x/exp/rand"
 	"math"
 	"sort"
+
+	"golang.org/x/exp/rand"
 
 	"github.com/pa-m/sklearn/base"
 
@@ -548,49 +549,24 @@ func (scaler *PolynomialFeatures) Clone() Transformer {
 	return &clone
 }
 
-func addpowers(Powers *[][]int, j, Degree, nFeatures int, ppowers []int, InteractionOnly, IncludeBias bool) {
-	ppsum := 0
-	for jj := 0; jj < j; jj++ {
-		ppsum += ppowers[jj]
-	}
-
-	for d := 0; d <= Degree-ppsum; d++ {
-		ppowers[j] = d
-		if j < nFeatures-1 {
-
-			addpowers(Powers, j+1, Degree, nFeatures, ppowers, InteractionOnly, IncludeBias)
-		} else {
-			if !IncludeBias && ppsum+d == 0 {
-				continue
-			}
-			if InteractionOnly {
-				nnotz := 0
-				for j1 := 0; j1 < nFeatures; j1++ {
-					if ppowers[j1] != 0 {
-						nnotz++
-					}
-				}
-				if nnotz > 1 {
-					continue
-				}
-			}
-			//fmt.Printf("append %v\n", ppowers)
-			ppower := make([]int, nFeatures, nFeatures)
-			copy(ppower, ppowers)
-
-			*Powers = append(
-				*Powers, ppower)
-		}
-	}
-}
-
 // Fit precompute Powers
 // Powers[i, j] is the exponent of the jth input in the ith output.
 func (scaler *PolynomialFeatures) Fit(X, Y *mat.Dense) Transformer {
 	_, nFeatures := X.Dims()
 	scaler.Powers = make([][]int, 0)
-	ppowers := make([]int, nFeatures, nFeatures)
-	addpowers(&scaler.Powers, 0, scaler.Degree, nFeatures, ppowers, scaler.InteractionOnly, scaler.IncludeBias)
+	comb := combinationsWithReplacement
+	if scaler.InteractionOnly {
+		comb = combinations
+	}
+	start := 0
+	if !scaler.IncludeBias {
+		start = 1
+	}
+	for i := start; i <= scaler.Degree; i++ {
+		for c := range comb(intrange(nFeatures), i) {
+			scaler.Powers = append(scaler.Powers, bincount(c, nFeatures))
+		}
+	}
 	return scaler
 }
 
@@ -598,13 +574,14 @@ func (scaler *PolynomialFeatures) Fit(X, Y *mat.Dense) Transformer {
 func (scaler *PolynomialFeatures) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
 	nSamples, _ := X.Dims()
 	Xout = mat.NewDense(nSamples, len(scaler.Powers), nil)
-	for i := 0; i < nSamples; i++ {
+	xi, xo := X.RawMatrix(), Xout.RawMatrix()
+	for i, ipos, opos := 0, 0, 0; i < nSamples; i, ipos, opos = i+1, ipos+xi.Stride, opos+xo.Stride {
 		for ioutput, p := range scaler.Powers {
 			v := 1.
 			for j, pj := range p {
-				v *= math.Pow(X.At(i, j), float(pj))
+				v *= math.Pow(xi.Data[ipos+j], float(pj))
 			}
-			Xout.Set(i, ioutput, v)
+			xo.Data[opos+ioutput] = v
 		}
 	}
 	return Xout, Y

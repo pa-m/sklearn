@@ -143,21 +143,34 @@ func ExampleRobustScaler() {
 }
 
 func TestPolynomialFeatures(t *testing.T) {
-	pf := NewPolynomialFeatures(3)
+	nSamples, nFeatures := 1, 3
+	X := mat.NewDense(nSamples, nFeatures, []float{1, 2, 3})
+	var expected string
+	var pf *PolynomialFeatures
+
+	pf = NewPolynomialFeatures(2)
+	pf.Fit(mat.NewDense(1, 2, nil), nil)
+	expected = "[[0 0] [1 0] [0 1] [2 0] [1 1] [0 2]]"
+	if fmt.Sprintf("%v", pf.Powers) != expected {
+		t.Errorf("expected:\n%s\ngot:\n%s", expected, fmt.Sprintf("%v", pf.Powers))
+
+	}
+
+	pf = NewPolynomialFeatures(3)
 	isTransformer := func(Transformer) {}
 	isTransformer(pf)
 	pf.IncludeBias = true
 	pf.InteractionOnly = false
-	nSamples, nFeatures := 1, 3
-	X := mat.NewDense(nSamples, nFeatures, []float{1, 2, 3})
 	pf.Fit(X, nil)
-	//fmt.Printf("powers=%v\n", pf.Powers)
-	if fmt.Sprintf("%v", pf.Powers) != "[[0 0 0] [0 0 1] [0 0 2] [0 0 3] [0 1 0] [0 1 1] [0 1 2] [0 2 0] [0 2 1] [0 3 0] [1 0 0] [1 0 1] [1 0 2] [1 1 0] [1 1 1] [1 2 0] [2 0 0] [2 0 1] [2 1 0] [3 0 0]]" {
-		t.Fail()
+	expected = "[[0 0 0] [1 0 0] [0 1 0] [0 0 1] [2 0 0] [1 1 0] [1 0 1] [0 2 0] [0 1 1] [0 0 2] [3 0 0] [2 1 0] [2 0 1] [1 2 0] [1 1 1] [1 0 2] [0 3 0] [0 2 1] [0 1 2] [0 0 3]]"
+	if fmt.Sprintf("%v", pf.Powers) != expected {
+		t.Errorf("expected:\n%s\ngot:\n%s", expected, fmt.Sprintf("%v", pf.Powers))
+
 	}
 	Xout, _ := pf.Transform(X, nil)
-	if "[1 3 9 27 2 6 18 4 12 8 1 3 9 2 6 4 1 3 2 1]" != fmt.Sprint(Xout.RawRowView(0)) {
-		t.Errorf("polyfeatures transform\nexpected %v\ngot %v", "[1 3 9 27 2 6 18 4 12 8 1 3 9 2 6 4 1 3 2 1]", fmt.Sprint(Xout.RawRowView(0)))
+	expected = "[1 1 2 3 1 2 3 4 6 9 1 2 3 4 6 9 8 12 18 27]"
+	if expected != fmt.Sprint(Xout.RawRowView(0)) {
+		t.Errorf("polyfeatures transform\nexpected %v\ngot %v", expected, fmt.Sprint(Xout.RawRowView(0)))
 	}
 	X1, _ := pf.Transform(X, nil)
 	X2, _ := pf.InverseTransform(X1, nil)
@@ -171,19 +184,20 @@ func TestPolynomialFeatures(t *testing.T) {
 	pf.InteractionOnly = true
 	pf.Fit(X, nil)
 	//fmt.Printf("powers interactiononly=%v\n", pf.Powers)
-	if fmt.Sprintf("%v", pf.Powers) != "[[0 0 0] [0 0 1] [0 0 2] [0 0 3] [0 1 0] [0 2 0] [0 3 0] [1 0 0] [2 0 0] [3 0 0]]" {
-		fmt.Println("failed interactiononly")
-		t.Fail()
+	expected = "[[0 0 0] [1 0 0] [0 1 0] [0 0 1] [1 1 0] [1 0 1] [0 1 1] [1 1 1]]"
+	if fmt.Sprintf("%v", pf.Powers) != expected {
+		t.Errorf("interactions_only expected:\n%s\ngot:\n%s", expected, fmt.Sprintf("%v", pf.Powers))
 
 	}
 
 	pf.IncludeBias = false
-	pf.InteractionOnly = false
+	pf.InteractionOnly = true
 	pf.Fit(X, nil)
+	expected = "[[1 0 0] [0 1 0] [0 0 1] [1 1 0] [1 0 1] [0 1 1] [1 1 1]]"
 	//fmt.Printf("powers=%v\n", pf.Powers)
-	if fmt.Sprintf("%v", pf.Powers) != "[[0 0 1] [0 0 2] [0 0 3] [0 1 0] [0 1 1] [0 1 2] [0 2 0] [0 2 1] [0 3 0] [1 0 0] [1 0 1] [1 0 2] [1 1 0] [1 1 1] [1 2 0] [2 0 0] [2 0 1] [2 1 0] [3 0 0]]" {
+	if fmt.Sprintf("%v", pf.Powers) != expected {
 		t.Errorf("polyfeatures nobias nointeraction\nexpected %v\ngot %v",
-			"[[0 0 1] [0 0 2] [0 0 3] [0 1 0] [0 1 1] [0 1 2] [0 2 0] [0 2 1] [0 3 0] [1 0 0] [1 0 1] [1 0 2] [1 1 0] [1 1 1] [1 2 0] [2 0 0] [2 0 1] [2 1 0] [3 0 0]]",
+			expected,
 			fmt.Sprintf("%v", pf.Powers),
 		)
 	}
