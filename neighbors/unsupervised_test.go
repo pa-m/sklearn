@@ -11,7 +11,7 @@ func ExampleNearestNeighbors() {
 	// test from http://scikit-learn.org/stable/modules/neighbors.html
 	X := mat.NewDense(6, 2, []float64{-1, -1, -2, -1, -3, -2, 1, 1, 2, 1, 3, 2})
 	nbrs := NewNearestNeighbors()
-	nbrs.Fit(X)
+	nbrs.Fit(X, mat.Matrix(nil))
 	distances, indices := nbrs.KNeighbors(X, 2)
 	fmt.Printf("indices:\n%v\n", mat.Formatted(indices))
 	fmt.Printf("distances:\n%v\n", mat.Formatted(distances))
@@ -36,7 +36,7 @@ func ExampleNearestNeighbors() {
 func ExampleNearestNeighbors_KNeighborsGraph() {
 	X := mat.NewDense(3, 1, []float64{0, 3, 1})
 	neigh := NewNearestNeighbors()
-	neigh.Fit(X)
+	neigh.Fit(X, mat.Matrix(nil))
 	A := neigh.KNeighborsGraph(X, 2, "connectivity", true)
 	fmt.Println(mat.Formatted(A))
 	// Output:
@@ -62,7 +62,7 @@ func ExampleNearestNeighbors_Tree() {
 	for _, algo := range []string{"brute", "kd_tree"} {
 		neigh := NewNearestNeighbors()
 		neigh.Algorithm = algo
-		neigh.Fit(X)
+		neigh.Fit(X, mat.Matrix(nil))
 		//start := time.Now()
 		distances, indices := neigh.KNeighbors(pts, 2)
 		//fmt.Println("elapsed", algo, time.Since(start))
@@ -91,7 +91,7 @@ func ExampleNearestNeighbors_RadiusNeighbors() {
 	// adapted example from http://scikit-learn.org/stable/modules/generated/sklearn.neighbors.RadiusNeighborsRegressor.html#sklearn.neighbors.RadiusNeighborsRegressor
 	samples := mat.NewDense(3, 3, []float64{0, 0, 0, 0, .5, 0, 1, 1, .5})
 	neigh := NewNearestNeighbors()
-	neigh.Fit(samples)
+	neigh.Fit(samples, mat.Matrix(nil))
 	distances, indices := neigh.RadiusNeighbors(mat.NewDense(1, 3, []float64{1, 1, 1}), 1.6)
 	fmt.Println(distances[0])
 	fmt.Println(indices[0])

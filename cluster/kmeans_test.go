@@ -7,12 +7,17 @@ import (
 	"os/exec"
 	"time"
 
+	"github.com/pa-m/sklearn/base"
 	"github.com/pa-m/sklearn/datasets"
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/plot"
 	"gonum.org/v1/plot/plotter"
 	"gonum.org/v1/plot/vg"
 	"gonum.org/v1/plot/vg/draw"
+)
+
+var (
+	_ base.Predicter = &KMeans{}
 )
 
 func ExampleKMeans() {

@@ -29,8 +29,11 @@ func NewBayesianRidge() *BayesianRidge {
 	return regr
 }
 
-// Clone for BayesianRidge
-func (regr *BayesianRidge) Clone() base.Transformer {
+// IsClassifier returns false for BayesianRidge
+func (*BayesianRidge) IsClassifier() bool { return false }
+
+// PredicterClone for BayesianRidge
+func (regr *BayesianRidge) PredicterClone() base.Predicter {
 	clone := *regr
 	return &clone
 }
@@ -42,7 +45,8 @@ func (regr *BayesianRidge) Clone() base.Transformer {
 //             Training data
 //         y : numpy array of shape [nSamples]
 //             Target values. Will be cast to X's dtype if necessary
-func (regr *BayesianRidge) Fit(X0, Y0 *mat.Dense) base.Transformer {
+func (regr *BayesianRidge) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
+	X0, Y0 := base.ToDense(Xmatrix), base.ToDense(Ymatrix)
 	var X, Y, YOffset *mat.Dense
 	X, Y, regr.XOffset, YOffset, regr.XScale = PreprocessData(X0, Y0, regr.FitIntercept, regr.Normalize, nil)
 	var nSamples, nFeatures = X0.Dims()
@@ -196,6 +200,12 @@ func (regr *BayesianRidge) Fit(X0, Y0 *mat.Dense) base.Transformer {
 	return regr
 }
 
+// GetNOutputs returns output columns number for Y to pass to predict
+func (regr *BayesianRidge) GetNOutputs() int {
+	_, nOutputs := regr.Coef.Dims()
+	return nOutputs
+}
+
 // Predict using the linear model.
 // In addition to the mean of the predictive distribution, also its
 // standard deviation can be returned.
@@ -208,13 +218,19 @@ func (regr *BayesianRidge) Fit(X0, Y0 *mat.Dense) base.Transformer {
 // yMean : array, shape = (nSamples,)
 //     Mean of predictive distribution of query points.
 // """
-func (regr *BayesianRidge) Predict(X, Y *mat.Dense) {
+func (regr *BayesianRidge) Predict(X mat.Matrix, Ymutable mat.Mutable) *mat.Dense {
 	// d := func(X mat.Matrix) string { r, c := X.Dims(); return fmt.Sprintf("%d,%d", r, c) }
 	// fmt.Println("Predict", d(X), d(regr.Coef))
+	Y := base.ToDense(Ymutable)
+	nSamples, _ := X.Dims()
+	if Y.IsZero() {
+		*Y = *mat.NewDense(nSamples, regr.GetNOutputs(), nil)
+	}
 	Y.Mul(X, regr.Coef)
 	Y.Apply(func(i int, j int, y float64) float64 {
 		return y + regr.Intercept.At(0, j)
 	}, Y)
+	return base.FromDense(Ymutable, Y)
 }
 
 // Predict2 returns y and stddev
@@ -249,14 +265,6 @@ func (regr *BayesianRidge) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense)
 	r, c := Y.Dims()
 	Xout, Yout = X, mat.NewDense(r, c, nil)
 	regr.Fit(X, Y)
-	regr.Predict(X, Yout)
-	return
-}
-
-// Transform is for Pipeline
-func (regr *BayesianRidge) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
-	r, c := Y.Dims()
-	Xout, Yout = X, mat.NewDense(r, c, nil)
 	regr.Predict(X, Yout)
 	return
 }

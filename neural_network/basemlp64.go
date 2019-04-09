@@ -8,11 +8,13 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unsafe"
 
 	"github.com/pa-m/sklearn/base"
 
 	"golang.org/x/exp/rand"
 	"gonum.org/v1/gonum/blas"
+	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/optimize"
 )
 
@@ -49,7 +51,7 @@ type BaseMultilayerPerceptron64 struct {
 	NOutputs      int
 	Intercepts    [][]float64     `json:"intercepts_"`
 	Coefs         []blas64General `json:"coefs_"`
-	OutActivation string
+	OutActivation string          `json:"out_activation_"`
 	Loss          float64
 
 	// internal
@@ -395,6 +397,9 @@ func (mlp *BaseMultilayerPerceptron64) initialize(yCols int, layerUnits []int, i
 		off += (1 + layerUnits[i]) * layerUnits[i+1]
 	}
 	mem := make([]float64, 2*off, 2*off)
+	if uintptr(unsafe.Pointer(&mem[0]))%64 != 0 {
+		panic("unaligned")
+	}
 	mlp.packedParameters = mem[0:off]
 	mlp.packedGrads = mem[off : 2*off]
 
@@ -525,8 +530,13 @@ func (mlp *BaseMultilayerPerceptron64) Fit(X, Y Matrix) {
 	mlp.fit(blas64General(xg), blas64General(yg), false)
 }
 
+// GetNOutputs returns output columns number for Y to pass to predict
+func (mlp *BaseMultilayerPerceptron64) GetNOutputs() int {
+	return mlp.NOutputs
+}
+
 // Predict do forward pass and fills Y (Y must be Mutable)
-func (mlp *BaseMultilayerPerceptron64) Predict(X, Y Matrix) {
+func (mlp *BaseMultilayerPerceptron64) Predict(X mat.Matrix, Y Mutable) {
 	if xg, ok := X.(RawMatrixer64); ok {
 		if yg, ok := Y.(RawMatrixer64); ok {
 			mlp.predict(xg.RawMatrix(), yg.RawMatrix())
@@ -545,7 +555,7 @@ func (mlp *BaseMultilayerPerceptron64) Predict(X, Y Matrix) {
 
 	for r, rpos := 0, 0; r < yg.Rows; r, rpos = r+1, rpos+yg.Stride {
 		for c := 0; c < yg.Cols; c++ {
-			ymut.SetAt(r, c, float64(yg.Data[rpos+c]))
+			ymut.Set(r, c, float64(yg.Data[rpos+c]))
 		}
 	}
 }
@@ -695,7 +705,7 @@ func (mlp *BaseMultilayerPerceptron64) fitStochastic(X, y blas64General, activat
 		}
 		for it := 0; it < mlp.MaxIter; it++ {
 			if mlp.Shuffle {
-				rndShuffle(nSamples, indexedXY{idx: sort.IntSlice(idx), X: General64(X), Y: General64(y)}.Swap)
+				rndShuffle(nSamples, indexedXY{idx: sort.IntSlice(idx), X: general64FastSwap(X), Y: general64FastSwap(y)}.Swap)
 			}
 			accumulatedLoss := float64(0.0)
 			for batch := [2]int{0, batchSize}; batch[0] < nSamples-testSize; batch = [2]int{batch[1], batch[1] + batchSize} {
@@ -762,7 +772,7 @@ func (mlp *BaseMultilayerPerceptron64) fitStochastic(X, y blas64General, activat
 		copy(mlp.packedParameters, mlp.bestParameters)
 	}
 	if mlp.Shuffle {
-		sort.Sort(indexedXY{idx: sort.IntSlice(idx), X: General64(X), Y: General64(y)})
+		sort.Sort(indexedXY{idx: sort.IntSlice(idx), X: general64FastSwap(X), Y: general64FastSwap(y)})
 	}
 }
 
@@ -930,6 +940,7 @@ type AdamOptimizer64 struct {
 	Beta1, Beta2, Epsilon float64
 	t                     float64
 	ms, vs                []float64
+	beta1t, beta2t        float64
 }
 
 func (opt *AdamOptimizer64) iterationEnds(timeStep float64)                {}
@@ -938,12 +949,15 @@ func (opt *AdamOptimizer64) updateParams(grads []float64) {
 	if opt.t == 0 {
 		opt.ms = make([]float64, len(grads), len(grads))
 		opt.vs = make([]float64, len(grads), len(grads))
+		opt.beta1t, opt.beta2t = 1, 1
 	}
 	opt.t++
 	for i, grad := range grads {
 		opt.ms[i] = opt.Beta1*opt.ms[i] + (1-opt.Beta1)*grad
 		opt.vs[i] = opt.Beta2*opt.vs[i] + (1-opt.Beta2)*grad*grad
-		opt.LearningRate = opt.LearningRateInit * M64.Sqrt(1-M64.Pow(opt.Beta2, opt.t)) / (1. - M64.Pow(opt.Beta1, opt.t))
+		opt.beta1t *= opt.Beta1
+		opt.beta2t *= opt.Beta2
+		opt.LearningRate = opt.LearningRateInit * M64.Sqrt(1-opt.beta2t) / (1. - opt.beta1t)
 		update := -opt.LearningRate * opt.ms[i] / (M64.Sqrt(opt.vs[i]) + opt.Epsilon)
 		opt.Params[i] += update
 	}

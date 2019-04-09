@@ -16,8 +16,8 @@ func NewRidge() *RegularizedRegression {
 	return regr
 }
 
-// Clone for Ridge
-func (m *Ridge) Clone() base.Transformer {
+// PredicterClone for Ridge
+func (m *Ridge) PredicterClone() base.Predicter {
 	clone := *m
 	return &clone
 }

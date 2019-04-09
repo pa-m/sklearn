@@ -18,14 +18,15 @@ type PCA struct {
 // NewPCA returns a *PCA
 func NewPCA() *PCA { return &PCA{} }
 
-// Clone ...
-func (m *PCA) Clone() Transformer {
+// TransformerClone ...
+func (m *PCA) TransformerClone() base.Transformer {
 	clone := *m
 	return &clone
 }
 
 // Fit computes the svd of X
-func (m *PCA) Fit(X, Y *mat.Dense) Transformer {
+func (m *PCA) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
+	X := base.ToDense(Xmatrix)
 	_, c := X.Dims()
 	m.SVD.Factorize(X, mat.SVDThin)
 	m.SingularValues = make([]float64, c)
@@ -50,7 +51,7 @@ func (m *PCA) Fit(X, Y *mat.Dense) Transformer {
 }
 
 // Transform Transforms X
-func (m *PCA) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+func (m *PCA) Transform(X, Y mat.Matrix) (Xout, Yout *mat.Dense) {
 	var v = new(mat.Dense)
 	m.SVD.VTo(v)
 	nSamples, _ := X.Dims()
@@ -58,13 +59,14 @@ func (m *PCA) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
 	Xout = mat.NewDense(nSamples, m.NComponents, nil)
 	Xout.Mul(X, base.MatDenseSlice(v, 0, vRows, 0, m.NComponents))
 
-	Yout = Y
+	Yout = base.ToDense(Y)
 	return
 }
 
 // FitTransform for PCA
 func (m *PCA) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
-	return m.Fit(X, Y).Transform(X, Y)
+	m.Fit(X, Y)
+	return m.Transform(X, Y)
 }
 
 // InverseTransform put X into original space

@@ -11,6 +11,7 @@ import (
 type LogisticRegression struct {
 	RegularizedRegression
 	LabelBinarizer *preprocessing.LabelBinarizer
+	nOutputs       int
 }
 
 // NewLogisticRegression create and init a *LogisticRegression
@@ -27,11 +28,14 @@ func NewLogisticRegression() *LogisticRegression {
 	return regr
 }
 
-// Clone for LogisticRegression
-func (regr *LogisticRegression) Clone() base.Transformer {
+// PredicterClone for LogisticRegression
+func (regr *LogisticRegression) PredicterClone() base.Predicter {
 	clone := *regr
 	return &clone
 }
+
+// IsClassifier returns true for LogisticRegression
+func (regr *LogisticRegression) IsClassifier() bool { return true }
 
 // EncodeLabels applies a onehotencoder if Ytrue has only one column
 func (regr *LogisticRegression) EncodeLabels(Ytrue *mat.Dense) *mat.Dense {
@@ -62,13 +66,20 @@ func (regr *LogisticRegression) EncodeLabels(Ytrue *mat.Dense) *mat.Dense {
 }
 
 // Fit for LogisticRegression
-func (regr *LogisticRegression) Fit(X, Ycls *mat.Dense) base.Transformer {
-	Y := regr.EncodeLabels(Ycls)
-	return regr.RegularizedRegression.Fit(X, Y)
+func (regr *LogisticRegression) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
+	X0, Y0 := base.ToDense(Xmatrix), base.ToDense(Ymatrix)
+	regr.nOutputs = Y0.RawMatrix().Cols
+	Y := regr.EncodeLabels(Y0)
+	return regr.RegularizedRegression.Fit(X0, Y)
+}
+
+// GetNOutputs returns output columns number for Y to pass to predict
+func (regr *LogisticRegression) GetNOutputs() int {
+	return regr.nOutputs
 }
 
 // PredictProba predicts probability of y=1 for X using Coef
-func (regr *LogisticRegression) PredictProba(X, Y *mat.Dense) {
+func (regr *LogisticRegression) PredictProba(X mat.Matrix, Y *mat.Dense) {
 	regr.DecisionFunction(X, Y)
 	Y.Apply(func(i int, o int, y float64) float64 {
 		return regr.ActivationFunction.F(y)
@@ -76,7 +87,13 @@ func (regr *LogisticRegression) PredictProba(X, Y *mat.Dense) {
 }
 
 // Predict predicts y for X using Coef
-func (regr *LogisticRegression) Predict(X, Ycls *mat.Dense) {
+func (regr *LogisticRegression) Predict(X mat.Matrix, Ymutable mat.Mutable) *mat.Dense {
+	Ycls := base.ToDense(Ymutable)
+	nSamples, _ := X.Dims()
+	if Ycls.IsZero() {
+		*Ycls = *mat.NewDense(nSamples, regr.GetNOutputs(), nil)
+	}
+
 	var Y = Ycls
 	if regr.LabelBinarizer != nil {
 		Y = &mat.Dense{}
@@ -92,4 +109,5 @@ func (regr *LogisticRegression) Predict(X, Ycls *mat.Dense) {
 		}
 
 	}
+	return base.FromDense(Ymutable, Ycls)
 }

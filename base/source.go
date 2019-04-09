@@ -52,12 +52,17 @@ func NewLockedSource(seed uint64) Source {
 	return &s
 }
 
+// Float64er is implemented by a random source having a method Float64() float64
+type Float64er interface {
+	Float64() float64
+}
+
 // NormFloat64er is implemented by a random source having a method NormFloat64() float64
 type NormFloat64er interface {
 	NormFloat64() float64
 }
 
-// Intner is implemented by a random source having a method Intn}() float64
+// Intner is implemented by a random source having a method Intn() float64
 type Intner interface {
 	Intn(int) int
 }

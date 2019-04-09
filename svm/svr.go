@@ -6,6 +6,7 @@ import (
 	"golang.org/x/exp/rand"
 
 	"github.com/pa-m/sklearn/base"
+	"github.com/pa-m/sklearn/metrics"
 	"gonum.org/v1/gonum/mat"
 )
 
@@ -14,6 +15,7 @@ type SVR struct {
 	BaseLibSVM
 
 	ClassWeight []float64
+	nOutputs    int
 }
 
 // NewSVR ...
@@ -27,8 +29,11 @@ func NewSVR() *SVR {
 	return m
 }
 
-// Clone for SVR
-func (m *SVR) Clone() base.Transformer {
+// IsClassifier returns false for SVR
+func (*SVR) IsClassifier() bool { return false }
+
+// PredicterClone for SVR
+func (m *SVR) PredicterClone() base.Predicter {
 	clone := *m
 	return &clone
 }
@@ -180,10 +185,15 @@ func svrTrain(X *mat.Dense, Y []float64, C, Epsilon float64, KernelFunction func
 }
 
 // Fit for SVR
-func (m *SVR) Fit(X, Y *mat.Dense) base.Transformer {
+func (m *SVR) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
+	_, m.nOutputs = Ymatrix.Dims()
+	X, Y := base.ToDense(Xmatrix), base.ToDense(Ymatrix)
 	m.BaseLibSVM.fit(X, Y, svrTrain)
 	return m
 }
+
+// GetNOutputs ...
+func (m *SVR) GetNOutputs() int { return m.nOutputs }
 
 func svrPredict(model *Model, X, Y *mat.Dense, output int) {
 	NSamples, _ := X.Dims()
@@ -200,14 +210,13 @@ func svrPredict(model *Model, X, Y *mat.Dense, output int) {
 }
 
 // Predict for SVR
-func (m *SVR) Predict(X, Y *mat.Dense) {
-	_, NOutputs := Y.Dims()
-	if NOutputs == 0 {
-		NSamples, _ := X.Dims()
-		NOutputs = len(m.Model)
-		*Y = *mat.NewDense(NSamples, NOutputs, nil)
+func (m *SVR) Predict(Xmatrix mat.Matrix, Ymutable mat.Mutable) *mat.Dense {
+	X, Y := base.ToDense(Xmatrix), base.ToDense(Ymutable)
+	nSamples, _ := X.Dims()
+	if Y.IsZero() {
+		*Y = *mat.NewDense(nSamples, m.GetNOutputs(), nil)
 	}
-	base.Parallelize(-1, NOutputs, func(th, start, end int) {
+	base.Parallelize(-1, m.GetNOutputs(), func(th, start, end int) {
 
 		for output := start; output < end; output++ {
 
@@ -215,13 +224,11 @@ func (m *SVR) Predict(X, Y *mat.Dense) {
 
 		}
 	})
+	return base.FromDense(Ymutable, Y)
 }
 
-// Transform for SVR for pipeline
-func (m *SVR) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
-	NSamples, _ := X.Dims()
-	Xout = X
-	Yout = mat.NewDense(NSamples, len(m.Model), nil)
-	m.Predict(X, Yout)
-	return
+// Score for SVR returns R2Score
+func (m *SVR) Score(X, Y mat.Matrix) float64 {
+	Ypred := m.Predict(X, nil)
+	return metrics.R2Score(Y, Ypred, nil, "").At(0, 0)
 }

@@ -61,11 +61,14 @@ func NewDBSCAN(config *DBSCANConfig) *DBSCAN {
 	return &DBSCAN{DBSCANConfig: *config}
 }
 
-// Clone for DBSCAN
-func (m *DBSCAN) Clone() base.Transformer {
+// PredicterClone for DBSCAN
+func (m *DBSCAN) PredicterClone() base.Predicter {
 	clone := *m
 	return &clone
 }
+
+// IsClassifier returns true for DBSCAN
+func (m *DBSCAN) IsClassifier() bool { return true }
 
 // Fit for DBSCAN
 // X : mat.Dense of shape (n_samples, n_features)
@@ -76,14 +79,15 @@ func (m *DBSCAN) Clone() base.Transformer {
 // weight may inhibit its eps-neighbor from being core.
 // Note that weights are absolute, and default to 1.
 // Y : Ignored, may be nil
-func (m *DBSCAN) Fit(X, Y *mat.Dense) base.Transformer {
+func (m *DBSCAN) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
+	X := base.ToDense(Xmatrix)
 	m.NeighborsModel = neighbors.NewNearestNeighbors()
 	m.NeighborsModel.Algorithm = m.Algorithm
 	m.NeighborsModel.Distance = MinkowskiDistance(m.P)
 	m.NeighborsModel.Metric = m.Metric
 	m.NeighborsModel.NJobs = m.NJobs
 	m.NeighborsModel.LeafSize = m.LeafSize
-	m.NeighborsModel.Fit(X)
+	m.NeighborsModel.Fit(X, nil)
 	_, neighborhoods := m.NeighborsModel.RadiusNeighbors(X, m.Eps)
 
 	NSamples, _ := X.Dims()
@@ -119,20 +123,30 @@ func (m *DBSCAN) Fit(X, Y *mat.Dense) base.Transformer {
 
 }
 
-// Predict for DBSCAN
-func (m *DBSCAN) Predict(X, Y *mat.Dense) {
+// GetNOutputs returns output columns number for Y to pass to predict
+func (m *DBSCAN) GetNOutputs() int { return 1 }
 
+// Predict for DBSCAN return Labels in Y. X must me the same passed to Fit
+func (m *DBSCAN) Predict(X mat.Matrix, Ymutable mat.Mutable) *mat.Dense {
+	Y := base.ToDense(Ymutable)
+	nSamples, _ := X.Dims()
+	if Y.IsZero() {
+		*Y = *mat.NewDense(nSamples, m.GetNOutputs(), nil)
+	}
+	// return m.Labels in Y
+	ySamples, yCols := Y.Dims()
+	if nSamples != len(m.Labels) || ySamples != len(m.Labels) || yCols != 1 {
+		panic("X must me the same passed to Fit and Y must have size samples*1")
+	}
+	for i, label := range m.Labels {
+
+		Y.Set(i, 0, float64(label))
+	}
+	return base.FromDense(Ymutable, Y)
 }
 
-// Transform (for pipeline)
-func (m *DBSCAN) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
-	NSamples, _ := X.Dims()
-	Xout = X
-	Yout = mat.NewDense(NSamples, 1, nil)
-	m.Predict(X, Yout)
-	return
-
-}
+// Score for DBSCAN returns 1
+func (m *DBSCAN) Score(X, Y mat.Matrix) float64 { return 1 }
 
 func dbscanInner(isCore []bool, neighborhoods [][]int, labels []int) {
 	var labelNum, v, lstack int

@@ -20,14 +20,15 @@ func NewLabelBinarizer(NegLabel, PosLabel float64) *LabelBinarizer {
 	return &LabelBinarizer{NegLabel: NegLabel, PosLabel: PosLabel}
 }
 
-// Clone ...
-func (m *LabelBinarizer) Clone() Transformer {
+// TransformerClone ...
+func (m *LabelBinarizer) TransformerClone() base.Transformer {
 	clone := *m
 	return &clone
 }
 
 // Fit for binarizer does nothing
-func (m *LabelBinarizer) Fit(X, Y *mat.Dense) Transformer {
+func (m *LabelBinarizer) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
+	Y := base.ToDense(Ymatrix)
 	if m.PosLabel == m.NegLabel {
 		m.PosLabel += 1.
 	}
@@ -49,8 +50,8 @@ func (m *LabelBinarizer) Fit(X, Y *mat.Dense) Transformer {
 }
 
 // Transform for LabelBinarizer
-func (m *LabelBinarizer) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
-	Xout = X
+func (m *LabelBinarizer) Transform(X, Y mat.Matrix) (Xout, Yout *mat.Dense) {
+	Xout = base.ToDense(X)
 	NSamples, _ := Y.Dims()
 	NOutputs := 0
 	for _, classes := range m.Classes {
@@ -58,7 +59,7 @@ func (m *LabelBinarizer) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
 	}
 
 	Yout = mat.NewDense(NSamples, NOutputs, nil)
-	y, yo := Y.RawMatrix(), Yout.RawMatrix()
+	y, yo := base.ToDense(Y).RawMatrix(), Yout.RawMatrix()
 	baseCol := 0
 	for j := 0; j < y.Cols; j++ {
 		cmap := make(map[float64]int)
@@ -99,7 +100,8 @@ func (m *LabelBinarizer) InverseTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dens
 
 // FitTransform for Binarizer
 func (m *LabelBinarizer) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
-	Xout, Yout = m.Fit(X, Y).Transform(X, Y)
+	m.Fit(X, Y)
+	Xout, Yout = m.Transform(X, Y)
 	return
 }
 
@@ -113,15 +115,16 @@ type MultiLabelBinarizer struct {
 // NewMultiLabelBinarizer ...
 func NewMultiLabelBinarizer() *MultiLabelBinarizer { return &MultiLabelBinarizer{} }
 
-// Clone ...
-func (m *MultiLabelBinarizer) Clone() Transformer {
+// TransformerClone ...
+func (m *MultiLabelBinarizer) TransformerClone() base.Transformer {
 	clone := *m
 	return &clone
 }
 
 // Fit for MultiLabelBinarizer ...
 // if Y is [][]string, use Fit2. this one is only to satisfy Transformer interface
-func (m *MultiLabelBinarizer) Fit(X, Y *mat.Dense) Transformer {
+func (m *MultiLabelBinarizer) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
+	X, Y := base.ToDense(Xmatrix), base.ToDense(Ymatrix)
 	m.Fit2(X, Y)
 	return m
 }
@@ -165,13 +168,13 @@ func (m *MultiLabelBinarizer) Fit2(X *mat.Dense, Y interface{}) *MultiLabelBinar
 
 // Transform for MultiLabelBinarizer ...
 // Y type must be the same passed int Fit
-func (m *MultiLabelBinarizer) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+func (m *MultiLabelBinarizer) Transform(X, Y mat.Matrix) (Xout, Yout *mat.Dense) {
 	return m.Transform2(X, Y)
 }
 
 // Transform2 handles Y types ùmat.dense and [][]string
-func (m *MultiLabelBinarizer) Transform2(X *mat.Dense, Y interface{}) (Xout, Yout *mat.Dense) {
-	Xout = X
+func (m *MultiLabelBinarizer) Transform2(X mat.Matrix, Y interface{}) (Xout, Yout *mat.Dense) {
+	Xout = base.ToDense(X)
 	switch vY := Y.(type) {
 	case *mat.Dense:
 		Ymat := vY.RawMatrix()
@@ -271,14 +274,15 @@ type LabelEncoder struct {
 // NewLabelEncoder ...
 func NewLabelEncoder() *LabelEncoder { return &LabelEncoder{} }
 
-// Clone ...
-func (m *LabelEncoder) Clone() Transformer {
+// TransformerClone ...
+func (m *LabelEncoder) TransformerClone() base.Transformer {
 	clone := *m
 	return &clone
 }
 
 // Fit for LabelEncoder ...
-func (m *LabelEncoder) Fit(X, Y *mat.Dense) base.Transformer {
+func (m *LabelEncoder) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
+	X, Y := base.ToDense(Xmatrix), base.ToDense(Ymatrix)
 	Ymat := Y.RawMatrix()
 	m.Classes = make([][]float64, Ymat.Cols)
 	m.Support = make([][]float64, Ymat.Cols)
@@ -313,8 +317,8 @@ func (m *LabelEncoder) PartialFit(X, Y *mat.Dense) base.Transformer {
 }
 
 // Transform for LabelEncoder ...
-func (m *LabelEncoder) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
-	Ymat := Y.RawMatrix()
+func (m *LabelEncoder) Transform(X, Y mat.Matrix) (Xout, Yout *mat.Dense) {
+	Ymat := base.ToDense(Y).RawMatrix()
 	Yout = mat.NewDense(Ymat.Rows, Ymat.Cols, nil)
 	Youtmat := Yout.RawMatrix()
 	for jY, jYout := 0, 0; jY < Ymat.Rows*Ymat.Stride; jY, jYout = jY+Ymat.Stride, jYout+Youtmat.Stride {
@@ -326,13 +330,14 @@ func (m *LabelEncoder) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
 			Youtmat.Data[jYout+i] = float64(pos)
 		}
 	}
-	Xout = X
+	Xout = base.ToDense(X)
 	return
 }
 
 // FitTransform for LabelEncoder ...
 func (m *LabelEncoder) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
-	Xout, Yout = m.Fit(X, Y).Transform(X, Y)
+	m.Fit(X, Y)
+	Xout, Yout = m.Transform(X, Y)
 	return
 }
 

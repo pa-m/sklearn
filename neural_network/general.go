@@ -41,8 +41,11 @@ type RawRowViewerXX = RawRowViewer32
 // RawRowViewer returns row as a float slice
 type RawRowViewer = RawRowViewer64
 
-// Mutable provide SetAt to set value at row,col
-type Mutable interface{ SetAt(i, j int, v float64) }
+// Mutable provide Set to set value at row,col
+type Mutable interface {
+	Set(i, j int, v float64)
+	Matrix
+}
 
 // Slicer provides Slice(startRow,endRow,startCol,endCol)
 type Slicer interface {
@@ -96,8 +99,8 @@ func (mat General32) At(r, c int) float64 {
 	return float64(mat.Data[c+r*mat.Stride])
 }
 
-// SetAt set value at row,col
-func (mat General32) SetAt(r, c int, v float64) {
+// Set set value at row,col
+func (mat General32) Set(r, c int, v float64) {
 	mat.Data[c+r*mat.Stride] = float32(v)
 }
 
@@ -116,8 +119,8 @@ func (mat General64) At(r, c int) float64 {
 	return float64(mat.Data[c+r*mat.Stride])
 }
 
-// SetAt set value at row,col
-func (mat General64) SetAt(r, c int, v float64) {
+// Set set value at row,col
+func (mat General64) Set(r, c int, v float64) {
 	mat.Data[c+r*mat.Stride] = float64(v)
 }
 
@@ -184,6 +187,42 @@ func (mat General64) Swap(i, j int) {
 	for k, p, q := 0, i*mat.Stride, j*mat.Stride; k < mat.Cols; k, p, q = k+1, p+1, q+1 {
 		mat.Data[p], mat.Data[q] = mat.Data[q], mat.Data[p]
 	}
+}
+
+type general32FastSwapT struct {
+	General32
+	tmp []float32
+}
+
+func (g general32FastSwapT) Swap(i, j int) {
+	ipos := i * g.Stride
+	copy(g.tmp, g.Data[ipos:ipos+g.Cols])
+	jpos := j * g.Stride
+	copy(g.Data[ipos:ipos+g.Cols], g.Data[jpos:jpos+g.Cols])
+	copy(g.Data[jpos:jpos+g.Cols], g.tmp)
+}
+func general32FastSwap(g blas32.General) general32FastSwapT {
+	return general32FastSwapT{General32(g), make([]float32, g.Cols)}
+}
+
+type general64FastSwapT struct {
+	General64
+	tmp []float64
+}
+
+func (g general64FastSwapT) Swap(i, j int) {
+	ipos := i * g.Stride
+	jpos := j * g.Stride
+	if g.Cols == 1 {
+		g.Data[ipos], g.Data[jpos] = g.Data[jpos], g.Data[ipos]
+		return
+	}
+	copy(g.tmp, g.Data[ipos:ipos+g.Cols])
+	copy(g.Data[ipos:ipos+g.Cols], g.Data[jpos:jpos+g.Cols])
+	copy(g.Data[jpos:jpos+g.Cols], g.tmp)
+}
+func general64FastSwap(g blas64.General) general64FastSwapT {
+	return general64FastSwapT{General64(g), make([]float64, g.Cols)}
 }
 
 // Slice provides view on submatrix(startRow,endRow,startCol,endCol)

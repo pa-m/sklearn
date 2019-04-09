@@ -1,6 +1,9 @@
 package preprocessing
 
-import "gonum.org/v1/gonum/mat"
+import (
+	"github.com/pa-m/sklearn/base"
+	"gonum.org/v1/gonum/mat"
+)
 
 // FunctionTransformer Constructs a transformer from an arbitrary callable.
 type FunctionTransformer struct {
@@ -9,23 +12,26 @@ type FunctionTransformer struct {
 
 // NewFunctionTransformer ...
 func NewFunctionTransformer(f, invf func(X, Y *mat.Dense) (X1, Y1 *mat.Dense)) *FunctionTransformer {
-	return &FunctionTransformer{Func: f, InverseFunc: invf}
+	return &FunctionTransformer{
+		Func:        f,
+		InverseFunc: invf,
+	}
 }
 
-// Clone ...
-func (m *FunctionTransformer) Clone() Transformer {
+// TransformerClone ...
+func (m *FunctionTransformer) TransformerClone() base.Transformer {
 	var clone = *m
 	return &clone
 }
 
 // Fit ...
-func (m *FunctionTransformer) Fit(X, Y *mat.Dense) Transformer {
+func (m *FunctionTransformer) Fit(X, Y mat.Matrix) base.Fiter {
 	return m
 }
 
 // Transform ...
-func (m *FunctionTransformer) Transform(X, Y *mat.Dense) (X1, Y1 *mat.Dense) {
-	X1, Y1 = m.Func(X, Y)
+func (m *FunctionTransformer) Transform(X, Y mat.Matrix) (X1, Y1 *mat.Dense) {
+	X1, Y1 = m.Func(base.ToDense(X), base.ToDense(Y))
 	return
 }
 

@@ -20,6 +20,8 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
+var _ = []base.Predicter{&MLPRegressor{}, &MLPClassifier{}}
+
 type Problem struct {
 	X, Y          *mat.Dense
 	MiniBatchSize int
@@ -171,8 +173,9 @@ func ExampleMLPClassifier_Unmarshal() {
 	// add polynomial features
 	pf := preprocessing.NewPolynomialFeatures(6)
 	pf.IncludeBias = false
-	Xp, _ := pf.Fit(X, Ytrue).Transform(X, Ytrue)
-	Ypred := &mat.Dense{}
+	pf.Fit(X, Ytrue)
+	Xp, _ := pf.Transform(X, Ytrue)
+	Ypred := mat.NewDense(nSamples, 1, nil)
 	// reset OutActivation because it's not in params
 	// mlp.OutActivation = "logistic"
 	mlp.Predict(Xp, Ypred)
@@ -200,7 +203,7 @@ func ExampleMLPClassifier_Predict_mnist() {
 	mat.NewDense(26, 10, mlp.packedParameters[401*25:]).Copy(Theta2T.T())
 	mlp.WarmStart = true
 
-	predBin := &mat.Dense{}
+	predBin := mat.NewDense(Ybin.RawMatrix().Rows, Ybin.RawMatrix().Cols, nil)
 	mlp.Predict(X, predBin)
 	//_, pred := lb.InverseTransform(nil, predBin)
 	acc := metrics.AccuracyScore(Ybin, predBin, true, nil)
@@ -222,6 +225,7 @@ func Benchmark_Fit_mnist(b *testing.B) {
 	_, _ = Theta1, Theta2
 	mlp := NewMLPClassifier([]int{25}, "logistic", "adam", 0.)
 	mlp.BatchSize = 5000
+	mlp.Shuffle = false
 	_, NFeatures := X.Dims()
 	_, NOutputs := Ybin.Dims()
 	mlp.initialize(Ybin.RawMatrix().Cols, []int{NFeatures, 25, NOutputs}, true, true)
@@ -243,10 +247,12 @@ func ExampleMLPClassifier_fit_breastCancer() {
 	ds := datasets.LoadBreastCancer()
 
 	scaler := preprocessing.NewStandardScaler()
-	X0, Y0 := scaler.Fit(ds.X, ds.Y).Transform(ds.X, ds.Y)
+	scaler.Fit(ds.X, ds.Y)
+	X0, Y0 := scaler.Transform(ds.X, ds.Y)
 	nSamples, _ := Y0.Dims()
 	pca := preprocessing.NewPCA()
-	X1, Y1 := pca.Fit(X0, Y0).Transform(X0, Y0)
+	pca.Fit(X0, Y0)
+	X1, Y1 := pca.Transform(X0, Y0)
 	thres := .995
 	ExplainedVarianceRatio := 0.
 	var nComponents int
@@ -296,10 +302,7 @@ func ExampleMLPRegressor() {
 	mlp.Shuffle = false
 	mlp.BatchSize = 5
 	mlp.MaxIter = 100
-	m := pipeline.NewPipeline(
-		pipeline.NamedStep{Name: "standardize", Step: preprocessing.NewStandardScaler()},
-		pipeline.NamedStep{Name: "mlpregressor", Step: mlp},
-	)
+	m := pipeline.MakePipeline(preprocessing.NewStandardScaler(), mlp)
 	_ = m
 	randomState := rand.New(base.NewLockedSource(7))
 	scorer := func(Y, Ypred *mat.Dense) float64 {

@@ -12,7 +12,7 @@ import (
 type CrossValidateResult struct {
 	TestScore          []float64
 	FitTime, ScoreTime []time.Duration
-	Estimator          []base.Transformer
+	Estimator          []base.Predicter
 }
 
 // Len for CrossValidateResult to implement sort.Interface
@@ -33,7 +33,7 @@ func (r CrossValidateResult) Swap(i, j int) {
 // scorer is a func(Ytrue,Ypred) float64
 // only mean_squared_error for now
 // NJobs is the number of goroutines. if <=0, runtime.NumCPU is used
-func CrossValidate(estimator base.Transformer, X, Y *mat.Dense, groups []int, scorer func(Ytrue, Ypred *mat.Dense) float64, cv Splitter, NJobs int) (res CrossValidateResult) {
+func CrossValidate(estimator base.Predicter, X, Y *mat.Dense, groups []int, scorer func(Ytrue, Ypred *mat.Dense) float64, cv Splitter, NJobs int) (res CrossValidateResult) {
 
 	if NJobs <= 0 {
 		NJobs = runtime.NumCPU()
@@ -45,7 +45,7 @@ func CrossValidate(estimator base.Transformer, X, Y *mat.Dense, groups []int, sc
 	if cv == Splitter(nil) {
 		cv = &KFold{NSplits: 3, Shuffle: true}
 	}
-	res.Estimator = make([]base.Transformer, NSplits)
+	res.Estimator = make([]base.Predicter, NSplits)
 	res.TestScore = make([]float64, NSplits)
 	res.FitTime = make([]time.Duration, NSplits)
 	res.ScoreTime = make([]time.Duration, NSplits)
@@ -57,7 +57,7 @@ func CrossValidate(estimator base.Transformer, X, Y *mat.Dense, groups []int, sc
 		iSplit int
 		score  float64
 	}
-	estimatorCloner := estimator.(base.TransformerCloner)
+	estimatorCloner := estimator.(base.Predicter)
 	NSamples, NFeatures := X.Dims()
 	_, NOutputs := Y.Dims()
 	processSplit := func(job int, Xjob, Yjob *mat.Dense, sin structIn) structOut {
@@ -76,12 +76,13 @@ func CrossValidate(estimator base.Transformer, X, Y *mat.Dense, groups []int, sc
 			Ytest.SetRow(i0, Y.RawRowView(i1))
 		}
 
-		res.Estimator[sin.iSplit] = estimatorCloner.Clone()
+		res.Estimator[sin.iSplit] = estimatorCloner.PredicterClone()
 		t0 := time.Now()
 		res.Estimator[sin.iSplit].Fit(Xtrain, Ytrain)
 		res.FitTime[sin.iSplit] = time.Since(t0)
 		t0 = time.Now()
-		_, Ypred := res.Estimator[sin.iSplit].Transform(Xtest, Ytest)
+		Ypred := mat.NewDense(Xtest.RawMatrix().Rows, res.Estimator[sin.iSplit].GetNOutputs(), nil)
+		res.Estimator[sin.iSplit].Predict(Xtest, Ypred)
 		score := scorer(Ytest, Ypred)
 		res.ScoreTime[sin.iSplit] = time.Since(t0)
 		//fmt.Printf("score for split %d is %g\n", sin.iSplit, score)

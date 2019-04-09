@@ -10,64 +10,67 @@ import (
 type MLPRegressor struct{ BaseMultilayerPerceptron64 }
 
 // Regressors is the list of regressors in this package
-var Regressors = []base.Regressor{&MLPRegressor{}}
+var Regressors = []base.Predicter{&MLPRegressor{}}
 
 // NewMLPRegressor returns a *MLPRegressor with defaults
 // activation is one of identity,logistic,tanh,relu
 // solver is on of sgd,adam  defaults to "adam"
 // Alpha is the regularization parameter
 func NewMLPRegressor(hiddenLayerSizes []int, activation string, solver string, Alpha float64) *MLPRegressor {
-	regr := &MLPRegressor{
+	mlp := &MLPRegressor{
 		BaseMultilayerPerceptron64: *NewBaseMultilayerPerceptron64(),
 	}
-	regr.HiddenLayerSizes = hiddenLayerSizes
-	regr.Activation = activation
-	regr.Solver = solver
-	regr.Alpha = Alpha
-	return regr
+	mlp.HiddenLayerSizes = hiddenLayerSizes
+	mlp.Activation = activation
+	mlp.Solver = solver
+	mlp.Alpha = Alpha
+	return mlp
 }
 
-// Clone ...
-func (regr *MLPRegressor) Clone() base.Transformer {
-	clone := *regr
+// IsClassifier returns false for MLPRegressor
+func (*MLPRegressor) IsClassifier() bool { return false }
+
+// PredicterClone allow clone predicter for pipeline on model_selection
+func (mlp *MLPRegressor) PredicterClone() base.Predicter {
+	clone := *mlp
 	return &clone
 }
 
 // Fit ...
-func (regr *MLPRegressor) Fit(X, Y *mat.Dense) base.Transformer {
-	regr.fit(X.RawMatrix(), Y.RawMatrix(), false)
-	return regr
+func (mlp *MLPRegressor) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
+	X, Y := base.ToDense(Xmatrix), base.ToDense(Ymatrix)
+	mlp.fit(X.RawMatrix(), Y.RawMatrix(), false)
+	return mlp
 }
 
 // Predict return the forward result
-func (regr *MLPRegressor) Predict(X, Y *mat.Dense) {
-	regr.BaseMultilayerPerceptron64.predict(X.RawMatrix(), Y.RawMatrix())
+func (mlp *MLPRegressor) Predict(X mat.Matrix, Ymutable mat.Mutable) *mat.Dense {
+	Y := base.ToDense(Ymutable)
+	nSamples, _ := X.Dims()
+	if Y.IsZero() {
+		*Y = *mat.NewDense(nSamples, mlp.GetNOutputs(), nil)
+	}
+
+	mlp.BaseMultilayerPerceptron64.predict(base.ToDense(X).RawMatrix(), Y.RawMatrix())
+	return base.FromDense(Ymutable, Y)
 }
 
 // FitTransform is for Pipeline
-func (regr *MLPRegressor) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+func (mlp *MLPRegressor) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
 	r, c := Y.Dims()
 	Xout, Yout = X, mat.NewDense(r, c, nil)
-	regr.Fit(X, Y)
-	regr.Predict(X, Yout)
-	return
-}
-
-// Transform is for Pipeline
-func (regr *MLPRegressor) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
-	r, c := Y.Dims()
-	Xout, Yout = X, mat.NewDense(r, c, nil)
-	regr.Predict(X, Yout)
+	mlp.Fit(X, Y)
+	mlp.Predict(X, Yout)
 	return
 }
 
 // Score for MLPRegressor returns R2Score
-func (regr *MLPRegressor) Score(X, Y *mat.Dense) float64 {
+func (mlp *MLPRegressor) Score(X, Y mat.Matrix) float64 {
 	nSamples, _ := X.Dims()
-	nOutputs := regr.NOutputs
+	nOutputs := mlp.NOutputs
 	Ypred := mat.NewDense(nSamples, nOutputs, nil)
-	regr.Predict(X, Y)
-	return r2Score64(Y.RawMatrix(), Ypred.RawMatrix())
+	mlp.Predict(X, Ypred)
+	return r2Score64(base.ToDense(Y).RawMatrix(), Ypred.RawMatrix())
 }
 
 // MLPClassifier ...
@@ -79,50 +82,56 @@ type MLPClassifier struct{ BaseMultilayerPerceptron64 }
 // Alpha is the regularization parameter
 // lossName is one of square,log,cross-entropy (one of the keys of lm.LossFunctions) defaults to "log"
 func NewMLPClassifier(hiddenLayerSizes []int, activation string, solver string, Alpha float64) *MLPClassifier {
-	regr := &MLPClassifier{
+	mlp := &MLPClassifier{
 		BaseMultilayerPerceptron64: *NewBaseMultilayerPerceptron64(),
 	}
-	regr.HiddenLayerSizes = hiddenLayerSizes
-	regr.Activation = activation
-	regr.Solver = solver
-	regr.Alpha = Alpha
-	return regr
+	mlp.HiddenLayerSizes = hiddenLayerSizes
+	mlp.Activation = activation
+	mlp.Solver = solver
+	mlp.Alpha = Alpha
+	return mlp
 }
 
+// PredicterClone returns an (possibly unfitted) copy of predicter
+func (mlp *MLPClassifier) PredicterClone() base.Predicter {
+	clone := *mlp
+	return &clone
+}
+
+// IsClassifier returns true for MLPClassifier
+func (*MLPClassifier) IsClassifier() bool { return true }
+
 // Fit ...
-func (regr *MLPClassifier) Fit(X, Y *mat.Dense) base.Transformer {
-	regr.BaseMultilayerPerceptron64.Fit(X, Y)
-	return regr
+func (mlp *MLPClassifier) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
+	X, Y := base.ToDense(Xmatrix), base.ToDense(Ymatrix)
+	mlp.BaseMultilayerPerceptron64.Fit(X, Y)
+	return mlp
 }
 
 // Predict return the forward result for MLPClassifier
-func (regr *MLPClassifier) Predict(X, Y *mat.Dense) {
+func (mlp *MLPClassifier) Predict(X mat.Matrix, Ymutable mat.Mutable) *mat.Dense {
+	Y := base.ToDense(Ymutable)
 	nSamples, _ := X.Dims()
-	nOutputs := regr.NOutputs
-	if regr.LossFuncName == "" {
-		regr.LossFuncName = "binary_log_loss"
+	if Y.IsZero() {
+		*Y = *mat.NewDense(nSamples, mlp.GetNOutputs(), nil)
+	}
+
+	if mlp.LossFuncName == "" {
+		mlp.LossFuncName = "binary_log_loss"
 	}
 	yr, _ := Y.Dims()
 	if yr == 0 {
-		*Y = *mat.NewDense(nSamples, nOutputs, nil)
+		panic("Y must be preallocated")
 	}
-	regr.BaseMultilayerPerceptron64.Predict(X, Y)
-}
-
-// Transform for pipeline
-func (regr *MLPClassifier) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
-	nSamples, _ := X.Dims()
-	nOutputs := regr.NOutputs
-	Yout = mat.NewDense(nSamples, nOutputs, nil)
-	regr.Predict(X, Yout)
-	Xout = X
-	return
+	mlp.BaseMultilayerPerceptron64.Predict(X, Y)
+	return base.FromDense(Ymutable, Y)
 }
 
 // Score for MLPClassifier computes accuracy score
-func (regr *MLPClassifier) Score(X, Y *mat.Dense) float64 {
-	Ypred := &mat.Dense{}
-	regr.Predict(X, Ypred)
+func (mlp *MLPClassifier) Score(Xmatrix, Ymatrix mat.Matrix) float64 {
+	X, Y := base.ToDense(Xmatrix), base.ToDense(Ymatrix)
+	Ypred := mat.NewDense(X.RawMatrix().Rows, Y.RawMatrix().Cols, nil)
+	mlp.Predict(X, Ypred)
 
 	return accuracyScore64(Y.RawMatrix(), Ypred.RawMatrix())
 }

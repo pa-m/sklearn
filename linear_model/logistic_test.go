@@ -158,7 +158,8 @@ func TestLogRegMicrochipTest(t *testing.T) {
 	X, Ytrue := datasets.LoadMicroChipTest()
 	nSamples, nFeatures := X.Dims()
 
-	poly := preprocessing.NewPolynomialFeatures(6).Fit(X, Ytrue)
+	poly := preprocessing.NewPolynomialFeatures(6)
+	poly.Fit(X, Ytrue)
 
 	Xp, _ := poly.Transform(X, nil)
 

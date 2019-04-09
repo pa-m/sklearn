@@ -19,14 +19,15 @@ type Imputer struct {
 // NewImputer ...
 func NewImputer() *Imputer { return &Imputer{} }
 
-// Clone ...
-func (m *Imputer) Clone() Transformer {
+// TransformerClone ...
+func (m *Imputer) TransformerClone() base.Transformer {
 	clone := *m
 	return &clone
 }
 
 // Fit for Imputer ...
-func (m *Imputer) Fit(X, Y *mat.Dense) base.Transformer {
+func (m *Imputer) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
+	X := base.ToDense(Xmatrix)
 	Xmat := X.RawMatrix()
 	m.MissingValues = make([]float64, Xmat.Cols, Xmat.Cols)
 	base.Parallelize(-1, Xmat.Cols, func(th, start, end int) {
@@ -58,7 +59,8 @@ func (m *Imputer) Fit(X, Y *mat.Dense) base.Transformer {
 }
 
 // Transform for Imputer ...
-func (m *Imputer) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+func (m *Imputer) Transform(Xmatrix, Ymatrix mat.Matrix) (Xout, Yout *mat.Dense) {
+	X, Y := base.ToDense(Xmatrix), base.ToDense(Ymatrix)
 	Xmat := X.RawMatrix()
 	Xout, Yout = mat.NewDense(Xmat.Rows, Xmat.Cols, nil), Y
 	Xmat, Xoutmat := X.RawMatrix(), Xout.RawMatrix()
@@ -83,7 +85,8 @@ func (m *Imputer) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
 
 // FitTransform for Imputer ...
 func (m *Imputer) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
-	Xout, Yout = m.Fit(X, Y).Transform(X, Y)
+	m.Fit(X, Y)
+	Xout, Yout = m.Transform(X, Y)
 	return
 }
 

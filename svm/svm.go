@@ -7,6 +7,7 @@ import (
 	"golang.org/x/exp/rand"
 
 	"github.com/pa-m/sklearn/base"
+	"github.com/pa-m/sklearn/metrics"
 	"gonum.org/v1/gonum/mat"
 )
 
@@ -220,6 +221,7 @@ type SVC struct {
 	BaseLibSVM
 	Probability bool
 	ClassWeight []float64
+	nOutputs    int
 }
 
 // NewSVC ...
@@ -233,17 +235,25 @@ func NewSVC() *SVC {
 	return m
 }
 
-// Clone for SVC
-func (m *SVC) Clone() base.Transformer {
+// PredicterClone for SVC
+func (m *SVC) PredicterClone() base.Predicter {
 	clone := *m
 	return &clone
 }
 
+// IsClassifier returns true for SVC
+func (m *SVC) IsClassifier() bool { return true }
+
 // Fit for SVC
-func (m *SVC) Fit(X, Y *mat.Dense) base.Transformer {
+func (m *SVC) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
+	_, m.nOutputs = Ymatrix.Dims()
+	X, Y := base.ToDense(Xmatrix), base.ToDense(Ymatrix)
 	m.BaseLibSVM.fit(X, Y, svmTrain)
 	return m
 }
+
+// GetNOutputs ...
+func (m *SVC) GetNOutputs() int { return m.nOutputs }
 
 func (m *BaseLibSVM) fit(X, Y *mat.Dense, svmTrain func(X *mat.Dense, Y []float64, C, Epsilon float64, KernelFunction func(X1, X2 []float64) float64, Tol float64, MaxPasses int, CacheSize uint, RandomState base.Source) *Model) {
 	NSamples, NFeatures := X.Dims()
@@ -293,15 +303,15 @@ func (m *BaseLibSVM) fit(X, Y *mat.Dense, svmTrain func(X *mat.Dense, Y []float6
 }
 
 // Predict for SVC
-func (m *SVC) Predict(X, Y *mat.Dense) {
-	_, NOutputs := Y.Dims()
-	if NOutputs == 0 {
-		NSamples, _ := X.Dims()
-		NOutputs = len(m.Model)
-		*Y = *mat.NewDense(NSamples, NOutputs, nil)
+func (m *SVC) Predict(Xmatrix mat.Matrix, Ymutable mat.Mutable) *mat.Dense {
+	X, Y := base.ToDense(Xmatrix), base.ToDense(Ymutable)
+	nSamples, _ := X.Dims()
+
+	if Y.IsZero() {
+		*Y = *mat.NewDense(nSamples, m.GetNOutputs(), nil)
 	}
 	binary := true
-	base.Parallelize(-1, NOutputs, func(th, start, end int) {
+	base.Parallelize(-1, m.GetNOutputs(), func(th, start, end int) {
 
 		for output := start; output < end; output++ {
 
@@ -309,13 +319,11 @@ func (m *SVC) Predict(X, Y *mat.Dense) {
 
 		}
 	})
+	return base.FromDense(Ymutable, Y)
 }
 
-// Transform for SVC for pipeline
-func (m *SVC) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
-	NSamples, _ := X.Dims()
-	Xout = X
-	Yout = mat.NewDense(NSamples, len(m.Model), nil)
-	m.Predict(X, Yout)
-	return
+// Score for SVC returns accuracy
+func (m *SVC) Score(X, Y mat.Matrix) float64 {
+	Ypred := m.Predict(X, nil)
+	return metrics.AccuracyScore(Y, Ypred, true, nil)
 }

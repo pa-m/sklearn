@@ -21,11 +21,14 @@ type KMeans struct {
 	Centroids *mat.Dense
 }
 
-// Clone for KMeans
-func (m *KMeans) Clone() base.Transformer {
+// PredicterClone for KMeans
+func (m *KMeans) PredicterClone() base.Predicter {
 	clone := *m
 	return &clone
 }
+
+// IsClassifier returns true for KMeans
+func (m *KMeans) IsClassifier() bool { return true }
 
 // Nearest returns index of the nearest centroid
 func (m *KMeans) _nearest(scaledRow mat.Vector) int {
@@ -43,7 +46,8 @@ func (m *KMeans) _nearest(scaledRow mat.Vector) int {
 
 // Fit compute centroids
 // Y is useless here but we want all classifiers have the same interface. pass nil
-func (m *KMeans) Fit(X, Y *mat.Dense) base.Transformer {
+func (m *KMeans) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
+	X := (Xmatrix)
 	NSamples, NFeatures := X.Dims()
 	if NSamples < m.NClusters {
 		panic(fmt.Errorf("NSamples<m.NClusters %d<%d", NSamples, m.NClusters))
@@ -73,10 +77,10 @@ func (m *KMeans) Fit(X, Y *mat.Dense) base.Transformer {
 		epoch++
 		changed = false
 		// find nearest centroids
-		m.predictInternal(X, NearestCentroid, CentroidCount, &changed)
+		m.predict(X, NearestCentroid, CentroidCount, &changed)
 		// recompute centroids
 		m.Centroids.Sub(m.Centroids, m.Centroids)
-		var mu sync.Mutex
+		var mu sync.Mutex // mu locks m.Centroids modifications
 		base.Parallelize(m.NJobs, NSamples, func(th, start, end int) {
 			row := make([]float64, NFeatures, NFeatures)
 			for sample := start; sample < end; sample++ {
@@ -97,16 +101,10 @@ func (m *KMeans) Fit(X, Y *mat.Dense) base.Transformer {
 	return m
 }
 
-// Transform for pipeline
-func (m *KMeans) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
-	NSamples, _ := X.Dims()
-	Xout = X
-	Yout = mat.NewDense(NSamples, 1, nil)
-	m.Predict(X, Yout)
-	return
-}
+// GetNOutputs returns output columns number for Y to pass to predict
+func (m *KMeans) GetNOutputs() int { return 1 }
 
-func (m *KMeans) predictInternal(Xscaled mat.Matrix, y, CentroidCount []int, changed *bool) {
+func (m *KMeans) predict(Xscaled mat.Matrix, y, CentroidCount []int, changed *bool) {
 	NSamples, NFeatures := Xscaled.Dims()
 	if y == nil {
 		y = make([]int, NSamples, NSamples)
@@ -149,11 +147,20 @@ func (m *KMeans) predictInternal(Xscaled mat.Matrix, y, CentroidCount []int, cha
 }
 
 // Predict fills y with indices of centroids
-func (m *KMeans) Predict(X, Y *mat.Dense) {
-	NSamples, _ := X.Dims()
-	y := make([]int, NSamples, NSamples)
-	m.predictInternal(X, y, nil, nil)
+func (m *KMeans) Predict(X mat.Matrix, Ymutable mat.Mutable) *mat.Dense {
+	Y := base.ToDense(Ymutable)
+	nSamples, _ := X.Dims()
+	if Y.IsZero() {
+		*Y = *mat.NewDense(nSamples, m.GetNOutputs(), nil)
+	}
+	y := make([]int, nSamples, nSamples)
+	m.predict(X, y, nil, nil)
 	for i, y1 := range y {
 		Y.Set(i, 0, float64(y1))
 	}
+	base.FromDense(Ymutable, Y)
+	return Y
 }
+
+// Score for KMeans returns 1
+func (m *KMeans) Score(X, Y mat.Matrix) float64 { return 1 }

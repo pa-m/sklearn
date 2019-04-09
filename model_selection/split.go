@@ -26,14 +26,14 @@ var (
 type Splitter interface {
 	Split(X, Y *mat.Dense) (ch chan Split)
 	GetNSplits(X, Y *mat.Dense) int
-	Clone() Splitter
+	SplitterClone() Splitter
 }
 
 // Split ...
 type Split struct{ TrainIndex, TestIndex []int }
 
-// Clone ...
-func (splitter *KFold) Clone() Splitter {
+// SplitterClone ...
+func (splitter *KFold) SplitterClone() Splitter {
 	clone := *splitter
 	type Cloner interface{ Clone() base.Source }
 	if clone.RandomState != nil {

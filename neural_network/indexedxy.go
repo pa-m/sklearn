@@ -2,6 +2,7 @@ package neuralnetwork
 
 import "sort"
 
+// indexedXY implements sort.Slice to be used in Shuffle and sort.Sort
 type indexedXY struct {
 	idx, X, Y sort.Interface
 }

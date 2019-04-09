@@ -2,13 +2,14 @@ package linearmodel
 
 import (
 	"fmt"
-	"golang.org/x/exp/rand"
 	"image/color"
 	"math"
 	"os"
 	"os/exec"
 	"testing"
 	"time"
+
+	"golang.org/x/exp/rand"
 
 	"github.com/pa-m/sklearn/base"
 	"github.com/pa-m/sklearn/datasets"
@@ -324,7 +325,7 @@ func TestBestRegressionImplementation(t *testing.T) {
 	bestErr := make(map[string]float)
 	bestTime := time.Second * 86400
 	bestSetup := make(map[string]string)
-	for _, regr := range []base.Regressor{NewRidge(), NewLasso(), NewSGDRegressor()} {
+	for _, regr := range []base.Predicter{NewRidge(), NewLasso(), NewSGDRegressor()} {
 		//for _, normalize := range []bool{false, true} {
 		testSetup := fmt.Sprintf("%T", regr)
 

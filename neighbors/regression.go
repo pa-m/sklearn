@@ -26,12 +26,22 @@ type KNeighborsRegressor struct {
 }
 
 // NewKNeighborsRegressor returns an initialized *KNeighborsRegressor
-func NewKNeighborsRegressor(K int, Weights string) base.Regressor {
+func NewKNeighborsRegressor(K int, Weights string) base.Predicter {
 	return &KNeighborsRegressor{NearestNeighbors: *NewNearestNeighbors(), K: K, Weight: Weights}
 }
 
+// PredicterClone return a (possibly unfitted) copy of predicter
+func (m *KNeighborsRegressor) PredicterClone() base.Predicter {
+	clone := *m
+	return &clone
+}
+
+// IsClassifier returns false for KNeighborsRegressor
+func (*KNeighborsRegressor) IsClassifier() bool { return false }
+
 // Fit ...
-func (m *KNeighborsRegressor) Fit(X, Y *mat.Dense) base.Transformer {
+func (m *KNeighborsRegressor) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
+	X, Y := base.ToDense(Xmatrix), base.ToDense(Ymatrix)
 	m.Xscaled = mat.DenseCopyOf(X)
 	m.Y = mat.DenseCopyOf(Y)
 	if m.Distance == nil {
@@ -40,12 +50,21 @@ func (m *KNeighborsRegressor) Fit(X, Y *mat.Dense) base.Transformer {
 	if m.K <= 0 {
 		panic(fmt.Errorf("K<=0"))
 	}
-	m.NearestNeighbors.Fit(X)
+	m.NearestNeighbors.Fit(X, Y)
 	return m
 }
 
+// GetNOutputs return Y width
+func (m *KNeighborsRegressor) GetNOutputs() int { return m.Y.RawMatrix().Cols }
+
 // Predict ...
-func (m *KNeighborsRegressor) Predict(X, Y *mat.Dense) {
+func (m *KNeighborsRegressor) Predict(X mat.Matrix, Ymutable mat.Mutable) *mat.Dense {
+	Y := base.ToDense(Ymutable)
+	nSamples, _ := X.Dims()
+	if Y.IsZero() {
+		*Y = *mat.NewDense(nSamples, m.GetNOutputs(), nil)
+	}
+
 	NFitSamples, _ := m.Xscaled.Dims()
 	NX, _ := X.Dims()
 	_, outputs := m.Y.Dims()
@@ -79,19 +98,11 @@ func (m *KNeighborsRegressor) Predict(X, Y *mat.Dense) {
 
 		}
 	})
-}
-
-// Transform for KNeighborsRegressor
-func (m *KNeighborsRegressor) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
-	NSamples, NOutputs := Y.Dims()
-	Xout = X
-	Yout = mat.NewDense(NSamples, NOutputs, nil)
-	m.Predict(X, Yout)
-	return
+	return base.FromDense(Ymutable, Y)
 }
 
 // Score for KNeighborsRegressor
-func (m *KNeighborsRegressor) Score(X, Y *mat.Dense) float64 {
+func (m *KNeighborsRegressor) Score(X, Y mat.Matrix) float64 {
 	NSamples, NOutputs := Y.Dims()
 	Ypred := mat.NewDense(NSamples, NOutputs, nil)
 	m.Predict(X, Ypred)

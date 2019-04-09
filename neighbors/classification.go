@@ -15,7 +15,7 @@ import (
 // The target is predicted by local interpolation of the targets
 // associated of the nearest neighbors in the training set.
 type KNeighborsClassifier struct {
-	base.Classifier
+	base.Predicter
 	NearestNeighbors
 	K        int
 	Weight   string
@@ -24,6 +24,7 @@ type KNeighborsClassifier struct {
 	// Runtime members
 	Xscaled, Y *mat.Dense
 	Classes    [][]float64
+	nOutputs   int
 }
 
 // NewKNeighborsClassifier returns an initialized *KNeighborsClassifier
@@ -32,31 +33,45 @@ func NewKNeighborsClassifier(K int, Weights string) *KNeighborsClassifier {
 }
 
 // Fit ...
-func (m *KNeighborsClassifier) Fit(X, Y *mat.Dense) base.Transformer {
+func (m *KNeighborsClassifier) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
+	X, Y := base.ToDense(Xmatrix), base.ToDense(Ymatrix)
 	m.Xscaled = mat.DenseCopyOf(X)
-	m.Y = mat.DenseCopyOf(Y)
+	m.Y = Y
+	m.nOutputs = Y.RawMatrix().Cols
 	if m.Distance == nil {
 		m.Distance = EuclideanDistance
 	}
 	if m.K <= 0 {
 		panic(fmt.Errorf("K<=0"))
 	}
-	m.NearestNeighbors.Fit(X)
+	m.NearestNeighbors.Fit(X, Y)
 	m.Classes, _ = getClasses(Y)
 	return m
 }
 
+// GetNOutputs returns output columns number for Y to pass to predict
+func (m *KNeighborsClassifier) GetNOutputs() int {
+	return m.nOutputs
+}
+
 // Predict  for KNeighborsClassifier
-func (m *KNeighborsClassifier) Predict(X, Y *mat.Dense) {
-	m._predict(X, Y, false)
+func (m *KNeighborsClassifier) Predict(X mat.Matrix, Ymutable mat.Mutable) *mat.Dense {
+	Y := base.ToDense(Ymutable)
+	nSamples, _ := X.Dims()
+	if Y.IsZero() {
+		*Y = *mat.NewDense(nSamples, m.GetNOutputs(), nil)
+	}
+
+	m._predict(base.ToDense(X), Y, false)
+	return base.FromDense(Ymutable, Y)
 }
 
 // PredictProba for KNeighborsClassifier
-func (m *KNeighborsClassifier) PredictProba(X, Y *mat.Dense) base.Transformer {
+func (m *KNeighborsClassifier) PredictProba(X, Y *mat.Dense) *KNeighborsClassifier {
 	return m._predict(X, Y, true)
 }
 
-func (m *KNeighborsClassifier) _predict(X, Y *mat.Dense, wantProba bool) base.Transformer {
+func (m *KNeighborsClassifier) _predict(X, Y *mat.Dense, wantProba bool) *KNeighborsClassifier {
 	_, outputs := m.Y.Dims()
 	if wantProba {
 		if outputs > 1 {
@@ -132,17 +147,8 @@ func (m *KNeighborsClassifier) _predict(X, Y *mat.Dense, wantProba bool) base.Tr
 	return m
 }
 
-// Transform for KNeighborsClassifier
-func (m *KNeighborsClassifier) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
-	NSamples, NOutputs := Y.Dims()
-	Xout = X
-	Yout = mat.NewDense(NSamples, NOutputs, nil)
-	m.Predict(X, Yout)
-	return
-}
-
 // Score for KNeighborsClassifier
-func (m *KNeighborsClassifier) Score(X, Y *mat.Dense) float64 {
+func (m *KNeighborsClassifier) Score(X, Y mat.Matrix) float64 {
 	NSamples, NOutputs := Y.Dims()
 	Ypred := mat.NewDense(NSamples, NOutputs, nil)
 	m.Predict(X, Ypred)

@@ -35,14 +35,24 @@ type MultiTaskElasticNet = Lasso
 // MultiTaskLasso is an alias for ElasticNet/Lasso
 type MultiTaskLasso = Lasso
 
-// Clone for ElasticNet
-func (regr *ElasticNet) Clone() base.Transformer {
+// IsClassifier returns false for ElasticNet
+func (*ElasticNet) IsClassifier() bool { return false }
+
+// PredicterClone for ElasticNet
+func (regr *ElasticNet) PredicterClone() base.Predicter {
 	clone := *regr
 	return &clone
 }
 
+// GetNOutputs returns output columns number for Y to pass to predict
+func (regr *ElasticNet) GetNOutputs() int {
+	_, nOutputs := regr.Coef.Dims()
+	return nOutputs
+}
+
 // Fit ElasticNetRegression with coordinate descent
-func (regr *ElasticNet) Fit(X0, Y0 *mat.Dense) base.Transformer {
+func (regr *ElasticNet) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
+	X0, Y0 := base.ToDense(Xmatrix), base.ToDense(Ymatrix)
 	var X, Y, YOffset *mat.Dense
 	X, Y, regr.XOffset, YOffset, regr.XScale = PreprocessData(X0, Y0, regr.FitIntercept, regr.Normalize, nil)
 	NSamples, NFeatures := X.Dims()

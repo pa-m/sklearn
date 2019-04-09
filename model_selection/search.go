@@ -40,11 +40,11 @@ func ParameterGrid(paramGrid map[string][]interface{}) (out []map[string]interfa
 }
 
 // GridSearchCV ...
-// Estimator is the base estimator. it must implement base.TransformerCloner
+// Estimator is the base estimator. it must implement base.Predicter
 // Scorer is a function  __returning a higher score when Ypred is better__
 // CV is a splitter (defaults to KFold)
 type GridSearchCV struct {
-	Estimator          base.Transformer
+	Estimator          base.Predicter
 	ParamGrid          map[string][]interface{}
 	Scorer             func(Ytrue, Ypred *mat.Dense) float64
 	CV                 Splitter
@@ -54,21 +54,31 @@ type GridSearchCV struct {
 	UseChannels        bool
 
 	CVResults     map[string][]interface{}
-	BestEstimator base.Transformer
+	BestEstimator base.Predicter
 	BestScore     float64
 	BestParams    map[string]interface{}
 	BestIndex     int
+	NOutputs      int
 }
 
-// Clone ...
-func (gscv *GridSearchCV) Clone() base.Transformer {
+// PredicterClone ...
+func (gscv *GridSearchCV) PredicterClone() base.Predicter {
 	clone := *gscv
 	return &clone
 }
 
-// Fit ...
-func (gscv *GridSearchCV) Fit(X, Y *mat.Dense) base.Transformer {
+// IsClassifier returns underlaying estimater IsClassifier
+func (gscv *GridSearchCV) IsClassifier() bool {
+	if maybeClf, ok := gscv.Estimator.(base.Predicter); ok {
+		return maybeClf.IsClassifier()
+	}
+	return false
+}
 
+// Fit ...
+func (gscv *GridSearchCV) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
+	X, Y := base.ToDense(Xmatrix), base.ToDense(Ymatrix)
+	gscv.NOutputs = Y.RawMatrix().Cols
 	isBetter := func(score, refscore float64) bool {
 		if gscv.LowerScoreIsBetter {
 			return score < refscore
@@ -85,7 +95,7 @@ func (gscv *GridSearchCV) Fit(X, Y *mat.Dense) base.Transformer {
 		return best
 	}
 
-	estCloner := gscv.Estimator.(base.TransformerCloner)
+	estCloner := gscv.Estimator
 	// get seed for all estimator clone
 
 	type ClonableRandomState interface {
@@ -108,12 +118,11 @@ func (gscv *GridSearchCV) Fit(X, Y *mat.Dense) base.Transformer {
 	type structIn struct {
 		cvindex   int
 		params    map[string]interface{}
-		estimator base.Transformer
+		estimator base.Predicter
 		score     float64
 	}
 	dowork := func(sin structIn) structIn {
-
-		sin.estimator = estCloner.Clone()
+		sin.estimator = estCloner.PredicterClone()
 
 		if clonableRandomState != ClonableRandomState(nil) {
 
@@ -124,7 +133,7 @@ func (gscv *GridSearchCV) Fit(X, Y *mat.Dense) base.Transformer {
 		for k, v := range sin.params {
 			setParam(sin.estimator, k, v)
 		}
-		CV := gscv.CV.Clone()
+		CV := gscv.CV.SplitterClone()
 		cvres := CrossValidate(sin.estimator, X, Y, nil, gscv.Scorer, CV, gscv.NJobs)
 		sin.score = floats.Sum(cvres.TestScore) / float64(len(cvres.TestScore))
 		bestFold := bestIdx(cvres.TestScore)
@@ -190,15 +199,19 @@ func (gscv *GridSearchCV) Fit(X, Y *mat.Dense) base.Transformer {
 	return gscv
 }
 
-// Predict ...
-func (gscv *GridSearchCV) Predict(X, Y *mat.Dense) {
-	gscv.BestEstimator.(base.Predicter).Predict(X, Y)
+// Score for gridSearchCV returns best estimator score
+func (gscv *GridSearchCV) Score(X, Y mat.Matrix) float64 {
+	return gscv.BestEstimator.Score(X, Y)
 }
 
-// Transform ...
-func (gscv *GridSearchCV) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
-	Xout = X
-	return
+// GetNOutputs returns output columns number for Y to pass to predict
+func (gscv *GridSearchCV) GetNOutputs() int {
+	return gscv.NOutputs
+}
+
+// Predict ...
+func (gscv *GridSearchCV) Predict(X mat.Matrix, Y mat.Mutable) *mat.Dense {
+	return gscv.BestEstimator.(base.Predicter).Predict(X, Y)
 }
 
 func getParam(estimator interface{}, k string) (v interface{}, ok bool) {
@@ -215,7 +228,7 @@ func getParam(estimator interface{}, k string) (v interface{}, ok bool) {
 	return
 }
 
-func setParam(estimator base.Transformer, k string, v interface{}) {
+func setParam(estimator base.Predicter, k string, v interface{}) {
 	est := reflect.ValueOf(estimator)
 	est = reflect.Indirect(est)
 	if est.Kind().String() != "struct" {

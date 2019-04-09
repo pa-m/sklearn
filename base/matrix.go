@@ -3,9 +3,11 @@ package base
 import (
 	"bytes"
 	"fmt"
-	"golang.org/x/exp/rand"
 	"io"
+	"log"
 	"math"
+
+	"golang.org/x/exp/rand"
 
 	"gonum.org/v1/gonum/blas/blas64"
 	"gonum.org/v1/gonum/mat"
@@ -394,4 +396,51 @@ func MatGeneralRowSlice(M blas64.General, i, k int) blas64.General {
 		Stride: M.Stride,
 		Data:   M.Data[i*M.Stride : k*M.Stride],
 	}
+}
+
+// ToDense returns w view of m if m is a RawMatrixer, et returns a dense copy of m
+func ToDense(m mat.Matrix) *mat.Dense {
+	if d, ok := m.(*mat.Dense); ok {
+		return d
+	}
+	if m == mat.Matrix(nil) {
+		return &mat.Dense{}
+	}
+	ret := &mat.Dense{}
+	if rawmatrixer, ok := m.(mat.RawMatrixer); ok {
+		if rawmatrixer == mat.RawMatrixer(nil) {
+			return nil
+		}
+		ret.SetRawMatrix(rawmatrixer.RawMatrix())
+	} else {
+		ret = mat.DenseCopyOf(m)
+	}
+	return ret
+}
+
+// FromDense fills dst (mat.Mutable) with src (mat.Dense)
+func FromDense(dst mat.Mutable, dense *mat.Dense) *mat.Dense {
+	if dst == mat.Mutable(nil) {
+		log.Println("warning dst is nil")
+		return dense
+	}
+	src := dense.RawMatrix()
+	if rawmatrixer, ok := dst.(mat.RawMatrixer); ok {
+		dstmat := rawmatrixer.RawMatrix()
+		if &dstmat.Data[0] == &src.Data[0] {
+			return dense
+		}
+		for r, srcpos, dstpos := 0, 0, 0; r < src.Rows; r, srcpos, dstpos = r+1, srcpos+src.Stride, dstpos+dstmat.Stride {
+			for c := 0; c < src.Cols; c++ {
+				dstmat.Data[dstpos+c] = src.Data[srcpos+c]
+			}
+		}
+		return dense
+	}
+	for r, pos := 0, 0; r < src.Rows; r, pos = r+1, pos+src.Stride {
+		for c := 0; c < src.Cols; c++ {
+			dst.Set(r, c, src.Data[pos+c])
+		}
+	}
+	return dense
 }

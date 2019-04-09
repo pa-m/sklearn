@@ -14,7 +14,7 @@ import (
 // The target is predicted by local interpolation of the targets
 // associated of the nearest neighbors in the training set.
 type NearestCentroid struct {
-	base.Classifier
+	base.Predicter
 	Metric          string
 	ShrinkThreshold float64
 	// runtime filled members
@@ -31,7 +31,8 @@ func NewNearestCentroid(metric string, shrinkThreshold float64) *NearestCentroid
 }
 
 // Fit ...
-func (m *NearestCentroid) Fit(X, Y *mat.Dense) base.Transformer {
+func (m *NearestCentroid) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
+	X, Y := base.ToDense(Xmatrix), base.ToDense(Ymatrix)
 	NSamples, NFeatures := X.Dims()
 	_, NOutputs := Y.Dims()
 	if NOutputs != 1 {
@@ -64,21 +65,28 @@ func (m *NearestCentroid) Fit(X, Y *mat.Dense) base.Transformer {
 			Centroids.Set(icl, feature, centroidXfeat)
 		}
 	})
-	m.NearestNeighbors.Fit(Centroids)
+	m.NearestNeighbors.Fit(Centroids, mat.Matrix(nil))
 	return m
 }
 
 // Predict  for NearestCentroid
-func (m *NearestCentroid) Predict(X, Y *mat.Dense) {
-	m._predict(X, Y, false)
+func (m *NearestCentroid) Predict(X mat.Matrix, Ymutable mat.Mutable) *mat.Dense {
+	Y := base.ToDense(Ymutable)
+	nSamples, _ := X.Dims()
+	if Y.IsZero() {
+		*Y = *mat.NewDense(nSamples, m.GetNOutputs(), nil)
+	}
+
+	m._predict(base.ToDense(X), Y, false)
+	return base.FromDense(Ymutable, Y)
 }
 
 // PredictProba for NearestCentroid
-func (m *NearestCentroid) PredictProba(X, Y *mat.Dense) base.Transformer {
+func (m *NearestCentroid) PredictProba(X mat.Matrix, Y *mat.Dense) *NearestCentroid {
 	return m._predict(X, Y, true)
 }
 
-func (m *NearestCentroid) _predict(X, Y *mat.Dense, wantProba bool) base.Transformer {
+func (m *NearestCentroid) _predict(X mat.Matrix, Y *mat.Dense, wantProba bool) *NearestCentroid {
 	if wantProba {
 		panic("PredictProba is undefined for NearestCentroid")
 	}
@@ -92,17 +100,8 @@ func (m *NearestCentroid) _predict(X, Y *mat.Dense, wantProba bool) base.Transfo
 	return m
 }
 
-// Transform for NearestCentroid
-func (m *NearestCentroid) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
-	NSamples, NOutputs := Y.Dims()
-	Xout = X
-	Yout = mat.NewDense(NSamples, NOutputs, nil)
-	m.Predict(X, Yout)
-	return
-}
-
 // Score for NearestCentroid
-func (m *NearestCentroid) Score(X, Y *mat.Dense) float64 {
+func (m *NearestCentroid) Score(X, Y mat.Matrix) float64 {
 	NSamples, NOutputs := Y.Dims()
 	Ypred := mat.NewDense(NSamples, NOutputs, nil)
 	m.Predict(X, Ypred)

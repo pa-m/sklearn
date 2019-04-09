@@ -76,14 +76,18 @@ func NewLinearRegression() *LinearRegression {
 	return regr
 }
 
-// Clone for LinearRegression
-func (regr *LinearRegression) Clone() base.Transformer {
+// IsClassifier returns false for LinearRegression
+func (*LinearRegression) IsClassifier() bool { return false }
+
+// PredicterClone for LinearRegression
+func (regr *LinearRegression) PredicterClone() base.Predicter {
 	clone := *regr
 	return &clone
 }
 
 // Fit fits Coef for a LinearRegression
-func (regr *LinearRegression) Fit(X0, Y0 *mat.Dense) base.Transformer {
+func (regr *LinearRegression) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
+	X0, Y0 := base.ToDense(Xmatrix), base.ToDense(Ymatrix)
 	var X, Y, YOffset *mat.Dense
 	X, Y, regr.XOffset, YOffset, regr.XScale = PreprocessData(X0, Y0, regr.FitIntercept, regr.Normalize, nil)
 	// use least squares
@@ -93,8 +97,15 @@ func (regr *LinearRegression) Fit(X0, Y0 *mat.Dense) base.Transformer {
 	return regr
 }
 
+// GetNOutputs returns output columns number for Y to pass to predict
+func (regr *LinearModel) GetNOutputs() int {
+	_, nOutputs := regr.Coef.Dims()
+	return nOutputs
+}
+
 // Fit fits Coef for a LinearRegression
-func (regr *RegularizedRegression) Fit(X0, Y0 *mat.Dense) base.Transformer {
+func (regr *RegularizedRegression) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
+	X0, Y0 := base.ToDense(Xmatrix), base.ToDense(Ymatrix)
 	var X, Y, YOffset *mat.Dense
 	X, Y, regr.XOffset, YOffset, regr.XScale = PreprocessData(X0, Y0, regr.FitIntercept, regr.Normalize, nil)
 	opt := regr.Options
@@ -112,8 +123,14 @@ func (regr *RegularizedRegression) Fit(X0, Y0 *mat.Dense) base.Transformer {
 }
 
 // Predict predicts y for X using Coef
-func (regr *LinearRegression) Predict(X, Y *mat.Dense) {
+func (regr *LinearRegression) Predict(X mat.Matrix, Ymutable mat.Mutable) *mat.Dense {
+	Y := base.ToDense(Ymutable)
+	nSamples, _ := X.Dims()
+	if Y.IsZero() {
+		*Y = *mat.NewDense(nSamples, regr.GetNOutputs(), nil)
+	}
 	regr.DecisionFunction(X, Y)
+	return base.FromDense(Ymutable, Y)
 }
 
 // FitTransform is for Pipeline
@@ -121,14 +138,6 @@ func (regr *LinearRegression) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Den
 	r, c := Y.Dims()
 	Xout, Yout = X, mat.NewDense(r, c, nil)
 	regr.Fit(X, Y)
-	regr.Predict(X, Yout)
-	return
-}
-
-// Transform is for Pipeline
-func (regr *LinearRegression) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
-	r, c := Y.Dims()
-	Xout, Yout = X, mat.NewDense(r, c, nil)
 	regr.Predict(X, Yout)
 	return
 }
@@ -151,14 +160,18 @@ func NewSGDRegressor() *SGDRegressor {
 	return regr
 }
 
-// Clone for SGDRegressor
-func (regr *SGDRegressor) Clone() base.Transformer {
+// IsClassifier returns false for SGDRegressor
+func (*SGDRegressor) IsClassifier() bool { return false }
+
+// PredicterClone for SGDRegressor
+func (regr *SGDRegressor) PredicterClone() base.Predicter {
 	clone := *regr
 	return &clone
 }
 
 // Fit learns Coef
-func (regr *SGDRegressor) Fit(X0, y0 *mat.Dense) base.Transformer {
+func (regr *SGDRegressor) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
+	X0, y0 := base.ToDense(Xmatrix), base.ToDense(Ymatrix)
 	var X, Y, YOffset *mat.Dense
 	X, Y, regr.XOffset, YOffset, regr.XScale = PreprocessData(X0, y0, regr.FitIntercept, regr.Normalize, nil)
 	// begin use gonum gradientDescent
@@ -273,8 +286,14 @@ func (regr *SGDRegressor) Fit(X0, y0 *mat.Dense) base.Transformer {
 }
 
 // Predict predicts y from X using Coef
-func (regr *SGDRegressor) Predict(X, Y *mat.Dense) {
+func (regr *SGDRegressor) Predict(X mat.Matrix, Ymutable mat.Mutable) *mat.Dense {
+	Y := base.ToDense(Ymutable)
+	nSamples, _ := X.Dims()
+	if Y.IsZero() {
+		*Y = *mat.NewDense(nSamples, regr.GetNOutputs(), nil)
+	}
 	regr.DecisionFunction(X, Y)
+	return base.FromDense(Ymutable, Y)
 }
 
 // FitTransform is for Pipeline
@@ -282,14 +301,6 @@ func (regr *SGDRegressor) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) 
 	r, c := Y.Dims()
 	Xout, Yout = X, mat.NewDense(r, c, nil)
 	regr.Fit(X, Y)
-	regr.Predict(X, Yout)
-	return
-}
-
-// Transform is for Pipeline
-func (regr *SGDRegressor) Transform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
-	r, c := Y.Dims()
-	Xout, Yout = X, mat.NewDense(r, c, nil)
 	regr.Predict(X, Yout)
 	return
 }
@@ -565,8 +576,6 @@ func LinFitGOM(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 	return &LinFitResult{Converged: converged, RMSE: rmse, Epoch: epoch, Theta: thetaM}
 }
 
-var copyStruct = base.CopyStruct
-
 func (regr *LinearModel) setIntercept(XOffset, YOffset, XScale mat.Matrix) {
 	_, nOutputs := regr.Coef.Dims()
 	if regr.Intercept == nil {
@@ -606,19 +615,22 @@ func chkdims(op string, R, X, Y mat.Matrix) {
 }
 
 // DecisionFunction fills Y with X dot Coef+Intercept
-func (regr *LinearModel) DecisionFunction(X, Y *mat.Dense) {
+func (regr *LinearModel) DecisionFunction(X mat.Matrix, Ymutable mat.Mutable) {
+	Y := base.ToDense(Ymutable)
 	Y.Mul(X, regr.Coef)
 	Y.Apply(func(j int, o int, v float64) float64 {
 
 		return v + regr.Intercept.At(0, o)
 	}, Y)
+	base.FromDense(Ymutable, Y)
 }
 
 // Score returns R2Score between Y and X dot Coef+Intercept
-func (regr *LinearModel) Score(X, Y *mat.Dense) float64 {
+func (regr *LinearModel) Score(X, Y mat.Matrix) float64 {
+	Yd := base.ToDense(Y)
 	Ypred := &mat.Dense{}
 	regr.DecisionFunction(X, Ypred)
-	return metrics.R2Score(Y, Ypred, nil, "").At(0, 0)
+	return metrics.R2Score(Yd, Ypred, nil, "").At(0, 0)
 }
 
 // PreprocessData center and normalize data

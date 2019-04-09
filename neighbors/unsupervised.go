@@ -34,8 +34,8 @@ func NewNearestNeighbors() *NearestNeighbors {
 	return &NearestNeighbors{Algorithm: "auto", Metric: "euclidean", P: 2, NJobs: -1}
 }
 
-// Fit for NearestNeighbors
-func (m *NearestNeighbors) Fit(X mat.Matrix) {
+// Fit for NearestNeighbors. Y is unused
+func (m *NearestNeighbors) Fit(X, Y mat.Matrix) {
 	r, c := X.Dims()
 	switch m.Metric {
 	case "manhattan", "cityblock":

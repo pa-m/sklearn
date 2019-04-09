@@ -80,7 +80,7 @@ type constVector = base.MatConst
 // >>> r2Score(yTrue, yPred)
 // -3.0
 // """
-func R2Score(yTrue, yPred *mat.Dense, sampleWeight *mat.Dense, multioutput string) *mat.Dense {
+func R2Score(yTrue, yPred mat.Matrix, sampleWeight *mat.Dense, multioutput string) *mat.Dense {
 	nSamples, nOutputs := yTrue.Dims()
 	if sampleWeight == nil {
 

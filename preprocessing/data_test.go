@@ -322,7 +322,10 @@ func ExampleBinarizer() {
 
 func ExampleNormalizer() {
 	// adapted from example in http://scikit-learn.org/stable/modules/preprocessing.html#normalization
-	X := mat.NewDense(3, 3, []float64{1, -1, 2, 2, 0, 0, 0, 1, -1})
+	X := mat.NewDense(3, 3, []float64{
+		1, -1, 2,
+		2, 0, 0,
+		0, 1, -1})
 	Xnormalized, _ := NewNormalizer().FitTransform(X, nil)
 	fmt.Printf("%.3f\n", mat.Formatted(Xnormalized))
 	// Output:
