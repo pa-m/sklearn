@@ -32,7 +32,13 @@ func (*MLPRegressor) IsClassifier() bool { return false }
 
 // PredicterClone allow clone predicter for pipeline on model_selection
 func (mlp *MLPRegressor) PredicterClone() base.Predicter {
+	if mlp == nil {
+		return nil
+	}
 	clone := *mlp
+	if sourceCloner, ok := clone.RandomState.(base.SourceCloner); ok && sourceCloner != base.SourceCloner(nil) {
+		clone.RandomState = sourceCloner.Clone()
+	}
 	return &clone
 }
 
@@ -53,15 +59,6 @@ func (mlp *MLPRegressor) Predict(X mat.Matrix, Ymutable mat.Mutable) *mat.Dense 
 
 	mlp.BaseMultilayerPerceptron64.predict(base.ToDense(X).RawMatrix(), Y.RawMatrix())
 	return base.FromDense(Ymutable, Y)
-}
-
-// FitTransform is for Pipeline
-func (mlp *MLPRegressor) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
-	r, c := Y.Dims()
-	Xout, Yout = X, mat.NewDense(r, c, nil)
-	mlp.Fit(X, Y)
-	mlp.Predict(X, Yout)
-	return
 }
 
 // Score for MLPRegressor returns R2Score

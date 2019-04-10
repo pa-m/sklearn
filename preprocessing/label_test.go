@@ -36,7 +36,7 @@ func ExampleMultiLabelBinarizer() {
 	fmt.Println(mat.Formatted(Y2.(*mat.Dense)))
 
 	fmt.Println("NewMultiLabelBinarizer string test")
-	_, Y1 = mlb.FitTransform(nil, [][]string{{"sci-fi", "thriller"}, {"comedy", "comedy"}})
+	_, Y1 = mlb.FitTransform2(nil, [][]string{{"sci-fi", "thriller"}, {"comedy", "comedy"}})
 	fmt.Println(mat.Formatted(Y1))
 	fmt.Println("Classes", mlb.Classes)
 	_, Y2s := mlb.InverseTransform(nil, Y1)

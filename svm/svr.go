@@ -34,7 +34,13 @@ func (*SVR) IsClassifier() bool { return false }
 
 // PredicterClone for SVR
 func (m *SVR) PredicterClone() base.Predicter {
+	if m == nil {
+		return nil
+	}
 	clone := *m
+	if sourceCloner, ok := clone.RandomState.(base.SourceCloner); ok && sourceCloner != base.SourceCloner(nil) {
+		clone.RandomState = sourceCloner.Clone()
+	}
 	return &clone
 }
 

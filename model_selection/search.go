@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/pa-m/sklearn/base"
+	"golang.org/x/exp/rand"
 	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
 )
@@ -46,12 +47,13 @@ func ParameterGrid(paramGrid map[string][]interface{}) (out []map[string]interfa
 type GridSearchCV struct {
 	Estimator          base.Predicter
 	ParamGrid          map[string][]interface{}
-	Scorer             func(Ytrue, Ypred *mat.Dense) float64
+	Scorer             func(Ytrue, Ypred mat.Matrix) float64
 	CV                 Splitter
 	Verbose            bool
 	NJobs              int
 	LowerScoreIsBetter bool
 	UseChannels        bool
+	RandomState        rand.Source
 
 	CVResults     map[string][]interface{}
 	BestEstimator base.Predicter
@@ -63,7 +65,13 @@ type GridSearchCV struct {
 
 // PredicterClone ...
 func (gscv *GridSearchCV) PredicterClone() base.Predicter {
+	if gscv == nil {
+		return nil
+	}
 	clone := *gscv
+	if sourceCloner, ok := clone.RandomState.(base.SourceCloner); ok && sourceCloner != base.SourceCloner(nil) {
+		clone.RandomState = sourceCloner.Clone()
+	}
 	return &clone
 }
 
@@ -98,17 +106,14 @@ func (gscv *GridSearchCV) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
 	estCloner := gscv.Estimator
 	// get seed for all estimator clone
 
-	type ClonableRandomState interface {
-		Clone() base.Source
-	}
-	var clonableRandomState ClonableRandomState
-	if rs, ok := getParam(gscv.Estimator, "RandomState"); ok {
-		if rs1, ok := rs.(ClonableRandomState); ok {
-			clonableRandomState = rs1
-		}
-	}
-
 	paramArray := ParameterGrid(gscv.ParamGrid)
+
+	if gscv.RandomState == rand.Source(nil) {
+		gscv.RandomState = base.NewSource(0)
+	}
+	if gscv.CV == Splitter(nil) {
+		gscv.CV = &KFold{NSplits: 3, Shuffle: true, RandomState: gscv.RandomState}
+	}
 	gscv.CVResults = make(map[string][]interface{})
 	for k := range gscv.ParamGrid {
 		gscv.CVResults[k] = make([]interface{}, len(paramArray))
@@ -116,79 +121,40 @@ func (gscv *GridSearchCV) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
 	gscv.CVResults["score"] = make([]interface{}, len(paramArray))
 
 	type structIn struct {
-		cvindex   int
+		index     int
 		params    map[string]interface{}
 		estimator base.Predicter
+		cv        Splitter
 		score     float64
 	}
-	dowork := func(sin structIn) structIn {
-		sin.estimator = estCloner.PredicterClone()
-
-		if clonableRandomState != ClonableRandomState(nil) {
-
-			//setParam(sin.estimator, "RandomState", rand.New(base.NewLockedSource(clonesSeed)))
-			setParam(sin.estimator, "RandomState", clonableRandomState)
-		}
-
-		for k, v := range sin.params {
-			setParam(sin.estimator, k, v)
-		}
-		CV := gscv.CV.SplitterClone()
-		cvres := CrossValidate(sin.estimator, X, Y, nil, gscv.Scorer, CV, gscv.NJobs)
+	dowork := func(sin *structIn) {
+		cvres := CrossValidate(sin.estimator, X, Y, nil, gscv.Scorer, sin.cv, gscv.NJobs)
 		sin.score = floats.Sum(cvres.TestScore) / float64(len(cvres.TestScore))
 		bestFold := bestIdx(cvres.TestScore)
 		sin.estimator = cvres.Estimator[bestFold]
-		return sin
 	}
 	gscv.BestIndex = -1
 
-	/*if gscv.UseChannels { // use channels
-		chin := make(chan structIn)
-		chout := make(chan structIn)
-		worker := func(j int) {
-			for sin := range chin {
-				chout <- dowork(sin)
-			}
-		}
-		if gscv.NJobs <= 0 || gscv.NJobs > runtime.NumCPU() {
-			gscv.NJobs = runtime.NumCPU()
-		}
-		for j := 0; j < gscv.NJobs; j++ {
-			go worker(j)
-		}
-		for cvindex, params := range paramArray {
-			chin <- structIn{cvindex: cvindex, params: params}
-		}
-		close(chin)
-		for range paramArray {
-			sout := <-chout
-			for k, v := range sout.params {
-				gscv.CVResults[k][sout.cvindex] = v
-			}
-			gscv.CVResults["score"][sout.cvindex] = sout.score
-			if gscv.BestIndex == -1 || isBetter(sout.score, gscv.CVResults["score"][gscv.BestIndex].(float64)) {
-				gscv.BestIndex = sout.cvindex
-				gscv.BestEstimator = sout.estimator
-				gscv.BestParams = sout.params
-				gscv.BestScore = sout.score
-			}
-		}
-		close(chout)
-
-	} else*/{ // use sync.workGroup
+	{
 		sin := make([]structIn, len(paramArray))
 		for i, params := range paramArray {
-			sin[i] = structIn{cvindex: i, params: params, estimator: gscv.Estimator}
+			sin[i] = structIn{index: i, params: params, estimator: estCloner.PredicterClone(), cv: gscv.CV.SplitterClone()}
+			for k, v := range sin[i].params {
+				setParam(sin[i].estimator, k, v)
+			}
 		}
 		base.Parallelize(gscv.NJobs, len(paramArray), func(th, start, end int) {
 			for i := start; i < end; i++ {
-				sin[i] = dowork(sin[i])
-				gscv.CVResults["score"][sin[i].cvindex] = sin[i].score
+				dowork(&sin[i])
+				for k, v := range paramArray[i] {
+					gscv.CVResults[k][i] = v
+				}
+				gscv.CVResults["score"][i] = sin[i].score
 			}
 		})
-		for _, sout := range sin {
+		for i, sout := range sin {
 			if gscv.BestIndex == -1 || isBetter(sout.score, gscv.CVResults["score"][gscv.BestIndex].(float64)) {
-				gscv.BestIndex = sout.cvindex
+				gscv.BestIndex = i
 				gscv.BestEstimator = sout.estimator
 				gscv.BestParams = sout.params
 				gscv.BestScore = sout.score

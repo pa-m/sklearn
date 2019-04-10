@@ -142,6 +142,12 @@ func (p *Pipeline) Transform(X, Y mat.Matrix) (Xout, Yout *mat.Dense) {
 	return
 }
 
+// FitTransform fit to dat, then transform it
+func (p *Pipeline) FitTransform(X, Y mat.Matrix) (Xout, Yout *mat.Dense) {
+	p.Fit(X, Y)
+	return p.Transform(X, Y)
+}
+
 // MakePipeline returns a Pipeline from unnamed steps
 func MakePipeline(steps ...base.Fiter) *Pipeline {
 	p := &Pipeline{}

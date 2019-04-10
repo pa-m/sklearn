@@ -259,12 +259,3 @@ func (regr *BayesianRidge) Predict2(X, Y, yStd *mat.Dense) {
 		return sigmasSquaredData + 1./regr.Alpha
 	}, sigmasSquaredData)
 }
-
-// FitTransform is for Pipeline
-func (regr *BayesianRidge) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
-	r, c := Y.Dims()
-	Xout, Yout = X, mat.NewDense(r, c, nil)
-	regr.Fit(X, Y)
-	regr.Predict(X, Yout)
-	return
-}

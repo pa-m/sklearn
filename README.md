@@ -7,7 +7,6 @@ Partial port of scikit-learn to [go](http://golang.org)
 [![Go Report Card](https://goreportcard.com/badge/github.com/pa-m/sklearn)](https://goreportcard.com/report/github.com/pa-m/sklearn)
 [![GoDoc](https://godoc.org/github.com/pa-m/sklearn?status.svg)](https://godoc.org/github.com/pa-m/sklearn)
 
-
 ## Examples
 ### cluster
 [DBSCAN](https://godoc.org/github.com/pa-m/sklearn/cluster#example-DBSCAN) [KMeans](https://godoc.org/github.com/pa-m/sklearn/cluster#example-KMeans) 
@@ -24,7 +23,7 @@ Partial port of scikit-learn to [go](http://golang.org)
 ### neighbors
 [KNeighborsClassifier](https://godoc.org/github.com/pa-m/sklearn/neighbors#example-KNeighborsClassifier) [MinkowskiDistance](https://godoc.org/github.com/pa-m/sklearn/neighbors#example-MinkowskiDistance) [EuclideanDistance](https://godoc.org/github.com/pa-m/sklearn/neighbors#example-EuclideanDistance) [KDTree](https://godoc.org/github.com/pa-m/sklearn/neighbors#example-KDTree) [NearestCentroid](https://godoc.org/github.com/pa-m/sklearn/neighbors#example-NearestCentroid) [KNeighborsRegressor](https://godoc.org/github.com/pa-m/sklearn/neighbors#example-KNeighborsRegressor) [NearestNeighbors](https://godoc.org/github.com/pa-m/sklearn/neighbors#example-NearestNeighbors) [NearestNeighbors.KNeighborsGraph](https://godoc.org/github.com/pa-m/sklearn/neighbors#example-NearestNeighbors-KNeighborsGraph) [NearestNeighbors.Tree](https://godoc.org/github.com/pa-m/sklearn/neighbors#example-NearestNeighbors-Tree) 
 ### neural_network
-[MLPClassifier](https://godoc.org/github.com/pa-m/sklearn/neural_network#example-MLPClassifier) [MLPRegressor](https://godoc.org/github.com/pa-m/sklearn/neural_network#example-MLPRegressor) 
+[MLPClassifier.Unmarshal](https://godoc.org/github.com/pa-m/sklearn/neural_network#example-MLPClassifier-Unmarshal) [MLPClassifier.Fit.mnist](https://godoc.org/github.com/pa-m/sklearn/neural_network#example-MLPClassifier-Fit-mnist) [MLPClassifier.Predict.mnist](https://godoc.org/github.com/pa-m/sklearn/neural_network#example-MLPClassifier-Predict-mnist) [MLPClassifier.Fit.breast.cancer](https://godoc.org/github.com/pa-m/sklearn/neural_network#example-MLPClassifier-Fit-breast-cancer) [MLPRegressor.Fit.boston](https://godoc.org/github.com/pa-m/sklearn/neural_network#example-MLPRegressor-Fit-boston) 
 ### pipeline
 [Pipeline](https://godoc.org/github.com/pa-m/sklearn/pipeline#example-Pipeline) 
 ### preprocessing
@@ -34,11 +33,7 @@ Partial port of scikit-learn to [go](http://golang.org)
 
 
 
-This is
-
-- a personal project to get a deeper understanding of how all of this magic works
-
-- a recent work still in progress, subject to refactoring, so interfaces may change, especially args to NewXXX
+This is a personal project to get a deeper understanding of how all of this magic works
 
 - linted with ~~gofmt, golint, go vet~~ [revive](https://github.com/mgechev/revive)
 
@@ -46,8 +41,6 @@ This is
 
 - underdocumented but  [scikit-learn doc](http://scikit-learn.org/stable/documentation.html) is your friend
 
-
 Many thanks to gonum and scikit-learn authors and contributors
 
 PRs are welcome
-

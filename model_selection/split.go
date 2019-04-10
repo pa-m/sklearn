@@ -34,12 +34,12 @@ type Split struct{ TrainIndex, TestIndex []int }
 
 // SplitterClone ...
 func (splitter *KFold) SplitterClone() Splitter {
+	if splitter == nil {
+		return nil
+	}
 	clone := *splitter
-	type Cloner interface{ Clone() base.Source }
-	if clone.RandomState != nil {
-		if cloner, ok := clone.RandomState.(Cloner); ok {
-			clone.RandomState = cloner.Clone()
-		}
+	if sourceCloner, ok := clone.RandomState.(base.SourceCloner); ok && sourceCloner != base.SourceCloner(nil) {
+		clone.RandomState = sourceCloner.Clone()
 	}
 	return &clone
 }

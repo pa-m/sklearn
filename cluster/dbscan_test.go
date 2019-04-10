@@ -6,6 +6,7 @@ import (
 	"image/color"
 	"os"
 	"os/exec"
+	"testing"
 	"time"
 
 	"github.com/pa-m/sklearn/datasets"
@@ -19,6 +20,26 @@ import (
 
 var visualDebug = flag.Bool("visual", false, "output images for benchmarks and test data")
 
+func TestDBSCAN_PredicterClone(t *testing.T) {
+	m := NewDBSCAN(&DBSCANConfig{})
+	clone := m.PredicterClone()
+	if fmt.Sprintf("+%v", clone) != fmt.Sprintf("+%v", m) {
+		t.Errorf("cloning failed \n%+v, \n%+v", m, clone)
+	}
+}
+
+func TestDBSCAN_IsClassifier(t *testing.T) {
+	if !NewDBSCAN(&DBSCANConfig{}).IsClassifier() {
+		t.Fail()
+	}
+}
+
+func TestDBSCAN_Predict(t *testing.T) {
+	s := fmt.Sprintf("%#v", (&DBSCAN{Labels: []int{1, 2, 3}}).Predict(mat.NewDense(3, 1, nil), nil).RawMatrix().Data)
+	if s != "[]float64{1, 2, 3}" {
+		t.Fail()
+	}
+}
 func ExampleDBSCAN() {
 	// adapted from http://scikit-learn.org/stable/_downloads/plot_dbscan.ipynb
 	// Generate sample data

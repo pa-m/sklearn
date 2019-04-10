@@ -4,15 +4,41 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"testing"
 
 	"github.com/pa-m/sklearn/base"
 	"github.com/pa-m/sklearn/datasets"
 	"github.com/pa-m/sklearn/metrics"
 	neuralnetwork "github.com/pa-m/sklearn/neural_network"
 	"github.com/pa-m/sklearn/preprocessing"
+	"golang.org/x/exp/rand"
 	"gonum.org/v1/gonum/mat"
 )
 
+func TestGridSearchCV_PredicterClone(t *testing.T) {
+	RandomState := base.NewLockedSource(7)
+
+	mlp := neuralnetwork.NewMLPRegressor([]int{}, "relu", "adam", 1e-4)
+	m := &GridSearchCV{
+		Estimator: mlp,
+		ParamGrid: map[string][]interface{}{
+			"Alpha":       {2e-4, 5e-4, 1e-3},
+			"WeightDecay": {.0002, .0001, 0},
+		},
+		Scorer:             mlp.Score,
+		LowerScoreIsBetter: false,
+		CV:                 &KFold{NSplits: 3, RandomState: RandomState, Shuffle: true},
+		Verbose:            true,
+		NJobs:              -1}
+	clone := m.PredicterClone()
+	expected, actual := fmt.Sprintf("%+v", m), fmt.Sprintf("%+v", clone)
+	if m == clone {
+		t.Fail()
+	}
+	if actual != expected {
+		t.Errorf("\nexpected: %s\ngot     : %s", expected, actual)
+	}
+}
 func sortParamArray(paramArray []map[string]interface{}) {
 	tofloat := func(x interface{}) float64 {
 		switch xv := x.(type) {
@@ -55,8 +81,16 @@ func ExampleParameterGrid() {
 
 }
 
-func _ExampleGridSearchCV() {
-	RandomState := base.NewLockedSource(7)
+func chkRandomState(rs rand.Source) {
+	expected := fmt.Sprintf("%+v\n", base.NewSource(7))
+	got := fmt.Sprintf("%+v\n", rs)
+	if got != expected {
+		panic(fmt.Errorf("wrong random state\nexpected:%s\n%s\ngot     :%s\n%s", expected, "", got, ""))
+	}
+}
+func ExampleGridSearchCV() {
+	// TODO fix reproducibility
+	RandomState := base.NewSource(7)
 	ds := datasets.LoadBoston()
 	X, Y := preprocessing.NewStandardScaler().FitTransform(ds.X, ds.Y)
 
@@ -66,7 +100,7 @@ func _ExampleGridSearchCV() {
 	mlp.BatchSize = 20
 	mlp.LearningRateInit = .005
 	mlp.MaxIter = 100
-	scorer := func(Y, Ypred *mat.Dense) float64 {
+	scorer := func(Y, Ypred mat.Matrix) float64 {
 		return metrics.MeanSquaredError(Y, Ypred, nil, "").At(0, 0)
 	}
 	var gscv *GridSearchCV
@@ -82,9 +116,29 @@ func _ExampleGridSearchCV() {
 		Verbose:            true,
 		NJobs:              -1}
 	gscv.Fit(X, Y)
-	fmt.Println("Alpha", gscv.BestParams["Alpha"])
-	fmt.Println("WeightDecay", gscv.BestParams["WeightDecay"])
+	// fmt.Println("Alpha", gscv.BestParams["Alpha"])
+	// fmt.Println("WeightDecay", gscv.BestParams["WeightDecay"])
+	// fmt.Println(gscv.CVResults["score"])
+
 	// Output:
-	// Alpha 0.0002
-	// WeightDecay 0.0001
+}
+
+func Test_setParam(t *testing.T) {
+	mlp := neuralnetwork.NewMLPRegressor([]int{20}, "relu", "adam", 1e-4)
+	setParam(mlp, "activation", "logistic")
+	setParam(mlp, "Alpha", 1)
+	str, ok := getParam(mlp, "activation")
+	if !ok {
+		t.Fail()
+	}
+	if str.(string) != "logistic" {
+		t.Fail()
+	}
+	alpha, ok2 := getParam(mlp, "alpha")
+	if !ok2 {
+		t.Fail()
+	}
+	if alpha.(float64) != 1 {
+		t.Fail()
+	}
 }

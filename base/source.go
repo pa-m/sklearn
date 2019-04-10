@@ -3,6 +3,8 @@ package base
 import (
 	"sync"
 
+	"golang.org/x/exp/rand"
+
 	"github.com/pa-m/randomkit"
 )
 
@@ -13,11 +15,16 @@ type Source interface {
 	Seed(seed uint64)
 }
 
+// SourceCloner is an "golang.org/x/exp/rand".Source with a Clone method
+type SourceCloner interface {
+	Clone() rand.Source
+}
+
 // RandomState represents a bit more than random_state pythonic attribute. it's not only a seed but a source with a state as it's name states
 type RandomState = Source
 
 // NewSource returns a new pseudo-random Source seeded with the given value.
-func NewSource(seed uint64) Source {
+func NewSource(seed uint64) *randomkit.RKState {
 	var rng randomkit.RKState
 	rng.Seed(seed)
 	return &rng
@@ -45,8 +52,13 @@ func (s *LockedSource) Seed(seed uint64) {
 	s.lk.Unlock()
 }
 
+// Clone ...
+func (s *LockedSource) Clone() rand.Source {
+	return &LockedSource{src: s.src.(SourceCloner).Clone()}
+}
+
 // NewLockedSource returns a rand.Source safe for concurrent access
-func NewLockedSource(seed uint64) Source {
+func NewLockedSource(seed uint64) *LockedSource {
 	var s LockedSource
 	s.src = NewSource(seed)
 	return &s

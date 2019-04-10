@@ -133,15 +133,6 @@ func (regr *LinearRegression) Predict(X mat.Matrix, Ymutable mat.Mutable) *mat.D
 	return base.FromDense(Ymutable, Y)
 }
 
-// FitTransform is for Pipeline
-func (regr *LinearRegression) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
-	r, c := Y.Dims()
-	Xout, Yout = X, mat.NewDense(r, c, nil)
-	regr.Fit(X, Y)
-	regr.Predict(X, Yout)
-	return
-}
-
 // SGDRegressor base struct
 // should  be named GonumOptimizeRegressor
 // implemented as a per-output optimization of (possibly regularized) square-loss with gonum/optimize methods
@@ -294,15 +285,6 @@ func (regr *SGDRegressor) Predict(X mat.Matrix, Ymutable mat.Mutable) *mat.Dense
 	}
 	regr.DecisionFunction(X, Y)
 	return base.FromDense(Ymutable, Y)
-}
-
-// FitTransform is for Pipeline
-func (regr *SGDRegressor) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
-	r, c := Y.Dims()
-	Xout, Yout = X, mat.NewDense(r, c, nil)
-	regr.Fit(X, Y)
-	regr.Predict(X, Yout)
-	return
 }
 
 func unused(...interface{}) {}

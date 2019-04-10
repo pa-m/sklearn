@@ -6,7 +6,6 @@ import (
 	"github.com/pa-m/sklearn/base"
 
 	"github.com/pa-m/sklearn/datasets"
-	"github.com/pa-m/sklearn/metrics"
 	nn "github.com/pa-m/sklearn/neural_network"
 	"github.com/pa-m/sklearn/preprocessing"
 	"golang.org/x/exp/rand"
@@ -33,6 +32,14 @@ func ExamplePipeline() {
 	m.WeightDecay = .001
 
 	pl := MakePipeline(scaler, pca, poly, m)
+	// or equivalent:
+	pl = NewPipeline(NamedStep{"scaler", scaler}, NamedStep{"pca", pca}, NamedStep{"poly", poly}, NamedStep{"mlp", m})
+	// pipeline is clonable
+	pl = pl.PredicterClone().(*Pipeline)
+	// pipeline is classifier if last step is a classifier
+	if !pl.IsClassifier() {
+		fmt.Println("shouldn't happen")
+	}
 
 	pl.Fit(ds.X, ds.Y)
 	nSamples, _ := ds.X.Dims()
@@ -40,11 +47,14 @@ func ExamplePipeline() {
 	Ypred := mat.NewDense(nSamples, nOutputs, nil)
 
 	pl.Predict(ds.X, Ypred)
-	accuracy := metrics.AccuracyScore(ds.Y, Ypred, true, nil)
+	accuracy := pl.Score(ds.X, ds.Y)
 	fmt.Println("accuracy>0.999 ?", accuracy > 0.999)
 	if accuracy <= .999 {
 		fmt.Println("accuracy:", accuracy)
 	}
+	// pipeline is a Transformer too
+	_, _ = pl.FitTransform(ds.X, ds.Y)
+
 	// Output:
 	// accuracy>0.999 ? true
 

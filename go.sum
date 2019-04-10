@@ -16,8 +16,8 @@ github.com/llgcode/draw2d v0.0.0-20180817132918-587a55234ca2 h1:3xDkT1Tbsw2yDtKW
 github.com/llgcode/draw2d v0.0.0-20180817132918-587a55234ca2/go.mod h1:mVa0dA29Db2S4LVqDYLlsePDzRJLDfdhVZiI15uY0FA=
 github.com/llgcode/ps v0.0.0-20150911083025-f1443b32eedb h1:61ndUreYSlWFeCY44JxDDkngVoI7/1MVhEl98Nm0KOk=
 github.com/llgcode/ps v0.0.0-20150911083025-f1443b32eedb/go.mod h1:1l8ky+Ew27CMX29uG+a2hNOKpeNYEQjjtiALiBlFQbY=
-github.com/pa-m/randomkit v0.0.0-20190402202301-70c3c46153e1 h1:K+j2m1I9BV3KrGtpZG/vnzp6q/rFeJJaEXUZe69g+/E=
-github.com/pa-m/randomkit v0.0.0-20190402202301-70c3c46153e1/go.mod h1:iloaywGVzk8xNSb2ZSf40GA6MwM7OXPEzSXHvf8zHdc=
+github.com/pa-m/randomkit v0.0.0-20190414101838-b61cec1ec1e3 h1:/JmnvF6yaoqMtHE3aZuFnkvlfhyO1b6PyUsO5T+cQhg=
+github.com/pa-m/randomkit v0.0.0-20190414101838-b61cec1ec1e3/go.mod h1:iloaywGVzk8xNSb2ZSf40GA6MwM7OXPEzSXHvf8zHdc=
 github.com/remyoudompheng/bigfft v0.0.0-20170806203942-52369c62f446/go.mod h1:uYEyJGbgTkfkS4+E/PavXkNJcbFIpEtjt2B0KDQ5+9M=
 golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2 h1:VklqNMn3ovrHsnt90PveolxSbWFaJdECFbxSq0Mqo2M=
 golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2/go.mod h1:djNgcEr1/C05ACkg1iLfiJU5Ep61QUkGW8qpdssI0+w=

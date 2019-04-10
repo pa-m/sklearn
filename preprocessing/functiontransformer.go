@@ -35,6 +35,12 @@ func (m *FunctionTransformer) Transform(X, Y mat.Matrix) (X1, Y1 *mat.Dense) {
 	return
 }
 
+// FitTransform fit to dat, then transform it
+func (m *FunctionTransformer) FitTransform(X, Y mat.Matrix) (Xout, Yout *mat.Dense) {
+	m.Fit(X, Y)
+	return m.Transform(X, Y)
+}
+
 // InverseTransform ...
 func (m *FunctionTransformer) InverseTransform(X, Y *mat.Dense) (X1, Y1 *mat.Dense) {
 	X1, Y1 = m.InverseFunc(X, Y)

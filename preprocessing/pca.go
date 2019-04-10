@@ -63,8 +63,8 @@ func (m *PCA) Transform(X, Y mat.Matrix) (Xout, Yout *mat.Dense) {
 	return
 }
 
-// FitTransform for PCA
-func (m *PCA) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+// FitTransform fit to dat, then transform it
+func (m *PCA) FitTransform(X, Y mat.Matrix) (Xout, Yout *mat.Dense) {
 	m.Fit(X, Y)
 	return m.Transform(X, Y)
 }

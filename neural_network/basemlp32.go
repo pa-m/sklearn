@@ -10,6 +10,8 @@ import (
 	"time"
 	"unsafe"
 
+	"gonum.org/v1/gonum/blas/blas32"
+
 	"github.com/pa-m/sklearn/base"
 
 	"golang.org/x/exp/rand"
@@ -20,11 +22,12 @@ import (
 
 // BaseMultilayerPerceptron32 closely matches sklearn/neural_network/multilayer_perceptron.py
 type BaseMultilayerPerceptron32 struct {
-	Activation         string           `json:"activation"`
-	Solver             string           `json:"solver"`
-	Alpha              float32          `json:"alpha"`
-	WeightDecay        float32          `json:"weight_decay"`
-	BatchSize          int              `json:"batch_size"`
+	Activation         string  `json:"activation"`
+	Solver             string  `json:"solver"`
+	Alpha              float32 `json:"alpha"`
+	WeightDecay        float32 `json:"weight_decay"`
+	BatchSize          int     `json:"batch_size"`
+	BatchNormalize     bool
 	LearningRate       string           `json:"learning_rate"`
 	LearningRateInit   float32          `json:"learning_rate_init"`
 	PowerT             float32          `json:"power_t"`
@@ -67,6 +70,7 @@ type BaseMultilayerPerceptron32 struct {
 	packedParameters    []float32
 	packedGrads         []float32
 	bestParameters      []float32
+	batchNorm           [][]float32
 }
 
 // Activations32 is a map containing the inplace_activation functions
@@ -281,6 +285,40 @@ func (mlp *BaseMultilayerPerceptron32) forwardPass(activations []blas32General) 
 	outputActivation(activations[i+1])
 }
 
+// batchNormalize computes norms of activations and divides activations
+func (mlp *BaseMultilayerPerceptron32) batchNormalize(activations []blas32General) {
+	for i := 0; i < mlp.NLayers-2; i++ {
+		activation := activations[i+1]
+		batchNorm := mlp.batchNorm[i]
+		for o := 0; o < activation.Cols; o++ {
+			M := float32(0)
+			// compute max for layer i, output o
+			for r, rpos := 0, 0; r < activation.Rows; r, rpos = r+1, rpos+activation.Stride {
+				a := M32.Abs(activation.Data[rpos+o])
+				if M < a {
+					M = a
+				}
+			}
+			// divide activation by max
+			if M > 0 {
+				for r, rpos := 0, 0; r < activation.Rows; r, rpos = r+1, rpos+activation.Stride {
+					activation.Data[rpos+o] /= M
+				}
+			}
+			batchNorm[o] = M
+		}
+	}
+}
+
+// batchNormalizeDeltas divides deltas by batchNorm
+func (mlp *BaseMultilayerPerceptron32) batchNormalizeDeltas(deltas blas32General, batchNorm []float32) {
+	for r, rpos := 0, 0; r < deltas.Rows; r, rpos = r+1, rpos+deltas.Stride {
+		for o := 0; o < deltas.Cols; o++ {
+			deltas.Data[rpos+o] /= batchNorm[o]
+		}
+	}
+}
+
 func (mlp *BaseMultilayerPerceptron32) sumCoefSquares() float32 {
 	s := float32(0)
 	for _, c := range mlp.Coefs {
@@ -321,6 +359,10 @@ func (mlp *BaseMultilayerPerceptron32) backprop(X, y blas32General, activations,
 		}
 	}
 	mlp.forwardPass(activations)
+	if mlp.BatchNormalize {
+		// compute norm of activations for non-terminal layers
+		mlp.batchNormalize(activations)
+	}
 
 	//# Get loss
 	lossFuncName := mlp.LossFuncName
@@ -354,7 +396,12 @@ func (mlp *BaseMultilayerPerceptron32) backprop(X, y blas32General, activations,
 		gemm32(blas.NoTrans, blas.Trans, 1, deltas[i], mlp.Coefs[i], 0, deltas[i-1])
 
 		inplaceDerivative := Derivatives32[mlp.Activation]
+		// inplaceDerivative multiplies deltas[i-1] by activation derivative
 		inplaceDerivative(activations[i], deltas[i-1])
+		if mlp.BatchNormalize {
+			// divide deltas by batchNorm
+			mlp.batchNormalizeDeltas(deltas[i-1], mlp.batchNorm[i-1])
+		}
 
 		mlp.computeLossGrad(
 			i-1, nSamples, activations, deltas, coefGrads,
@@ -402,6 +449,10 @@ func (mlp *BaseMultilayerPerceptron32) initialize(yCols int, layerUnits []int, i
 	}
 	mlp.packedParameters = mem[0:off]
 	mlp.packedGrads = mem[off : 2*off]
+	if mlp.BatchNormalize {
+		// allocate batchNorm for non-terminal layers
+		mlp.batchNorm = make([][]float32, mlp.NLayers-2, mlp.NLayers-2)
+	}
 
 	off = 0
 	if mlp.RandomState == (base.RandomState)(nil) {
@@ -433,6 +484,9 @@ func (mlp *BaseMultilayerPerceptron32) initialize(yCols int, layerUnits []int, i
 		initBound := M32.Sqrt(factor / float32(fanIn+fanOut))
 		for pos := prevOff; pos < off; pos++ {
 			mem[pos] = rndFloat32() * initBound
+		}
+		if mlp.BatchNormalize && i < mlp.NLayers-2 {
+			mlp.batchNorm[i] = make([]float32, layerUnits[i+1])
 		}
 	}
 	for i := 0; i < mlp.NLayers-1; i++ {
@@ -518,7 +572,7 @@ func (mlp *BaseMultilayerPerceptron32) fit(X, y blas32General, incremental bool)
 
 // Fit compute Coefs and Intercepts
 func (mlp *BaseMultilayerPerceptron32) Fit(X, Y Matrix) {
-	if xg, ok := X.(RawMatrixer32); ok {
+	if xg, ok := X.(RawMatrixer32); ok && !mlp.Shuffle {
 		if yg, ok := Y.(RawMatrixer32); ok {
 			mlp.fit(xg.RawMatrix(), yg.RawMatrix(), false)
 			return
@@ -878,6 +932,18 @@ func (mlp *BaseMultilayerPerceptron32) validateInput(X, y blas32General, increme
 	return X, y
 }
 
+// Score for BaseMultiLayerPerceptron32 is R2Score or Accuracy depending on LossFuncName
+func (mlp *BaseMultilayerPerceptron32) Score(Xmatrix, Ymatrix mat.Matrix) float64 {
+	X, Y := ToDense32(Xmatrix), ToDense32(Ymatrix)
+	nSamples, nOutputs := X.RawMatrix().Rows, mlp.GetNOutputs()
+	Ypred := blas32.General{Rows: nSamples, Cols: nOutputs, Stride: nOutputs, Data: make([]float32, nSamples*nOutputs)}
+	mlp.Predict(X, General32(Ypred))
+	if mlp.LossFuncName == "square_loss" {
+		return float64(r2Score32(blas32.General(Y), Ypred))
+	}
+	return float64(accuracyScore32(blas32.General(Y), Ypred))
+}
+
 // SGDOptimizer32 is the stochastic gradient descent optimizer
 type SGDOptimizer32 struct {
 	Params           []float32
@@ -1102,4 +1168,46 @@ func (mlp *BaseMultilayerPerceptron32) Unmarshal(buf []byte) error {
 		}
 	}
 	return err
+}
+
+// ToDense32 returns w view of m if m is a RawMatrixer, et returns a dense copy of m
+func ToDense32(m Matrix) General32 {
+	if d, ok := m.(General32); ok {
+		return d
+	}
+	if m == mat.Matrix(nil) {
+		return General32{}
+	}
+	if rm, ok := m.(RawMatrixer32); ok {
+		return General32(rm.RawMatrix())
+	}
+	ret := General32{}
+	ret.Copy(m)
+	return ret
+}
+
+// FromDense32 fills dst (mat.Mutable) with src (mat.Dense)
+func FromDense32(dst Mutable, dense General32) General32 {
+	if dst == Mutable(nil) {
+		return dense
+	}
+	src := dense.RawMatrix()
+	if rawmatrixer, ok := dst.(RawMatrixer32); ok {
+		dstmat := rawmatrixer.RawMatrix()
+		if &dstmat.Data[0] == &src.Data[0] {
+			return dense
+		}
+		for r, srcpos, dstpos := 0, 0, 0; r < src.Rows; r, srcpos, dstpos = r+1, srcpos+src.Stride, dstpos+dstmat.Stride {
+			for c := 0; c < src.Cols; c++ {
+				dstmat.Data[dstpos+c] = src.Data[srcpos+c]
+			}
+		}
+		return dense
+	}
+	for r, pos := 0, 0; r < src.Rows; r, pos = r+1, pos+src.Stride {
+		for c := 0; c < src.Cols; c++ {
+			dst.Set(r, c, float64(src.Data[pos+c]))
+		}
+	}
+	return dense
 }

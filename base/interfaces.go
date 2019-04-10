@@ -23,5 +23,6 @@ type Predicter interface {
 type Transformer interface {
 	Fiter
 	Transform(X, Y mat.Matrix) (Xout, Yout *mat.Dense)
+	FitTransform(X, Y mat.Matrix) (Xout, Yout *mat.Dense)
 	TransformerClone() Transformer
 }

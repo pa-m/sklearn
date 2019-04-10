@@ -79,6 +79,12 @@ func (m *LabelBinarizer) Transform(X, Y mat.Matrix) (Xout, Yout *mat.Dense) {
 	return
 }
 
+// FitTransform fit to dat, then transform it
+func (m *LabelBinarizer) FitTransform(X, Y mat.Matrix) (Xout, Yout *mat.Dense) {
+	m.Fit(X, Y)
+	return m.Transform(X, Y)
+}
+
 // InverseTransform for LabelBinarizer
 func (m *LabelBinarizer) InverseTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
 	Xout = X
@@ -95,13 +101,6 @@ func (m *LabelBinarizer) InverseTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dens
 		}
 		baseCol += len(m.Classes[j])
 	}
-	return
-}
-
-// FitTransform for Binarizer
-func (m *LabelBinarizer) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
-	m.Fit(X, Y)
-	Xout, Yout = m.Transform(X, Y)
 	return
 }
 
@@ -131,7 +130,7 @@ func (m *MultiLabelBinarizer) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
 
 // Fit2 for MultiLabelBinarizer ...
 // Y type can be *mat.Dense | [][]string
-func (m *MultiLabelBinarizer) Fit2(X *mat.Dense, Y interface{}) *MultiLabelBinarizer {
+func (m *MultiLabelBinarizer) Fit2(X mat.Matrix, Y interface{}) *MultiLabelBinarizer {
 	m.Classes = make([]interface{}, 0)
 	switch vY := Y.(type) {
 	case *mat.Dense:
@@ -169,6 +168,18 @@ func (m *MultiLabelBinarizer) Fit2(X *mat.Dense, Y interface{}) *MultiLabelBinar
 // Transform for MultiLabelBinarizer ...
 // Y type must be the same passed int Fit
 func (m *MultiLabelBinarizer) Transform(X, Y mat.Matrix) (Xout, Yout *mat.Dense) {
+	return m.Transform2(X, Y)
+}
+
+// FitTransform fit to dat, then transform it
+func (m *MultiLabelBinarizer) FitTransform(X, Y mat.Matrix) (Xout, Yout *mat.Dense) {
+	m.Fit(X, Y)
+	return m.Transform(X, Y)
+}
+
+// FitTransform2 can take a [][]string in Y
+func (m *MultiLabelBinarizer) FitTransform2(X mat.Matrix, Y interface{}) (Xout, Yout *mat.Dense) {
+	m.Fit2(X, Y)
 	return m.Transform2(X, Y)
 }
 
@@ -217,13 +228,6 @@ func (m *MultiLabelBinarizer) Transform2(X mat.Matrix, Y interface{}) (Xout, You
 		}
 
 	}
-	return
-}
-
-// FitTransform for MultiLabelBinarizer ...
-// Y type can be *mat.Dense | [][]string
-func (m *MultiLabelBinarizer) FitTransform(X *mat.Dense, Y interface{}) (Xout, Yout *mat.Dense) {
-	Xout, Yout = m.Fit2(X, Y).Transform2(X, Y)
 	return
 }
 
@@ -334,11 +338,10 @@ func (m *LabelEncoder) Transform(X, Y mat.Matrix) (Xout, Yout *mat.Dense) {
 	return
 }
 
-// FitTransform for LabelEncoder ...
-func (m *LabelEncoder) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+// FitTransform fit to dat, then transform it
+func (m *LabelEncoder) FitTransform(X, Y mat.Matrix) (Xout, Yout *mat.Dense) {
 	m.Fit(X, Y)
-	Xout, Yout = m.Transform(X, Y)
-	return
+	return m.Transform(X, Y)
 }
 
 // InverseTransform for LabelEncoder ...

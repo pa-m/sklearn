@@ -83,11 +83,10 @@ func (m *Imputer) Transform(Xmatrix, Ymatrix mat.Matrix) (Xout, Yout *mat.Dense)
 	return
 }
 
-// FitTransform for Imputer ...
-func (m *Imputer) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+// FitTransform fit to dat, then transform it
+func (m *Imputer) FitTransform(X, Y mat.Matrix) (Xout, Yout *mat.Dense) {
 	m.Fit(X, Y)
-	Xout, Yout = m.Transform(X, Y)
-	return
+	return m.Transform(X, Y)
 }
 
 // InverseTransform for Imputer ...

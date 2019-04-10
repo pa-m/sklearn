@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"log"
 	"math"
 
 	"golang.org/x/exp/rand"
@@ -421,7 +420,6 @@ func ToDense(m mat.Matrix) *mat.Dense {
 // FromDense fills dst (mat.Mutable) with src (mat.Dense)
 func FromDense(dst mat.Mutable, dense *mat.Dense) *mat.Dense {
 	if dst == mat.Mutable(nil) {
-		log.Println("warning dst is nil")
 		return dense
 	}
 	src := dense.RawMatrix()

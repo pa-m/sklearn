@@ -33,7 +33,7 @@ func (r CrossValidateResult) Swap(i, j int) {
 // scorer is a func(Ytrue,Ypred) float64
 // only mean_squared_error for now
 // NJobs is the number of goroutines. if <=0, runtime.NumCPU is used
-func CrossValidate(estimator base.Predicter, X, Y *mat.Dense, groups []int, scorer func(Ytrue, Ypred *mat.Dense) float64, cv Splitter, NJobs int) (res CrossValidateResult) {
+func CrossValidate(estimator base.Predicter, X, Y *mat.Dense, groups []int, scorer func(Ytrue, Ypred mat.Matrix) float64, cv Splitter, NJobs int) (res CrossValidateResult) {
 
 	if NJobs <= 0 {
 		NJobs = runtime.NumCPU()
@@ -57,7 +57,6 @@ func CrossValidate(estimator base.Predicter, X, Y *mat.Dense, groups []int, scor
 		iSplit int
 		score  float64
 	}
-	estimatorCloner := estimator.(base.Predicter)
 	NSamples, NFeatures := X.Dims()
 	_, NOutputs := Y.Dims()
 	processSplit := func(job int, Xjob, Yjob *mat.Dense, sin structIn) structOut {
@@ -76,7 +75,7 @@ func CrossValidate(estimator base.Predicter, X, Y *mat.Dense, groups []int, scor
 			Ytest.SetRow(i0, Y.RawRowView(i1))
 		}
 
-		res.Estimator[sin.iSplit] = estimatorCloner.PredicterClone()
+		res.Estimator[sin.iSplit] = estimator.PredicterClone()
 		t0 := time.Now()
 		res.Estimator[sin.iSplit].Fit(Xtrain, Ytrain)
 		res.FitTime[sin.iSplit] = time.Since(t0)
@@ -90,44 +89,17 @@ func CrossValidate(estimator base.Predicter, X, Y *mat.Dense, groups []int, scor
 
 	}
 	if NJobs > 1 {
-		/*var useChannels = false
-		if useChannels {
-			chin := make(chan structIn)
-			chout := make(chan structOut)
-			// launch workers
-			for j := 0; j < NJobs; j++ {
-				go func(job int) {
-					var Xjob, Yjob = mat.NewDense(NSamples, NFeatures, nil), mat.NewDense(NSamples, NOutputs, nil)
-					for sin := range chin {
-						chout <- processSplit(job, Xjob, Yjob, sin)
-
-					}
-				}(j)
-			}
-			var isplit int
-			for split := range cv.Split(X, Y) {
-				chin <- structIn{isplit, split}
-				isplit++
-			}
-			close(chin)
-			for range res.TestScore {
-				sout := <-chout
+		var sin = make([]structIn, 0, NSplits)
+		for split := range cv.Split(X, Y) {
+			sin = append(sin, structIn{iSplit: len(sin), Split: split})
+		}
+		base.Parallelize(NJobs, NSplits, func(th, start, end int) {
+			var Xjob, Yjob = mat.NewDense(NSamples, NFeatures, nil), mat.NewDense(NSamples, NOutputs, nil)
+			for i := start; i < end; i++ {
+				sout := processSplit(th, Xjob, Yjob, sin[i])
 				res.TestScore[sout.iSplit] = sout.score
 			}
-			close(chout)
-		} else*/{ // use workGroup
-			var sin = make([]structIn, 0, NSplits)
-			for split := range cv.Split(X, Y) {
-				sin = append(sin, structIn{iSplit: len(sin), Split: split})
-			}
-			base.Parallelize(NJobs, NSplits, func(th, start, end int) {
-				var Xjob, Yjob = mat.NewDense(NSamples, NFeatures, nil), mat.NewDense(NSamples, NOutputs, nil)
-				for i := start; i < end; i++ {
-					sout := processSplit(th, Xjob, Yjob, sin[i])
-					res.TestScore[sout.iSplit] = sout.score
-				}
-			})
-		}
+		})
 	} else { // NJobs==1
 		var Xjob, Yjob = mat.NewDense(NSamples, NFeatures, nil), mat.NewDense(NSamples, NOutputs, nil)
 		var isplit int
@@ -136,7 +108,6 @@ func CrossValidate(estimator base.Predicter, X, Y *mat.Dense, groups []int, scor
 			res.TestScore[sout.iSplit] = sout.score
 			isplit++
 		}
-
 	}
 	return
 }

@@ -107,8 +107,8 @@ func (scaler *MinMaxScaler) Transform(X, Y mat.Matrix) (Xout, Yout *mat.Dense) {
 	return Xout, base.ToDense(Y)
 }
 
-// FitTransform for MinMaxScaler
-func (scaler *MinMaxScaler) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+// FitTransform fit to dat, then transform it
+func (scaler *MinMaxScaler) FitTransform(X, Y mat.Matrix) (Xout, Yout *mat.Dense) {
 	scaler.Fit(X, Y)
 	return scaler.Transform(X, Y)
 }
@@ -200,8 +200,8 @@ func (scaler *StandardScaler) Transform(X, Y mat.Matrix) (Xout, Yout *mat.Dense)
 	return Xout, base.ToDense(Y)
 }
 
-// FitTransform for StandardScaler
-func (scaler *StandardScaler) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+// FitTransform fit to dat, then transform it
+func (scaler *StandardScaler) FitTransform(X, Y mat.Matrix) (Xout, Yout *mat.Dense) {
 	scaler.Fit(X, Y)
 	return scaler.Transform(X, Y)
 }
@@ -412,8 +412,8 @@ func (scaler *RobustScaler) Transform(X, Y mat.Matrix) (Xout, Yout *mat.Dense) {
 	return Xout, base.ToDense(Y)
 }
 
-// FitTransform for RobustScaler
-func (scaler *RobustScaler) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+// FitTransform fit to dat, then transform it
+func (scaler *RobustScaler) FitTransform(X, Y mat.Matrix) (Xout, Yout *mat.Dense) {
 	scaler.Fit(X, Y)
 	return scaler.Transform(X, Y)
 }
@@ -594,8 +594,8 @@ func (poly *PolynomialFeatures) Transform(X, Y mat.Matrix) (Xout, Yout *mat.Dens
 	return Xout, base.ToDense(Y)
 }
 
-// FitTransform for PolynomialFeatures
-func (poly *PolynomialFeatures) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+// FitTransform fit to dat, then transform it
+func (poly *PolynomialFeatures) FitTransform(X, Y mat.Matrix) (Xout, Yout *mat.Dense) {
 	poly.Fit(X, Y)
 	return poly.Transform(X, Y)
 }
@@ -759,8 +759,8 @@ func (m *OneHotEncoder) Transform(X, Y mat.Matrix) (Xout, Yout *mat.Dense) {
 	return
 }
 
-// FitTransform for OneHotEncoder
-func (m *OneHotEncoder) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+// FitTransform fit to dat, then transform it
+func (m *OneHotEncoder) FitTransform(X, Y mat.Matrix) (Xout, Yout *mat.Dense) {
 	m.Fit(X, Y)
 	return m.Transform(X, Y)
 }
@@ -826,8 +826,8 @@ func (m *Shuffler) Transform(X, Y mat.Matrix) (Xout, Yout *mat.Dense) {
 	return
 }
 
-// FitTransform for Shuffler
-func (m *Shuffler) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+// FitTransform fit to dat, then transform it
+func (m *Shuffler) FitTransform(X, Y mat.Matrix) (Xout, Yout *mat.Dense) {
 	m.Fit(X, Y)
 	return m.Transform(X, Y)
 }
@@ -894,11 +894,10 @@ func (m *Binarizer) Transform(X, Y mat.Matrix) (Xout, Yout *mat.Dense) {
 	return
 }
 
-// FitTransform for Binarizer
-func (m *Binarizer) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+// FitTransform fit to dat, then transform it
+func (m *Binarizer) FitTransform(X, Y mat.Matrix) (Xout, Yout *mat.Dense) {
 	m.Fit(X, Y)
-	Xout, Yout = m.Transform(X, Y)
-	return
+	return m.Transform(X, Y)
 }
 
 // MaxAbsScaler ...
@@ -963,11 +962,10 @@ func (m *MaxAbsScaler) Transform(X, Y mat.Matrix) (Xout, Yout *mat.Dense) {
 	return
 }
 
-// FitTransform for MaxAbsScaler ...
-func (m *MaxAbsScaler) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+// FitTransform fit to dat, then transform it
+func (m *MaxAbsScaler) FitTransform(X, Y mat.Matrix) (Xout, Yout *mat.Dense) {
 	m.Fit(X, Y)
-	Xout, Yout = m.Transform(X, Y)
-	return
+	return m.Transform(X, Y)
 }
 
 // InverseTransform for MaxAbsScaler ...
@@ -1046,11 +1044,10 @@ func (m *Normalizer) Transform(Xmatrix, Y mat.Matrix) (Xout, Yout *mat.Dense) {
 	return
 }
 
-// FitTransform for Normalizer ...
-func (m *Normalizer) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+// FitTransform fit to dat, then transform it
+func (m *Normalizer) FitTransform(X, Y mat.Matrix) (Xout, Yout *mat.Dense) {
 	m.Fit(X, Y)
-	Xout, Yout = m.Transform(X, Y)
-	return
+	return m.Transform(X, Y)
 }
 
 // InverseTransform for Normalizer ...
@@ -1132,9 +1129,87 @@ func (m *KernelCenterer) Transform(Xmatrix, Y mat.Matrix) (Xout, Yout *mat.Dense
 	return
 }
 
-// FitTransform for KernelCenterer ...
-func (m *KernelCenterer) FitTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense) {
+// FitTransform fit to dat, then transform it
+func (m *KernelCenterer) FitTransform(X, Y mat.Matrix) (Xout, Yout *mat.Dense) {
 	m.Fit(X, Y)
-	Xout, Yout = m.Transform(X, Y)
-	return
+	return m.Transform(X, Y)
+}
+
+// QuantileTransformer Transform features using quantiles information.
+type QuantileTransformer struct {
+	NQuantiles         int
+	Subsample          int
+	OutputDistribution string
+	RandomState        rand.Source
+	references         []float64
+}
+
+// NewQuantileTransformer returns a new QuantileTransformer
+func NewQuantileTransformer(NQuantiles int, outputDistribution string, RandomState rand.Source) *QuantileTransformer {
+	return &QuantileTransformer{NQuantiles: NQuantiles, Subsample: 1e5, OutputDistribution: outputDistribution, RandomState: RandomState}
+}
+
+// Fit for QuantileTransformer retain X or a part of it
+func (m *QuantileTransformer) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
+	m.references = make([]float64, m.NQuantiles)
+	for i := range m.references {
+		m.references[i] = float64(i) / float64(m.NQuantiles-1)
+	}
+	// for c := 0; c < ma.Cols; c++ {
+	// 	values := make([]float64, ma.Rows)
+	// 	mat.Col(values, c, X)
+	// 	min, max := floats.Min(values), floats.Max(values)
+
+	// }
+	return m
+}
+
+// Transform for QuantileTransformer returns Quantiles of X in Xout
+func (m *QuantileTransformer) Transform(Xmatrix, Ymatrix mat.Matrix) (Xout, Yout *mat.Dense) {
+	X, Y := base.ToDense(Xmatrix), base.ToDense(Ymatrix)
+	nSamples, nFeatures := X.Dims()
+	Xout = mat.NewDense(nSamples, X.RawMatrix().Cols, nil)
+	rm := X.RawMatrix()
+	xoutraw := Xout.RawMatrix()
+	_ = xoutraw
+	for c := 0; c < nFeatures && c < len(m.references); c++ {
+		values := make([]float64, rm.Rows)
+		mat.Col(values, c, X)
+		// min, max := floats.Min(values), floats.max(values)
+		idx := make([]int, rm.Rows)
+		for i := range idx {
+			idx[i] = i
+		}
+		sort.Slice(idx, func(i, j int) bool { return values[idx[i]] < values[idx[j]] })
+		idxposmax := rm.Rows - 1
+		xmax := X.At(idx[idxposmax], c)
+		for q := m.NQuantiles - 2; q >= 0; q-- {
+			idxposmin := int(math.Round(float64(q) / float64(m.NQuantiles-1) * float64(rm.Rows)))
+			xmin := 0.
+			if idxposmin >= 0 {
+				xmin = X.At(idx[idxposmin], c)
+			}
+			// fmt.Println(idxposmin, idxposmax)
+			for ii := idxposmin + 1; ii <= idxposmax; ii++ {
+				i := idx[ii]
+				xi := rm.Data[i*rm.Stride+c]
+				xoutraw.Data[i*xoutraw.Stride+c] = m.references[q] + (m.references[q+1]-m.references[q])*(xi-xmin)/(xmax-xmin)
+			}
+			idxposmax = idxposmin
+			xmax = xmin
+		}
+	}
+	return Xout, Y
+}
+
+// FitTransform fit to data, then transforms it
+func (m *QuantileTransformer) FitTransform(Xmatrix, Ymatrix mat.Matrix) (Xout, Yout *mat.Dense) {
+	m.Fit(Xmatrix, Ymatrix)
+	return m.Transform(Xmatrix, Ymatrix)
+}
+
+// TransformerClone ...
+func (m *QuantileTransformer) TransformerClone() Transformer {
+	clone := *m
+	return &clone
 }

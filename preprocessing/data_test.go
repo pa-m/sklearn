@@ -2,14 +2,20 @@ package preprocessing
 
 import (
 	"fmt"
+	"math"
 	_ "math"
+	"sort"
 	"testing"
+
+	"golang.org/x/exp/rand"
 
 	"github.com/pa-m/sklearn/base"
 
 	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
 )
+
+var _ = []Transformer{&MinMaxScaler{}, &StandardScaler{}, &RobustScaler{}, &PolynomialFeatures{}, &OneHotEncoder{}, &Shuffler{}, &Binarizer{}, &MaxAbsScaler{}, &Normalizer{}, &KernelCenterer{}, &QuantileTransformer{}}
 
 func ExampleMinMaxScaler() {
 	// adapted from http://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.MinMaxScaler.html#sklearn.preprocessing.MinMaxScaler
@@ -368,5 +374,43 @@ func ExampleKernelCenterer() {
 	// ⎡0.000  0.000  0.000⎤
 	// ⎢0.000  0.000  0.000⎥
 	// ⎣0.000  0.000  0.000⎦
+
+}
+
+func ExampleQuantileTransformer() {
+	// works approximately. results are not exact. need a pass in the other way. Avoid use
+	type NormFloat64er interface{ NormFloat64() float64 }
+	var rng rand.Source = base.NewSource(0)
+	normal := func(loc, scale float64, n int) []float64 {
+		data := make([]float64, n)
+		for i := range data {
+			data[i] = loc + scale*rng.(NormFloat64er).NormFloat64()
+		}
+		return data
+	}
+	X := mat.NewDense(25, 1, normal(.5, .25, 25))
+	sort.Float64s(X.RawMatrix().Data)
+
+	qt := NewQuantileTransformer(10, "uniform", rng)
+	qt.Fit(X, nil)
+	Xout, _ := qt.Transform(X, nil)
+	_ = Xout
+
+	fmt.Printf("X=%.8f\n", mat.Formatted(X.T()))
+	tol := 1e-8
+	expected := []float64{0.00000010, 0.09871873, 0.10643612, 0.11754671, 0.21017437,
+		0.21945445, 0.23498666, 0.32443642, 0.33333333, 0.41360794,
+		0.42339464, 0.46257841, 0.47112236, 0.49834237, 0.59986536,
+		0.63390302, 0.66666667, 0.68873101, 0.69611125, 0.81280699,
+		0.82160354, 0.88126439, 0.90516028, 0.99319435, 0.99999990}
+	for i := range expected {
+		if math.Abs(Xout.At(i, 0)-expected[i]) > .05 {
+			fmt.Printf("at %d expected %.8f, got %.8f\n", i, expected[i], Xout.At(i, 0))
+		}
+	}
+	_ = tol
+	_ = expected
+	// Output:
+	// X=[-0.13824745   0.25568053   0.28647607   0.31445874   0.44871043   0.46216070   0.47419529   0.53041875   0.53601089   0.57826693   0.58341858   0.60003930   0.60264963   0.61096581   0.66340465   0.69025943   0.71610905   0.73752210   0.74468450   0.86356838   0.87351977   0.94101309   0.96688950   1.06022330   1.06743866]
 
 }

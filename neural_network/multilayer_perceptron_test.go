@@ -2,6 +2,7 @@ package neuralnetwork
 
 import (
 	"fmt"
+	"log"
 	"math"
 	"testing"
 	"time"
@@ -110,6 +111,7 @@ func TestMLPClassifierMicrochip(t *testing.T) {
 
 	for _, optimizer := range Optimizers {
 		t.Run(optimizer, func(t *testing.T) {
+
 			testSetup := optimizer
 			regr := NewMLPClassifier([]int{}, "logistic", optimizer, 1)
 			regr.RandomState = base.NewLockedSource(1)
@@ -191,6 +193,37 @@ func ExampleMLPClassifier_Unmarshal() {
 	// ok
 }
 
+func ExampleMLPClassifier_Fit_mnist() {
+	// fitting mnist with randomstate 7, shuffle, batchnorm,400 iterations should allow accuracy 99.96%
+	if testing.Short() {
+		// skip ExampleMLPClassifier_Fit_mnist for ci
+		log.Println("ExampleMLPClassifier_Fit_mnist skipped because testing with -short")
+		fmt.Println("ok")
+		return
+	}
+	X, Y := datasets.LoadMnist()
+	lb := preprocessing.NewLabelBinarizer(0, 1)
+	X, Ybin := lb.FitTransform(X, Y)
+	mlp := NewMLPClassifier([]int{25}, "logistic", "adam", 0)
+	mlp.RandomState = base.NewLockedSource(7)
+	mlp.Shuffle = true
+	mlp.BatchNormalize = true
+	mlp.MaxIter = 400
+
+	mlp.Fit(X, Ybin)
+	predBin := mlp.Predict(X, nil)
+	//_, pred := lb.InverseTransform(nil, predBin)
+	acc := metrics.AccuracyScore(Ybin, predBin, true, nil)
+	if acc < .999 {
+		fmt.Printf("Accuracy:%.2f%%\n", acc*100)
+	} else {
+		fmt.Println("ok")
+	}
+
+	// Output:
+	// ok
+}
+
 func ExampleMLPClassifier_Predict_mnist() {
 	X, Y := datasets.LoadMnist()
 	lb := preprocessing.NewLabelBinarizer(0, 1)
@@ -243,7 +276,7 @@ func Benchmark_Fit_mnist(b *testing.B) {
 //go test ./neural_network -run Benchmark_Fit_Mnist -bench ^Benchmark_Fit_Mnist -cpuprofile /tmp/cpu.prof -memprofile /tmp/mem.prof -benchmem
 //BenchmarkMnist-12            100          17387518 ns/op           89095 B/op         30 allocs/op
 
-func ExampleMLPClassifier_fit_breastCancer() {
+func ExampleMLPClassifier_Fit_breast_cancer() {
 	ds := datasets.LoadBreastCancer()
 
 	scaler := preprocessing.NewStandardScaler()
@@ -289,7 +322,7 @@ func ExampleMLPClassifier_fit_breastCancer() {
 
 }
 
-func ExampleMLPRegressor() {
+func ExampleMLPRegressor_Fit_boston() {
 	// exmaple inspired from # https://machinelearningmastery.com/regression-tutorial-keras-deep-learning-library-python/
 	// with wider_model
 	// added weight decay and reduced epochs from 100 to 20
@@ -305,7 +338,7 @@ func ExampleMLPRegressor() {
 	m := pipeline.MakePipeline(preprocessing.NewStandardScaler(), mlp)
 	_ = m
 	randomState := rand.New(base.NewLockedSource(7))
-	scorer := func(Y, Ypred *mat.Dense) float64 {
+	scorer := func(Y, Ypred mat.Matrix) float64 {
 		e := metrics.MeanSquaredError(Y, Ypred, nil, "").At(0, 0)
 		return e
 	}
@@ -360,4 +393,17 @@ func Test_accuracyScore32(t *testing.T) {
 	if actual != expected {
 		t.Errorf("expected %g, got %g", expected, actual)
 	}
+}
+
+func TestMLPRegressor(t *testing.T) {
+	mlp := NewMLPRegressor([]int{}, "relu", "adam", 0)
+	mlp = mlp.PredicterClone().(*MLPRegressor) // for coverage
+	mlp.IsClassifier()                         // for coverage
+	X, Y, _ := datasets.MakeRegression(map[string]interface{}{"n_samples": 100, "n_features": 2})
+	mlp.LearningRateInit = .1
+	mlp.Fit(X, Y)
+	if mlp.Score(X, Y) < .95 {
+		t.Fail()
+	}
+
 }

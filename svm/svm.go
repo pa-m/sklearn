@@ -237,7 +237,13 @@ func NewSVC() *SVC {
 
 // PredicterClone for SVC
 func (m *SVC) PredicterClone() base.Predicter {
+	if m == nil {
+		return nil
+	}
 	clone := *m
+	if sourceCloner, ok := clone.RandomState.(base.SourceCloner); ok && sourceCloner != base.SourceCloner(nil) {
+		clone.RandomState = sourceCloner.Clone()
+	}
 	return &clone
 }
 

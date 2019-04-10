@@ -10,6 +10,8 @@ import (
 	"time"
 	"unsafe"
 
+	"gonum.org/v1/gonum/blas/blas64"
+
 	"github.com/pa-m/sklearn/base"
 
 	"golang.org/x/exp/rand"
@@ -20,11 +22,12 @@ import (
 
 // BaseMultilayerPerceptron64 closely matches sklearn/neural_network/multilayer_perceptron.py
 type BaseMultilayerPerceptron64 struct {
-	Activation         string           `json:"activation"`
-	Solver             string           `json:"solver"`
-	Alpha              float64          `json:"alpha"`
-	WeightDecay        float64          `json:"weight_decay"`
-	BatchSize          int              `json:"batch_size"`
+	Activation         string  `json:"activation"`
+	Solver             string  `json:"solver"`
+	Alpha              float64 `json:"alpha"`
+	WeightDecay        float64 `json:"weight_decay"`
+	BatchSize          int     `json:"batch_size"`
+	BatchNormalize     bool
 	LearningRate       string           `json:"learning_rate"`
 	LearningRateInit   float64          `json:"learning_rate_init"`
 	PowerT             float64          `json:"power_t"`
@@ -67,6 +70,7 @@ type BaseMultilayerPerceptron64 struct {
 	packedParameters    []float64
 	packedGrads         []float64
 	bestParameters      []float64
+	batchNorm           [][]float64
 }
 
 // Activations64 is a map containing the inplace_activation functions
@@ -281,6 +285,40 @@ func (mlp *BaseMultilayerPerceptron64) forwardPass(activations []blas64General) 
 	outputActivation(activations[i+1])
 }
 
+// batchNormalize computes norms of activations and divides activations
+func (mlp *BaseMultilayerPerceptron64) batchNormalize(activations []blas64General) {
+	for i := 0; i < mlp.NLayers-2; i++ {
+		activation := activations[i+1]
+		batchNorm := mlp.batchNorm[i]
+		for o := 0; o < activation.Cols; o++ {
+			M := float64(0)
+			// compute max for layer i, output o
+			for r, rpos := 0, 0; r < activation.Rows; r, rpos = r+1, rpos+activation.Stride {
+				a := M64.Abs(activation.Data[rpos+o])
+				if M < a {
+					M = a
+				}
+			}
+			// divide activation by max
+			if M > 0 {
+				for r, rpos := 0, 0; r < activation.Rows; r, rpos = r+1, rpos+activation.Stride {
+					activation.Data[rpos+o] /= M
+				}
+			}
+			batchNorm[o] = M
+		}
+	}
+}
+
+// batchNormalizeDeltas divides deltas by batchNorm
+func (mlp *BaseMultilayerPerceptron64) batchNormalizeDeltas(deltas blas64General, batchNorm []float64) {
+	for r, rpos := 0, 0; r < deltas.Rows; r, rpos = r+1, rpos+deltas.Stride {
+		for o := 0; o < deltas.Cols; o++ {
+			deltas.Data[rpos+o] /= batchNorm[o]
+		}
+	}
+}
+
 func (mlp *BaseMultilayerPerceptron64) sumCoefSquares() float64 {
 	s := float64(0)
 	for _, c := range mlp.Coefs {
@@ -321,6 +359,10 @@ func (mlp *BaseMultilayerPerceptron64) backprop(X, y blas64General, activations,
 		}
 	}
 	mlp.forwardPass(activations)
+	if mlp.BatchNormalize {
+		// compute norm of activations for non-terminal layers
+		mlp.batchNormalize(activations)
+	}
 
 	//# Get loss
 	lossFuncName := mlp.LossFuncName
@@ -354,7 +396,12 @@ func (mlp *BaseMultilayerPerceptron64) backprop(X, y blas64General, activations,
 		gemm64(blas.NoTrans, blas.Trans, 1, deltas[i], mlp.Coefs[i], 0, deltas[i-1])
 
 		inplaceDerivative := Derivatives64[mlp.Activation]
+		// inplaceDerivative multiplies deltas[i-1] by activation derivative
 		inplaceDerivative(activations[i], deltas[i-1])
+		if mlp.BatchNormalize {
+			// divide deltas by batchNorm
+			mlp.batchNormalizeDeltas(deltas[i-1], mlp.batchNorm[i-1])
+		}
 
 		mlp.computeLossGrad(
 			i-1, nSamples, activations, deltas, coefGrads,
@@ -402,6 +449,10 @@ func (mlp *BaseMultilayerPerceptron64) initialize(yCols int, layerUnits []int, i
 	}
 	mlp.packedParameters = mem[0:off]
 	mlp.packedGrads = mem[off : 2*off]
+	if mlp.BatchNormalize {
+		// allocate batchNorm for non-terminal layers
+		mlp.batchNorm = make([][]float64, mlp.NLayers-2, mlp.NLayers-2)
+	}
 
 	off = 0
 	if mlp.RandomState == (base.RandomState)(nil) {
@@ -433,6 +484,9 @@ func (mlp *BaseMultilayerPerceptron64) initialize(yCols int, layerUnits []int, i
 		initBound := M64.Sqrt(factor / float64(fanIn+fanOut))
 		for pos := prevOff; pos < off; pos++ {
 			mem[pos] = rndFloat64() * initBound
+		}
+		if mlp.BatchNormalize && i < mlp.NLayers-2 {
+			mlp.batchNorm[i] = make([]float64, layerUnits[i+1])
 		}
 	}
 	for i := 0; i < mlp.NLayers-1; i++ {
@@ -518,7 +572,7 @@ func (mlp *BaseMultilayerPerceptron64) fit(X, y blas64General, incremental bool)
 
 // Fit compute Coefs and Intercepts
 func (mlp *BaseMultilayerPerceptron64) Fit(X, Y Matrix) {
-	if xg, ok := X.(RawMatrixer64); ok {
+	if xg, ok := X.(RawMatrixer64); ok && !mlp.Shuffle {
 		if yg, ok := Y.(RawMatrixer64); ok {
 			mlp.fit(xg.RawMatrix(), yg.RawMatrix(), false)
 			return
@@ -878,6 +932,18 @@ func (mlp *BaseMultilayerPerceptron64) validateInput(X, y blas64General, increme
 	return X, y
 }
 
+// Score for BaseMultiLayerPerceptron64 is R2Score or Accuracy depending on LossFuncName
+func (mlp *BaseMultilayerPerceptron64) Score(Xmatrix, Ymatrix mat.Matrix) float64 {
+	X, Y := ToDense64(Xmatrix), ToDense64(Ymatrix)
+	nSamples, nOutputs := X.RawMatrix().Rows, mlp.GetNOutputs()
+	Ypred := blas64.General{Rows: nSamples, Cols: nOutputs, Stride: nOutputs, Data: make([]float64, nSamples*nOutputs)}
+	mlp.Predict(X, General64(Ypred))
+	if mlp.LossFuncName == "square_loss" {
+		return float64(r2Score64(blas64.General(Y), Ypred))
+	}
+	return float64(accuracyScore64(blas64.General(Y), Ypred))
+}
+
 // SGDOptimizer64 is the stochastic gradient descent optimizer
 type SGDOptimizer64 struct {
 	Params           []float64
@@ -1102,4 +1168,46 @@ func (mlp *BaseMultilayerPerceptron64) Unmarshal(buf []byte) error {
 		}
 	}
 	return err
+}
+
+// ToDense64 returns w view of m if m is a RawMatrixer, et returns a dense copy of m
+func ToDense64(m Matrix) General64 {
+	if d, ok := m.(General64); ok {
+		return d
+	}
+	if m == mat.Matrix(nil) {
+		return General64{}
+	}
+	if rm, ok := m.(RawMatrixer64); ok {
+		return General64(rm.RawMatrix())
+	}
+	ret := General64{}
+	ret.Copy(m)
+	return ret
+}
+
+// FromDense64 fills dst (mat.Mutable) with src (mat.Dense)
+func FromDense64(dst Mutable, dense General64) General64 {
+	if dst == Mutable(nil) {
+		return dense
+	}
+	src := dense.RawMatrix()
+	if rawmatrixer, ok := dst.(RawMatrixer64); ok {
+		dstmat := rawmatrixer.RawMatrix()
+		if &dstmat.Data[0] == &src.Data[0] {
+			return dense
+		}
+		for r, srcpos, dstpos := 0, 0, 0; r < src.Rows; r, srcpos, dstpos = r+1, srcpos+src.Stride, dstpos+dstmat.Stride {
+			for c := 0; c < src.Cols; c++ {
+				dstmat.Data[dstpos+c] = src.Data[srcpos+c]
+			}
+		}
+		return dense
+	}
+	for r, pos := 0, 0; r < src.Rows; r, pos = r+1, pos+src.Stride {
+		for c := 0; c < src.Cols; c++ {
+			dst.Set(r, c, float64(src.Data[pos+c]))
+		}
+	}
+	return dense
 }
