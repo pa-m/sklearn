@@ -112,15 +112,18 @@ func ExampleGridSearchCV() {
 		},
 		Scorer:             scorer,
 		LowerScoreIsBetter: true,
-		CV:                 &KFold{NSplits: 3, RandomState: RandomState, Shuffle: true},
-		Verbose:            true,
-		NJobs:              -1}
+		// CV:                 &KFold{NSplits: 3, RandomState: RandomState, Shuffle: true},
+		Verbose: true,
+		NJobs:   -1}
 	gscv.Fit(X, Y)
-	// fmt.Println("Alpha", gscv.BestParams["Alpha"])
-	// fmt.Println("WeightDecay", gscv.BestParams["WeightDecay"])
+	fmt.Println("Alpha", gscv.BestParams["Alpha"])
+	fmt.Println("WeightDecay", gscv.BestParams["WeightDecay"])
 	// fmt.Println(gscv.CVResults["score"])
 
 	// Output:
+	// Alpha 0.0002
+	// WeightDecay 0
+
 }
 
 func Test_setParam(t *testing.T) {

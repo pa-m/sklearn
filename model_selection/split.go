@@ -61,9 +61,13 @@ func (splitter *KFold) Split(X, Y *mat.Dense) (ch chan Split) {
 	if splitter.RandomState != base.Source(nil) {
 		if shuffler, ok := splitter.RandomState.(Shuffler); ok {
 			rndShuffle = shuffler.Shuffle
+		} else {
+			rndShuffle = rand.New(splitter.RandomState).Shuffle
 		}
 		if intner, ok := splitter.RandomState.(Intner); ok {
 			rndIntn = intner.Intn
+		} else {
+			rndIntn = rand.New(splitter.RandomState).Intn
 		}
 	}
 

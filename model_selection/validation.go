@@ -1,6 +1,7 @@
 package modelselection
 
 import (
+	// "fmt"
 	"runtime"
 	"time"
 
@@ -61,6 +62,7 @@ func CrossValidate(estimator base.Predicter, X, Y *mat.Dense, groups []int, scor
 	_, NOutputs := Y.Dims()
 	processSplit := func(job int, Xjob, Yjob *mat.Dense, sin structIn) structOut {
 		Xtrain, Xtest, Ytrain, Ytest := &mat.Dense{}, &mat.Dense{}, &mat.Dense{}, &mat.Dense{}
+		// fmt.Println("iSplit", sin.iSplit, "TrainIndex", sin.Split.TrainIndex[:10])
 		trainLen, testLen := len(sin.Split.TrainIndex), len(sin.Split.TestIndex)
 		Xtrain.SetRawMatrix(base.MatGeneralRowSlice(Xjob.RawMatrix(), 0, trainLen))
 		Ytrain.SetRawMatrix(base.MatGeneralRowSlice(Yjob.RawMatrix(), 0, trainLen))
