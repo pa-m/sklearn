@@ -107,7 +107,13 @@ func (regr *LogisticRegression) Predict(X mat.Matrix, Ymutable mat.Mutable) *mat
 		} else {
 			Ycls.Copy(Ycls1)
 		}
-
+	} else {
+		Ycls.Apply(func(_, _ int, y float64) float64 {
+			if y > .5 {
+				return 1
+			}
+			return 0
+		}, Ycls)
 	}
 	return base.FromDense(Ymutable, Ycls)
 }
