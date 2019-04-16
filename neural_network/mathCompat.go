@@ -24,11 +24,12 @@ var M32 = struct {
 	Log1p      func(float32) float32
 	MaxFloat32 float32
 	Inf        func(int) float32
+	IsNaN      func(float32) bool
 	Nextafter  func(x, y float32) float32
 	MaxFloatXX floatXX
 }{
 	Ceil: m32.Ceil, Sqrt: m32.Sqrt, Pow: m32.Pow, IsInf: m32.IsInf, Abs: m32.Abs, Exp: m32.Exp, Tanh: m32.Tanh, Log: m32.Log, Log1p: m32.Log1p,
-	MaxFloat32: m32.MaxFloat32, Inf: m32.Inf, Nextafter: m32.Nextafter, MaxFloatXX: m32.MaxFloat32}
+	MaxFloat32: m32.MaxFloat32, Inf: m32.Inf, IsNaN: m32.IsNaN, Nextafter: m32.Nextafter, MaxFloatXX: m32.MaxFloat32}
 
 // M64 has funcs for float64 math
 var M64 = struct {
@@ -43,9 +44,10 @@ var M64 = struct {
 	Log1p      func(float64) float64
 	MaxFloat64 float64
 	Inf        func(int) float64
+	IsNaN      func(float64) bool
 	Nextafter  func(x, y float64) float64
 }{Ceil: m64.Ceil, Sqrt: m64.Sqrt, Pow: m64.Pow, IsInf: m64.IsInf, Abs: m64.Abs, Exp: m64.Exp, Tanh: m64.Tanh, Log: m64.Log, Log1p: m64.Log1p,
-	MaxFloat64: m64.MaxFloat64, Inf: m64.Inf, Nextafter: m64.Nextafter}
+	MaxFloat64: m64.MaxFloat64, Inf: m64.Inf, IsNaN: m64.IsNaN, Nextafter: m64.Nextafter}
 
 // MXX has funcs for floatXX math
 var MXX = M32

@@ -20,11 +20,6 @@ func AccuracyScore(Ytrue, Ypred mat.Matrix, normalize bool, sampleWeight *mat.De
 		var eq = true
 		for j := 0; j < nOutputs; j++ {
 			yt, yp := Ytrue.At(i, j), Ypred.At(i, j)
-			if yp >= .5 {
-				yp = 1.
-			} else {
-				yp = 0.
-			}
 			eq = eq && yt == yp
 		}
 		if eq {

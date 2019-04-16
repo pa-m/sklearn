@@ -194,27 +194,27 @@ func ExampleMLPClassifier_Unmarshal() {
 }
 
 func ExampleMLPClassifier_Fit_mnist() {
-	// fitting mnist with randomstate 7, shuffle, batchnorm,400 iterations should allow accuracy 99.96%
+	// fitting mnist with randomstate 7, shuffle, batchnorm,400 iterations should allow accuracy 99.96%. use embedded label binarizer
+
+	MaxIter := 400
+	expectedMinAccuracy := .999
 	if testing.Short() {
-		// skip ExampleMLPClassifier_Fit_mnist for ci
-		log.Println("ExampleMLPClassifier_Fit_mnist skipped because testing with -short")
-		fmt.Println("ok")
-		return
+		log.Println("ExampleMLPClassifier_Fit_mnist reducted iterations because testing with -short")
+		MaxIter = 40
+		expectedMinAccuracy = .95
+
 	}
 	X, Y := datasets.LoadMnist()
-	lb := preprocessing.NewLabelBinarizer(0, 1)
-	X, Ybin := lb.FitTransform(X, Y)
 	mlp := NewMLPClassifier([]int{25}, "logistic", "adam", 0)
 	mlp.RandomState = base.NewLockedSource(7)
 	mlp.Shuffle = true
 	mlp.BatchNormalize = true
-	mlp.MaxIter = 400
+	mlp.MaxIter = MaxIter
 
-	mlp.Fit(X, Ybin)
-	predBin := mlp.Predict(X, nil)
-	//_, pred := lb.InverseTransform(nil, predBin)
-	acc := metrics.AccuracyScore(Ybin, predBin, true, nil)
-	if acc < .999 {
+	mlp.Fit(X, Y)
+	pred := mlp.Predict(X, nil)
+	acc := metrics.AccuracyScore(Y, pred, true, nil)
+	if acc < expectedMinAccuracy {
 		fmt.Printf("Accuracy:%.2f%%\n", acc*100)
 	} else {
 		fmt.Println("ok")

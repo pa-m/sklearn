@@ -26,7 +26,7 @@ func (m *LabelBinarizer) TransformerClone() base.Transformer {
 	return &clone
 }
 
-// Fit for binarizer does nothing
+// Fit for binarizer register classes
 func (m *LabelBinarizer) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
 	Y := base.ToDense(Ymatrix)
 	if m.PosLabel == m.NegLabel {

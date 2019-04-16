@@ -260,6 +260,8 @@ func (mat *General32) Copy(a Matrix) {
 	}
 	if g, ok := a.(*General32); ok {
 		copy(mat.Data, g.Data)
+	} else if g, ok := a.(RawMatrixer32); ok && mat.Stride == g.RawMatrix().Stride {
+		copy(mat.Data, g.RawMatrix().Data)
 	} else if rrv, ok := a.(RawRowViewer32); ok {
 		for r, rowpos := 0, 0; r < rows; r, rowpos = r+1, rowpos+mat.Stride {
 			copy(mat.Data[rowpos:rowpos+mat.Cols], rrv.RawRowView(r))
@@ -282,8 +284,10 @@ func (mat *General64) Copy(a Matrix) {
 	} else {
 		*mat = General64{Rows: rows, Cols: cols, Stride: cols, Data: mat.Data[:size]}
 	}
-	if g, ok := a.(*General64); ok {
+	if g, ok := a.(General64); ok {
 		copy(mat.Data, g.Data)
+	} else if g, ok := a.(RawMatrixer64); ok && mat.Stride == g.RawMatrix().Stride {
+		copy(mat.Data, g.RawMatrix().Data)
 	} else if rrv, ok := a.(RawRowViewer64); ok {
 		for r, rowpos := 0, 0; r < rows; r, rowpos = r+1, rowpos+mat.Stride {
 			copy(mat.Data[rowpos:rowpos+mat.Cols], rrv.RawRowView(r))

@@ -71,6 +71,7 @@ type BaseMultilayerPerceptron32 struct {
 	packedGrads         []float32
 	bestParameters      []float32
 	batchNorm           [][]float32
+	lb                  *LabelBinarizer32
 }
 
 // Activations32 is a map containing the inplace_activation functions
@@ -445,7 +446,7 @@ func (mlp *BaseMultilayerPerceptron32) initialize(yCols int, layerUnits []int, i
 	}
 	mem := make([]float32, 2*off, 2*off)
 	if uintptr(unsafe.Pointer(&mem[0]))%64 != 0 {
-		panic("unaligned")
+		log.Println("unaligned")
 	}
 	mlp.packedParameters = mem[0:off]
 	mlp.packedGrads = mem[off : 2*off]
@@ -570,48 +571,57 @@ func (mlp *BaseMultilayerPerceptron32) fit(X, y blas32General, incremental bool)
 	}
 }
 
+// IsClassifier return true if LossFuncName is not square_loss
+func (mlp *BaseMultilayerPerceptron32) IsClassifier() bool {
+	return mlp.LossFuncName != "square_loss"
+}
+
 // Fit compute Coefs and Intercepts
 func (mlp *BaseMultilayerPerceptron32) Fit(X, Y Matrix) {
+	var xb, yb blas32.General
 	if xg, ok := X.(RawMatrixer32); ok && !mlp.Shuffle {
 		if yg, ok := Y.(RawMatrixer32); ok {
-			mlp.fit(xg.RawMatrix(), yg.RawMatrix(), false)
-			return
+			xb, yb = xg.RawMatrix(), yg.RawMatrix()
 		}
+	} else {
+		var tmp General32
+		tmp = General32(xb)
+		tmp.Copy(X)
+		xb = tmp.RawMatrix()
+		tmp = General32(yb)
+		tmp.Copy(Y)
+		yb = tmp.RawMatrix()
 	}
-	var xg, yg General32
-	xg.Copy(X)
-	yg.Copy(Y)
-	mlp.fit(blas32General(xg), blas32General(yg), false)
+	if mlp.IsClassifier() && !isBinarized32(yb) {
+		mlp.lb = NewLabelBinarizer32(0, 1)
+		xbin, ybin := mlp.lb.FitTransform(General32(xb), General32(yb))
+		xb, yb = blas32.General(xbin), blas32.General(ybin)
+	}
+	mlp.fit(xb, yb, false)
 }
 
 // GetNOutputs returns output columns number for Y to pass to predict
 func (mlp *BaseMultilayerPerceptron32) GetNOutputs() int {
+	if mlp.lb != nil {
+		return len(mlp.lb.Classes)
+	}
 	return mlp.NOutputs
 }
 
 // Predict do forward pass and fills Y (Y must be Mutable)
 func (mlp *BaseMultilayerPerceptron32) Predict(X mat.Matrix, Y Mutable) {
+	var xb, yb General32
 	if xg, ok := X.(RawMatrixer32); ok {
 		if yg, ok := Y.(RawMatrixer32); ok {
-			mlp.predict(xg.RawMatrix(), yg.RawMatrix())
-			return
+			xb, yb = General32(xg.RawMatrix()), General32(yg.RawMatrix())
 		}
+	} else {
+		xb.Copy(X)
+		yb.Copy(Y)
 	}
-	var xg, yg General32
-	xg.Copy(X)
-	yg.Copy(Y)
-	mlp.predict(blas32General(xg), blas32General(yg))
+	mlp.predict(xb.RawMatrix(), yb.RawMatrix())
 
-	ymut, ok := Y.(Mutable)
-	if !ok {
-		log.Panicf("Y must be mutable")
-	}
-
-	for r, rpos := 0, 0; r < yg.Rows; r, rpos = r+1, rpos+yg.Stride {
-		for c := 0; c < yg.Cols; c++ {
-			ymut.Set(r, c, float64(yg.Data[rpos+c]))
-		}
-	}
+	FromDense32(Y, yb)
 }
 
 func (mlp *BaseMultilayerPerceptron32) validateHyperparameters() {
@@ -735,7 +745,7 @@ func (mlp *BaseMultilayerPerceptron32) fitStochastic(X, y blas32General, activat
 		yVal = blas32General(General32(y).RowSlice(nSamples-testSize, nSamples))
 		mlp.bestParameters = make([]float32, len(mlp.packedParameters), len(mlp.packedParameters))
 		// if isClassifier(self):
-		// 	yVal = self.LabelBinarizer.inverseTransform(yVal)
+		// 	yVal = self.LabelBinarizer32.inverseTransform(yVal)
 	}
 	batchSize := mlp.BatchSize
 	idx := make([]int, nSamples, nSamples)
@@ -866,7 +876,8 @@ func (mlp *BaseMultilayerPerceptron32) updateNoImprovementCount(earlyStopping bo
 		}
 	}
 }
-func (mlp *BaseMultilayerPerceptron32) predict(X, Y blas32General) {
+
+func (mlp *BaseMultilayerPerceptron32) predictProbas(X, Y blas32General) {
 	_, nFeatures := X.Rows, X.Cols
 
 	layerUnits := append([]int{nFeatures}, mlp.HiddenLayerSizes...)
@@ -884,7 +895,22 @@ func (mlp *BaseMultilayerPerceptron32) predict(X, Y blas32General) {
 	}
 	// # forward propagate
 	mlp.forwardPass(activations)
-	if strings.EqualFold(mlp.OutActivation, "logistic") || strings.EqualFold(mlp.OutActivation, "softmax") {
+}
+
+func (mlp *BaseMultilayerPerceptron32) predict(X, Y blas32General) {
+	var ybin General32
+	if mlp.lb == nil {
+		ybin = General32(Y)
+	} else {
+		_, ybin = mlp.lb.Transform(General32(X), General32(Y))
+	}
+	mlp.predictProbas(X, ybin.RawMatrix())
+	if mlp.lb != nil {
+		_, Yclasses := mlp.lb.InverseTransform(General32(X), ybin)
+		var tmp = General32(Y)
+		tmp.Copy(Yclasses)
+		Y = tmp.RawMatrix()
+	} else if mlp.IsClassifier() {
 		toLogits32(Y)
 	}
 }
@@ -909,7 +935,7 @@ func (mlp *BaseMultilayerPerceptron32) validateInput(X, y blas32General, increme
 	        y = column_or_1d(y, warn=True)
 
 	    if not incremental:
-	        self._label_binarizer = LabelBinarizer()
+	        self._label_binarizer = LabelBinarizer32()
 	        self._label_binarizer.fit(y)
 	        self.classes_ = self._label_binarizer.classes_
 	    elif self.warm_start:
@@ -1210,4 +1236,118 @@ func FromDense32(dst Mutable, dense General32) General32 {
 		}
 	}
 	return dense
+}
+
+// LabelBinarizer32 Binarize labels in a one-vs-all fashion
+type LabelBinarizer32 struct {
+	NegLabel, PosLabel float32
+	Classes            [][]float32
+}
+
+// NewLabelBinarizer32 ...
+func NewLabelBinarizer32(NegLabel, PosLabel float32) *LabelBinarizer32 {
+	return &LabelBinarizer32{NegLabel: NegLabel, PosLabel: PosLabel}
+}
+
+// TransformerClone ...
+func (m *LabelBinarizer32) TransformerClone() *LabelBinarizer32 {
+	clone := *m
+	return &clone
+}
+
+// Fit for binarizer register classes
+func (m *LabelBinarizer32) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
+	Y := ToDense32(Ymatrix)
+	if m.PosLabel == m.NegLabel {
+		m.PosLabel += 1.
+	}
+	y := Y.RawMatrix()
+	m.Classes = make([][]float32, y.Cols)
+	for j := 0; j < y.Cols; j++ {
+		cmap := make(map[float32]bool)
+		for i, yi := 0, 0; i < y.Rows; i, yi = i+1, yi+y.Stride {
+			yval := y.Data[yi+j]
+			if _, present := cmap[yval]; present {
+				continue
+			}
+			cmap[yval] = true
+			m.Classes[j] = append(m.Classes[j], yval)
+		}
+		sort.Sort(Float32Slice(m.Classes[j]))
+	}
+	return m
+}
+
+// Float32Slice implements sort.Interface.
+type Float32Slice []float32
+
+func (p Float32Slice) Len() int           { return len(p) }
+func (p Float32Slice) Less(i, j int) bool { return p[i] < p[j] || M32.IsNaN(p[i]) && !M32.IsNaN(p[j]) }
+func (p Float32Slice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+
+// Transform for LabelBinarizer32
+func (m *LabelBinarizer32) Transform(X, Y mat.Matrix) (Xout, Yout General32) {
+	Xout = ToDense32(X)
+	NSamples, _ := Y.Dims()
+	NOutputs := 0
+	for _, classes := range m.Classes {
+		NOutputs += len(classes)
+	}
+
+	Yout = General32{Rows: NSamples, Cols: NOutputs, Stride: NOutputs, Data: make([]float32, NSamples*NOutputs)}
+	y, yo := ToDense32(Y).RawMatrix(), Yout.RawMatrix()
+	baseCol := 0
+	for j := 0; j < y.Cols; j++ {
+		cmap := make(map[float32]int)
+		for classNo, val := range m.Classes[j] {
+			cmap[val] = classNo
+		}
+		for i, yi, yo0 := 0, 0, 0; i < y.Rows; i, yi, yo0 = i+1, yi+y.Stride, yo0+yo.Stride {
+			val := y.Data[yi+j]
+			if classNo, ok := cmap[val]; ok {
+				yo.Data[yo0+baseCol+classNo] = m.PosLabel
+			} else {
+				yo.Data[yo0+baseCol+classNo] = m.NegLabel
+			}
+		}
+		baseCol += len(m.Classes[j])
+	}
+	return
+}
+
+// FitTransform fit to dat, then transform it
+func (m *LabelBinarizer32) FitTransform(X, Y mat.Matrix) (Xout, Yout General32) {
+	m.Fit(X, Y)
+	return m.Transform(X, Y)
+}
+
+// InverseTransform for LabelBinarizer32
+func (m *LabelBinarizer32) InverseTransform(X, Y General32) (Xout, Yout General32) {
+	Xout = X
+	NSamples, _ := Y.Dims()
+	NOutputs := len(m.Classes)
+
+	Yout = General32{Rows: NSamples, Cols: NOutputs, Stride: NOutputs, Data: make([]float32, NSamples*NOutputs)}
+	y, yo := Y.RawMatrix(), Yout.RawMatrix()
+	for j, baseCol := 0, 0; baseCol < y.Cols; j, baseCol = j+1, baseCol+len(m.Classes[j]) {
+		for i, yi, yo0 := 0, 0, 0; i < y.Rows; i, yi, yo0 = i+1, yi+y.Stride, yo0+yo.Stride {
+			classNo := MaxIdx32(y.Data[yi+baseCol : yi+baseCol+len(m.Classes[j])])
+
+			yo.Data[yo0+j] = m.Classes[j][classNo]
+		}
+		baseCol += len(m.Classes[j])
+	}
+	return
+}
+
+func isBinarized32(yb blas32.General) bool {
+	for r, pos := 0, 0; r < yb.Rows; r, pos = r+1, pos+yb.Stride {
+		for c := 0; c < yb.Cols; c++ {
+			v := yb.Data[pos+c]
+			if v != 0 && v != 1 {
+				return false
+			}
+		}
+	}
+	return true
 }
