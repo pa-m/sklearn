@@ -310,12 +310,12 @@ func TestLogRegMicrochipTest(t *testing.T) {
 	fmt.Println("LogisticRegression BEST SETUP:", best)
 }
 
-func ExampleLogisticRegression() {
+func ExampleLogisticRegression_Fit_iris() {
 	// adapted from http://scikit-learn.org/stable/_downloads/plot_iris_logistic.ipynb
 	ds := datasets.LoadIris()
-	nSamples := len(ds.Target)
-	// we only take the first two features.
-	X, YTrueClasses := ds.X.Slice(0, nSamples, 0, 2).(*mat.Dense), ds.Y
+
+	// we only take the first _ features.
+	X, YTrueClasses := base.MatDenseColSlice(ds.X, 0, 4), ds.Y
 	h := .02 // step size in the mesh
 	_ = h
 	logreg := NewLogisticRegression()
@@ -329,8 +329,8 @@ func ExampleLogisticRegression() {
 	Ypred := &mat.Dense{}
 	logreg.Predict(X, Ypred)
 	accuracy := metrics.AccuracyScore(YTrueClasses, Ypred, true, nil)
-	// TODO FIXME accuracy should be 0.833 here
-	if accuracy >= 0.78 {
+	// TODO FIXME accuracy should be 0.833 with only 2 first features here. 0.986 with 4 features
+	if accuracy >= 0.833 {
 		fmt.Println("ok")
 	} else {
 		fmt.Printf("Accuracy:%.2f", accuracy)

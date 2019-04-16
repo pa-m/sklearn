@@ -350,20 +350,20 @@ func MatSigmoid(dst *mat.Dense, X mat.Matrix) *mat.Dense {
 	return dst
 }
 
-// MatDenseFirstColumnRemoved returns a *mat.Dense with the same underlaying data as M but 1st column removed
+// MatDenseFirstColumnRemoved returns a *mat.Dense view of partial underlaying data of M
 func MatDenseFirstColumnRemoved(src *mat.Dense) *mat.Dense {
 	nSamples, nOutputs := src.Dims()
 	return MatDenseSlice(src, 0, nSamples, 1, nOutputs)
 }
 
-// MatDenseSlice returns a *mat.Dense with the same underlaying data as src but rows and columns removed
+// MatDenseSlice returns a *mat.Dense view of partial underlaying data of M
 func MatDenseSlice(src mat.RawMatrixer, i, k, j, l int) *mat.Dense {
 	m := &mat.Dense{}
 	m.SetRawMatrix(MatGeneralSlice(src.RawMatrix(), i, k, j, l))
 	return m
 }
 
-// MatGeneralSlice returns a blas64.General with the same underlaying data as M but rows and columns removed
+// MatGeneralSlice returns a blas64.General view of partial underlaying data of M
 func MatGeneralSlice(M blas64.General, i, k, j, l int) blas64.General {
 	if k <= i {
 		panic(fmt.Errorf("k<=i %d %d", k, i))
@@ -376,7 +376,7 @@ func MatGeneralSlice(M blas64.General, i, k, j, l int) blas64.General {
 	}
 }
 
-// MatDenseRowSlice returns a *mat.Dense with the same underlaying data as src but rows and columns removed
+// MatDenseRowSlice returns a *mat.Dense view of partial underlaying data of M
 func MatDenseRowSlice(src mat.RawMatrixer, i, k int) *mat.Dense {
 	M := src.RawMatrix()
 	m := &mat.Dense{}
@@ -384,7 +384,15 @@ func MatDenseRowSlice(src mat.RawMatrixer, i, k int) *mat.Dense {
 	return m
 }
 
-// MatGeneralRowSlice returns a blas64.General with the same underlaying data as M but rows and columns removed
+// MatDenseColSlice returns a *mat.Dense  view of partial underlaying data of M
+func MatDenseColSlice(src mat.RawMatrixer, j, l int) *mat.Dense {
+	M := src.RawMatrix()
+	m := &mat.Dense{}
+	m.SetRawMatrix(MatGeneralColSlice(M, j, l))
+	return m
+}
+
+// MatGeneralRowSlice returns a blas64.General view of partial underlaying data of M
 func MatGeneralRowSlice(M blas64.General, i, k int) blas64.General {
 	if k <= i {
 		panic(fmt.Errorf("k<=i %d %d", k, i))
@@ -394,6 +402,19 @@ func MatGeneralRowSlice(M blas64.General, i, k int) blas64.General {
 		Cols:   M.Cols,
 		Stride: M.Stride,
 		Data:   M.Data[i*M.Stride : k*M.Stride],
+	}
+}
+
+// MatGeneralColSlice returns a blas64.General view of partial underlaying data of M
+func MatGeneralColSlice(M blas64.General, j, l int) blas64.General {
+	if l <= j {
+		panic(fmt.Errorf("l<j %d %d", j, l))
+	}
+	return blas64.General{
+		Rows:   M.Rows,
+		Cols:   l - j,
+		Stride: M.Stride,
+		Data:   M.Data[j : l+(M.Rows-1)*M.Stride],
 	}
 }
 
