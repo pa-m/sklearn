@@ -7,8 +7,8 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"sync"
 	"time"
-	"unsafe"
 
 	"gonum.org/v1/gonum/blas/blas64"
 
@@ -228,13 +228,6 @@ func matRowMean64(a blas64General, b []float64) {
 		b[c] /= float64(a.Rows)
 	}
 }
-func matSub64(a, b, dst blas64General) {
-	for arow, apos, bpos := 0, 0, 0; arow < b.Rows; arow, apos, bpos = arow+1, apos+a.Stride, bpos+b.Stride {
-		for c := 0; c < a.Cols; c++ {
-			dst.Data[apos+c] = a.Data[apos+c] - b.Data[bpos+c]
-		}
-	}
-}
 
 // NewBaseMultilayerPerceptron64 returns a BaseMultilayerPerceptron64 with defaults
 func NewBaseMultilayerPerceptron64() *BaseMultilayerPerceptron64 {
@@ -385,7 +378,15 @@ func (mlp *BaseMultilayerPerceptron64) backprop(X, y blas64General, activations,
 	//deltas[last] = activations[len(activations)-1] - y
 
 	// y may have less rows than activations il last batch
-	matSub64(activations[len(activations)-1], y, deltas[last])
+	{
+		H := activations[len(activations)-1]
+		D := deltas[last]
+		for r, pos := 0, 0; r < y.Rows; r, pos = r+1, pos+y.Stride {
+			for o, posc := 0, pos; o < y.Cols; o, posc = o+1, posc+1 {
+				D.Data[posc] = H.Data[posc] - y.Data[posc]
+			}
+		}
+	}
 
 	//# Compute gradient for the last layer
 	mlp.computeLossGrad(
@@ -445,9 +446,6 @@ func (mlp *BaseMultilayerPerceptron64) initialize(yCols int, layerUnits []int, i
 		off += (1 + layerUnits[i]) * layerUnits[i+1]
 	}
 	mem := make([]float64, 2*off, 2*off)
-	if uintptr(unsafe.Pointer(&mem[0]))%64 != 0 {
-		log.Println("unaligned")
-	}
 	mlp.packedParameters = mem[0:off]
 	mlp.packedGrads = mem[off : 2*off]
 	if mlp.BatchNormalize {
@@ -497,14 +495,6 @@ func (mlp *BaseMultilayerPerceptron64) initialize(yCols int, layerUnits []int, i
 		off += layerUnits[i] * layerUnits[i+1]
 	}
 
-	// if self.solver in STOCHASTICSOLVERS:
-	//     self.lossCurve_ = []
-	//     self.NoImprovementCount = 0
-	//     if self.earlyStopping:
-	//         self.validationScores_ = []
-	//         self.bestValidationScore_ = -np.inf
-	//     else:
-	//         self.bestLoss_ = np.inf
 	mlp.BestLoss = M64.Inf(1)
 }
 
@@ -677,19 +667,33 @@ func (mlp *BaseMultilayerPerceptron64) validateHyperparameters() {
 func (mlp *BaseMultilayerPerceptron64) fitLbfgs(X, y blas64General, activations, deltas, coefGrads []blas64General,
 	interceptGrads [][]float64, layerUnits []int) {
 	method := &optimize.LBFGS{}
-	settings := &optimize.Settings{FuncEvaluations: mlp.MaxIter, GradientThreshold: float64(mlp.Tol)}
+	settings := &optimize.Settings{
+		FuncEvaluations: mlp.MaxIter,
+		Converger: &optimize.FunctionConverge{
+			Relative:   float64(mlp.Tol),
+			Iterations: mlp.NIterNoChange,
+		},
+	}
 
+	var mu sync.Mutex // sync access to mlp.Loss on LossCurve
 	problem := optimize.Problem{
 		Func: func(w []float64) float64 {
 			for i := range w {
 				mlp.packedParameters[i] = float64(w[i])
 			}
-			return float64(mlp.backprop(X, y, activations, deltas, coefGrads, interceptGrads))
-
+			loss := float64(mlp.backprop(X, y, activations, deltas, coefGrads, interceptGrads))
+			mu.Lock()
+			mlp.Loss = float64(loss)
+			mlp.LossCurve = append(mlp.LossCurve, mlp.Loss)
+			if mlp.BestLoss > mlp.Loss {
+				mlp.BestLoss = mlp.Loss
+			}
+			mu.Unlock()
+			return loss
 		},
 		Grad: func(g, w []float64) []float64 {
-			// Grad is called just aveter Func with same w
-			if g == nil {
+			// Grad is called just after Func with same w
+			if g == nil { // g is nil at first call
 				g = make([]float64, len(w), len(w))
 			}
 			for i := range w {
@@ -864,16 +868,17 @@ func (mlp *BaseMultilayerPerceptron64) updateNoImprovementCount(earlyStopping bo
 			mlp.BestValidationScore = lastValidScore
 			copy(mlp.bestParameters, mlp.packedParameters)
 		}
-	} else {
-		lastLoss := mlp.LossCurve[len(mlp.LossCurve)-1]
+	}
+	lastLoss := mlp.LossCurve[len(mlp.LossCurve)-1]
+	if !earlyStopping {
 		if lastLoss > mlp.BestLoss-mlp.Tol {
 			mlp.NoImprovementCount++
 		} else {
 			mlp.NoImprovementCount = 0
 		}
-		if lastLoss < mlp.BestLoss {
-			mlp.BestLoss = lastLoss
-		}
+	}
+	if lastLoss < mlp.BestLoss {
+		mlp.BestLoss = lastLoss
 	}
 }
 

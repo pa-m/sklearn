@@ -4,336 +4,47 @@ import (
 	"flag"
 	"fmt"
 	"image/color"
-	"math"
+	"log"
 	"os"
 	"os/exec"
-	"testing"
 	"time"
 
 	"github.com/pa-m/sklearn/base"
 	"github.com/pa-m/sklearn/datasets"
-	"github.com/pa-m/sklearn/metrics"
-	"github.com/pa-m/sklearn/preprocessing"
-	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
-	"gonum.org/v1/gonum/optimize"
 	"gonum.org/v1/plot"
 	"gonum.org/v1/plot/plotter"
 	"gonum.org/v1/plot/vg"
 	"gonum.org/v1/plot/vg/draw"
 )
 
+var _ base.Predicter = &LogisticRegression{}
 var visualDebug = flag.Bool("visual", false, "output images for benchmarks and test data")
 
-func TestLogRegExamScore(t *testing.T) {
-	X, Ytrue := datasets.LoadExamScore()
-	nSamples, nFeatures := X.Dims()
-	preprocessing.AddDummyFeature(X)
-	nFeatures++
-	regr := NewLogisticRegression()
-	regr.FitIntercept = false // Fintintercept=false because we already added ones columns instead
+func ExampleLogisticRegression() {
 
-	Ybin := regr.EncodeLabels(Ytrue)
-	_, NClasses := Ybin.Dims()
-	// we allocate Coef here because we use it for loss and grad tests before Fit
-	regr.Coef = mat.NewDense(nFeatures, NClasses, nil)
-
-	// Alpha=0 here because following test values require no regularization
-	regr.Alpha = 0.
-
-	Ypred := &mat.Dense{}
-	Ydiff := &mat.Dense{}
-	grad := &mat.Dense{}
-
-	J := math.Inf(1)
-	loss := func() (J float64) {
-		J = regr.LossFunction(Ybin, X, regr.Coef, Ypred, Ydiff, grad, regr.Alpha, regr.L1Ratio, nSamples, regr.ActivationFunction, true)
-		return
-	}
-	chkLoss := func(context string, expectedLoss float64) {
-		if math.Abs(J-expectedLoss) > 1e-3 {
-			t.Errorf("%s J=%g expected:%g", context, J, expectedLoss)
-		}
-	}
-	chkGrad := func(context string, expectedGradient []float64) {
-		actualGradient := []float64{grad.At(0, 0), grad.At(1, 0), grad.At(2, 0)}
-		//fmt.Printf("%s grad=%v expected %v\n", context, actualGradient, expectedGradient)
-		for j := 0; j < nFeatures; j++ {
-			if !floats.EqualWithinAbs(expectedGradient[j], actualGradient[j], 1e-4) {
-				t.Errorf("%s grad=%v expected %v", context, actualGradient, expectedGradient)
-				return
-			}
-		}
-	}
-	chkTheta := func(context string, expectedTheta []float64) {
-		actualTheta := []float64{regr.Coef.At(0, 0), regr.Coef.At(1, 0), regr.Coef.At(2, 0)}
-		for j := 0; j < nFeatures; j++ {
-			if !floats.EqualWithinAbs(expectedTheta[j], actualTheta[j], 1e-2) {
-				t.Errorf("%s theta=%v expected %v", context, actualTheta, expectedTheta)
-				return
-			}
-		}
-	}
-	J = loss()
-	chkLoss("initial loss", 0.693)
-	chkGrad("initial gradient", []float64{-0.1000, -12.0092, -11.2628})
-
-	regr.Coef.SetCol(0, []float64{-24, 0.2, 0.2})
-	J = loss()
-	chkLoss("at test theta", 0.218)
-
-	// test Fit with various gonum/optimize Method
-
-	var GOMethodCreators = map[string]func() optimize.Method{
-		"bfgs": func() optimize.Method { return &optimize.BFGS{} },
-		"cg":   func() optimize.Method { return &optimize.CG{} },
-		//&optimize.GradientDescent{},
-		"lbfgs": func() optimize.Method { return &optimize.LBFGS{} },
-		//&optimize.NelderMead{},
-		//&optimize.Newton{}
-	}
-	printer := optimize.NewPrinter()
-	//printer.HeadingInterval = 1
-	//printer.ValueInterval = 0
-	unused(printer)
-
-	best := make(map[string]string)
-	bestLoss := math.Inf(1)
-	bestTime := time.Second * 86400
-
-	for _, methodCreator := range GOMethodCreators {
-		testSetup := fmt.Sprintf("(%T)", methodCreator())
-		regr.Coef.SetCol(0, []float64{-24, 0.2, 0.2})
-		regr.Options.GOMethodCreator = methodCreator
-		//regr.Options.Recorder = printer
-		start := time.Now()
-		regr.Fit(X, Ybin)
-		elapsed := time.Since(start)
-		J = loss()
-
-		chkLoss("after fit "+testSetup, 0.2030)
-		chkTheta("after fit "+testSetup, []float64{-25.161, 0.206, 0.201})
-		if J < bestLoss {
-			bestLoss = J
-			best["best for loss"] = testSetup + fmt.Sprintf("(%g)", J)
-		}
-		if elapsed < bestTime {
-			bestTime = elapsed
-			best["best for time"] = testSetup + fmt.Sprintf("(%s)", elapsed)
-		}
-	}
-
-	// test Fit with various base.Optimizer
-
-	var Optimizers = []string{"sgd", "adagrad", "rmsprop", "adadelta", "adam"}
-	for _, optimizer := range Optimizers {
-		testSetup := optimizer
-		regr.Options.ThetaInitializer = func(Theta *mat.Dense) {
-			Theta.SetCol(0, []float64{-24, 0.2, 0.2})
-		}
-		regr.Options.MiniBatchSize = nSamples
-		regr.Solver = optimizer
-		//regr.Options.Epochs = 1e5
-
-		start := time.Now()
-		regr.Fit(X, Ybin)
-		elapsed := time.Since(start)
-		J = loss()
-
-		chkLoss("after fit "+testSetup, 0.2030)
-		chkTheta("after fit "+testSetup, []float64{-25.161, 0.206, 0.201})
-		if J < bestLoss {
-			bestLoss = J
-			best["best for loss"] = testSetup + fmt.Sprintf("(%g)", J)
-		}
-		if elapsed < bestTime {
-			bestTime = elapsed
-			best["best for time"] = testSetup + fmt.Sprintf("(%s)", elapsed)
-		}
-	}
-	fmt.Println("LogisticRegression BEST SETUP:", best)
-}
-
-func TestLogRegMicrochipTest(t *testing.T) {
-	X, Ytrue := datasets.LoadMicroChipTest()
-	nSamples, nFeatures := X.Dims()
-
-	poly := preprocessing.NewPolynomialFeatures(6)
-	poly.Fit(X, Ytrue)
-
-	Xp, _ := poly.Transform(X, nil)
-
-	_, nFeatures = Xp.Dims()
-	_, nOutputs := Ytrue.Dims()
-	regr := NewLogisticRegression()
-	regr.FitIntercept = false // Fintintercept=false because we added polynomial features
-
-	// we allocate Coef here because we use it for loss and grad tests before Fit
-	regr.Coef = mat.NewDense(nFeatures, nOutputs, nil)
-
-	// Alpha=1 here because following test requires it
-	regr.Alpha = 1.
-	regr.L1Ratio = 0.
-
-	Ypred := mat.NewDense(nSamples, nOutputs, nil)
-	Ydiff := mat.NewDense(nSamples, nOutputs, nil)
-	grad := mat.NewDense(nFeatures, nOutputs, nil)
-
-	J := math.Inf(1)
-	loss := func() (J float64) {
-		J = regr.LossFunction(Ytrue, Xp, regr.Coef, Ypred, Ydiff, grad, regr.Alpha, regr.L1Ratio, nSamples, regr.ActivationFunction, true)
-		return
-	}
-	chkLoss := func(context string, expectedLoss float64) {
-		if math.Abs(J-expectedLoss) > 1e-3 {
-			t.Errorf("%s J=%g expected:%g", context, J, expectedLoss)
-		}
-	}
-	chkGrad := func(context string, expectedGradient []float64) {
-		actualGradient := grad.RawRowView(0)[0:len(expectedGradient)]
-
-		//fmt.Printf("%s grad=%v expected %v\n", context, actualGradient, expectedGradient)
-		for j := 0; j < len(expectedGradient); j++ {
-			if !floats.EqualWithinAbs(expectedGradient[j], actualGradient[j], 1e-4) {
-				t.Errorf("%s grad=%v expected %v", context, actualGradient, expectedGradient)
-				return
-			}
-		}
-	}
-
-	J = loss()
-	chkLoss("Microchip initial loss", 0.693)
-	chkGrad("Microchip initial gradient", []float64{0.0085, 0.0188, 0.0001, 0.0503, 0.0115})
-
-	regr.Coef.Apply(func(j, o int, _ float64) float64 { return 1. }, regr.Coef)
-	regr.Alpha = 10.
-
-	J = regr.LossFunction(Ytrue, Xp, regr.Coef, Ypred, Ydiff, grad, regr.Alpha, regr.L1Ratio, nSamples, regr.ActivationFunction, true)
-	chkLoss("At test theta", 3.164)
-	chkGrad("at test theta", []float64{0.3460, 0.1614, 0.1948, 0.2269, 0.0922})
-
-	// test Fit Microchip with various gonum/optimize Method
-
-	var GOMethodCreators = map[string]func() optimize.Method{
-		//"bfgs": func() optimize.Method { return &optimize.BFGS{} },
-		//"cg":   func() optimize.Method { return &optimize.CG{} },
-		//&optimize.GradientDescent{},
-		"lbfgs": func() optimize.Method { return &optimize.LBFGS{} },
-		//&optimize.NelderMead{},
-		//&optimize.Newton{}
-	}
-	printer := optimize.NewPrinter()
-	//printer.HeadingInterval = 1
-	//printer.ValueInterval = 0
-	unused(printer)
-
-	best := make(map[string]string)
-	bestLoss := math.Inf(1)
-	bestTime := time.Second * 86400
-
-	for _, methodCreator := range GOMethodCreators {
-		testSetup := fmt.Sprintf("(%T)", methodCreator())
-		regr.Options.GOMethodCreator = methodCreator
-		regr.Options.ThetaInitializer = func(Theta *mat.Dense) {
-			Theta.Sub(Theta, Theta)
-		}
-		regr.Alpha = 1.
-
-		//regr.Options.Recorder = printer
-		start := time.Now()
-		regr.Fit(Xp, Ytrue)
-		elapsed := time.Since(start)
-		J = loss() // sets Ypred too
-		if J < bestLoss {
-			bestLoss = J
-			best["best for loss"] = testSetup + fmt.Sprintf("(%g)", J)
-		}
-		if elapsed < bestTime {
-			bestTime = elapsed
-			best["best for time"] = testSetup + fmt.Sprintf("(%s)", elapsed)
-		}
-		// Ypred contains probas. call predict to have binary result
-		regr.Predict(Xp, Ypred)
-		accuracy := metrics.AccuracyScore(Ytrue, Ypred, true, nil)
-		expectedAccuracy := 0.81
-		if accuracy < expectedAccuracy {
-			t.Errorf("%T accuracy=%g expected:%g", methodCreator(), accuracy, expectedAccuracy)
-		}
-	}
-
-	// test Fit with various base.Optimizer
-	var Optimizers = []string{
-		//"sgd",
-		//"adagrad",
-		//"rmsprop",
-		//"adadelta",
-		"adam",
-	}
-
-	for _, optimizer := range Optimizers {
-		testSetup := optimizer
-		regr.Options.ThetaInitializer = func(Theta *mat.Dense) {
-			Theta.Sub(Theta, Theta)
-		}
-		regr.Options.GOMethodCreator = nil
-		//regr.Options.Recorder = printer
-		regr.Options.MiniBatchSize = nSamples
-		regr.Solver = optimizer
-		regr.SolverConfigure = func(op base.Optimizer) {
-			if optimizer == "sgd" {
-				op.(*base.SGDOptimizer).StepSize = .25
-			}
-		}
-		//regr.Options.Epochs = 1e5
-		start := time.Now()
-		regr.Fit(Xp, Ytrue)
-		elapsed := time.Since(start)
-		J = loss()
-
-		if J < bestLoss {
-			bestLoss = J
-			best["best for loss"] = testSetup + fmt.Sprintf("(%g)", J)
-		}
-		if elapsed < bestTime {
-			bestTime = elapsed
-			best["best for time"] = testSetup + fmt.Sprintf("(%s)", elapsed)
-		}
-		// Ypred contains probas. call predict to have binary result
-		regr.Predict(Xp, Ypred)
-		accuracy := metrics.AccuracyScore(Ytrue, Ypred, true, nil)
-		//fmt.Println("acc:", testSetup, accuracy)
-		expectedAccuracy := 0.82
-		if accuracy < expectedAccuracy {
-			t.Errorf("%s accuracy=%g expected:%g", regr.Solver, accuracy, expectedAccuracy)
-		}
-	}
-	fmt.Println("LogisticRegression BEST SETUP:", best)
-}
-
-func ExampleLogisticRegression_Fit_iris() {
 	// adapted from http://scikit-learn.org/stable/_downloads/plot_iris_logistic.ipynb
 	ds := datasets.LoadIris()
 
 	// we only take the first _ features.
-	X, YTrueClasses := base.MatDenseColSlice(ds.X, 0, 4), ds.Y
+	nSamples, _ := ds.X.Dims()
+	X, YTrueClasses := ds.X.Slice(0, nSamples, 0, 2).(*mat.Dense), ds.Y
 	h := .02 // step size in the mesh
-	_ = h
-	logreg := NewLogisticRegression()
-	C := 1e5
-	logreg.Alpha = 1. / C
+
+	regr := NewLogisticRegression()
+	regr.Alpha = 1e-5
+
+	log.SetPrefix("ExampleLogisticRegression_Fit_iris:")
+	defer log.SetPrefix("")
 
 	// we create an instance of our Classifier and fit the data.
-	// preprocessing.AddDummyFeature(X)
-	logreg.Fit(X, YTrueClasses)
+	regr.Fit(X, YTrueClasses)
 
-	Ypred := &mat.Dense{}
-	logreg.Predict(X, Ypred)
-	accuracy := metrics.AccuracyScore(YTrueClasses, Ypred, true, nil)
-	// TODO FIXME accuracy should be 0.833 with only 2 first features here. 0.986 with 4 features
+	accuracy := regr.Score(X, YTrueClasses)
 	if accuracy >= 0.833 {
 		fmt.Println("ok")
 	} else {
-		fmt.Printf("Accuracy:%.2f", accuracy)
+		fmt.Printf("Accuracy:%.3f\n", accuracy)
 	}
 
 	// Put the result into a color plot
@@ -369,8 +80,7 @@ func ExampleLogisticRegression_Fit_iris() {
 		}
 		var xx, yy = npmeshgrid(nparange(xmin, xmax, h), nparange(ymin, ymax, h))
 		Xgrid := npc(xx, yy)
-		Z := &mat.Dense{}
-		logreg.Predict(Xgrid, Z)
+		Z := regr.Predict(Xgrid, nil)
 
 		plt, _ := plot.New()
 		xys := func(X, Y mat.Matrix, cls int) (xy plotter.XYs) {
