@@ -5,13 +5,16 @@ import (
 	"fmt"
 	"image/color"
 	"log"
+	"math"
 	"os"
 	"os/exec"
 	"time"
 
 	"github.com/pa-m/sklearn/base"
 	"github.com/pa-m/sklearn/datasets"
+	"gonum.org/v1/gonum/diff/fd"
 	"gonum.org/v1/gonum/mat"
+	"gonum.org/v1/gonum/optimize"
 	"gonum.org/v1/plot"
 	"gonum.org/v1/plot/plotter"
 	"gonum.org/v1/plot/vg"
@@ -33,6 +36,20 @@ func ExampleLogisticRegression() {
 
 	regr := NewLogisticRegression()
 	regr.Alpha = 1e-5
+	regr.beforeMinimize = func(problem optimize.Problem, initX []float64) {
+		// check gradients
+		settings := &fd.Settings{Step: 1e-8}
+		gradFromModel := make([]float64, len(initX))
+		gradFromFD := make([]float64, len(initX))
+		problem.Func(initX)
+		problem.Grad(gradFromModel, initX)
+		fd.Gradient(gradFromFD, problem.Func, initX, settings)
+		for i := range initX {
+			if math.Abs(gradFromFD[i]-gradFromModel[i]) > 1e-4 {
+				panic(fmt.Errorf("bad gradient, expected:\n%.3f\ngot:\n%.3f", gradFromFD, gradFromModel))
+			}
+		}
+	}
 
 	log.SetPrefix("ExampleLogisticRegression_Fit_iris:")
 	defer log.SetPrefix("")

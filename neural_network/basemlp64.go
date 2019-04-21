@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"reflect"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -72,6 +73,7 @@ type BaseMultilayerPerceptron64 struct {
 	bestParameters      []float64
 	batchNorm           [][]float64
 	lb                  *LabelBinarizer64
+	beforeMinimize      func(optimize.Problem, []float64)
 }
 
 // Activations64 is a map containing the inplace_activation functions
@@ -208,13 +210,7 @@ func addIntercepts64(a blas64General, b []float64) {
 		}
 	}
 }
-func matDivFloat64(a blas64General, b float64) {
-	for arow, apos := 0, 0; arow < a.Rows; arow, apos = arow+1, apos+a.Stride {
-		for c := 0; c < a.Cols; c++ {
-			a.Data[apos+c] /= b
-		}
-	}
-}
+
 func matRowMean64(a blas64General, b []float64) {
 	for c := 0; c < a.Cols; c++ {
 		b[c] = 0
@@ -326,13 +322,11 @@ func (mlp *BaseMultilayerPerceptron64) sumCoefSquares() float64 {
 // computeLossGrad Compute the gradient of loss with respect to coefs and intercept for specified layer.
 // This function does backpropagation for the specified one layer.
 func (mlp *BaseMultilayerPerceptron64) computeLossGrad(layer, NSamples int, activations []blas64General, deltas []blas64General, coefGrads []blas64General, interceptGrads [][]float64) {
-	//coefGrads[layer] = safeSparseDot(activations[layer].T, deltas[layer])
-
-	gemm64(blas.Trans, blas.NoTrans, 1, activations[layer], deltas[layer], 0, coefGrads[layer])
-	//coefGrads[layer] += (self.alpha * self.coefs_[layer])
-	axpy64(len(coefGrads[layer].Data), mlp.Alpha, mlp.Coefs[layer].Data, coefGrads[layer].Data)
+	// coefGrads[layer] = safeSparseDot(activations[layer].T, deltas[layer])
+	// coefGrads[layer] += (self.alpha * self.coefs_[layer])
 	// coefGrads[layer] /= nSamples
-	matDivFloat64(coefGrads[layer], float64(NSamples))
+	gemm64(blas.Trans, blas.NoTrans, 1/float64(NSamples), activations[layer], deltas[layer], 0, coefGrads[layer])
+	axpy64(len(coefGrads[layer].Data), mlp.Alpha/float64(NSamples), mlp.Coefs[layer].Data, coefGrads[layer].Data)
 	// interceptGrads[layer] = np.mean(deltas[layer], 0)
 	matRowMean64(deltas[layer], interceptGrads[layer])
 }
@@ -673,6 +667,7 @@ func (mlp *BaseMultilayerPerceptron64) fitLbfgs(X, y blas64General, activations,
 			Relative:   float64(mlp.Tol),
 			Iterations: mlp.NIterNoChange,
 		},
+		Concurrent: runtime.GOMAXPROCS(0),
 	}
 
 	var mu sync.Mutex // sync access to mlp.Loss on LossCurve
@@ -706,11 +701,14 @@ func (mlp *BaseMultilayerPerceptron64) fitLbfgs(X, y blas64General, activations,
 	for i := range w {
 		w[i] = float64(mlp.packedParameters[i])
 	}
+	if mlp.beforeMinimize != nil {
+		mlp.beforeMinimize(problem, w)
+	}
 	res, err := optimize.Minimize(problem, w, settings, method)
 	if err != nil {
 		log.Panic(err)
 	}
-	if res.Status != optimize.GradientThreshold {
+	if res.Status != optimize.GradientThreshold && res.Status != optimize.FunctionConvergence {
 		log.Printf("lbfgs optimizer: Maximum iterations (%d) reached and the optimization hasn't converged yet.\n", mlp.MaxIter)
 	}
 }
@@ -929,7 +927,6 @@ func (mlp *BaseMultilayerPerceptron64) score(X, Y blas64General) float64 {
 	}
 	// R2Score
 	return r2Score64(Y, H)
-
 }
 
 func (mlp *BaseMultilayerPerceptron64) validateInput(X, y blas64General, incremental bool) (Xout, youy blas64General) {

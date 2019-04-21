@@ -1,7 +1,6 @@
 package linearmodel
 
 import (
-	"fmt"
 	"log"
 	"math"
 	"strings"
@@ -21,7 +20,6 @@ import (
 
 	"golang.org/x/exp/rand"
 	"gonum.org/v1/gonum/blas"
-	"gonum.org/v1/gonum/diff/fd"
 	"gonum.org/v1/gonum/optimize"
 )
 
@@ -59,6 +57,7 @@ type LogisticRegression struct {
 	packedGrads        []float64
 	bestParameters     []float64
 	lb                 *preprocessing.LabelBinarizer
+	beforeMinimize     func(optimize.Problem, []float64)
 }
 
 // logregActivation is a map containing the inplace_activation functions
@@ -139,13 +138,7 @@ func addIntercepts64(a blas64.General, b []float64) {
 		}
 	}
 }
-func matDivFloat64(a blas64.General, b float64) {
-	for arow, apos := 0, 0; arow < a.Rows; arow, apos = arow+1, apos+a.Stride {
-		for c := 0; c < a.Cols; c++ {
-			a.Data[apos+c] /= b
-		}
-	}
-}
+
 func matRowMean64(a blas64.General, b []float64) {
 	for c := 0; c < a.Cols; c++ {
 		b[c] = 0
@@ -215,13 +208,11 @@ func (m *LogisticRegression) sumCoefSquares() float64 {
 // computeLossGrad Compute the gradient of loss with respect to Coef and intercept for specified layer.
 // This function does backpropagation for the specified one layer.
 func (m *LogisticRegression) computeLossGrad(layer, NSamples int, activations []blas64.General, deltas, coefGrads blas64.General, interceptGrads []float64) {
-	//coefGrads[layer] = safeSparseDot(activations[layer].T, deltas[layer])
-
-	blas64.Gemm(blas.Trans, blas.NoTrans, 1, activations[layer], deltas, 0, coefGrads)
-	//coefGrads[layer] += (self.alpha * self.coefs_[layer])
-	blas64.Axpy(m.Alpha, blas64.Vector{N: len(m.Coef.Data), Data: m.Coef.Data, Inc: 1}, blas64.Vector{N: len(coefGrads.Data), Data: coefGrads.Data, Inc: 1})
+	// coefGrads[layer] = safeSparseDot(activations[layer].T, deltas[layer])
+	// coefGrads[layer] += (self.alpha * self.coefs_[layer])
 	// coefGrads[layer] /= nSamples
-	matDivFloat64(coefGrads, float64(NSamples))
+	blas64.Gemm(blas.Trans, blas.NoTrans, 1/float64(NSamples), activations[layer], deltas, 0, coefGrads)
+	blas64.Axpy(m.Alpha/float64(NSamples), blas64.Vector{N: len(m.Coef.Data), Data: m.Coef.Data, Inc: 1}, blas64.Vector{N: len(coefGrads.Data), Data: coefGrads.Data, Inc: 1})
 	// interceptGrads[layer] = np.mean(deltas[layer], 0)
 	matRowMean64(deltas, interceptGrads)
 }
@@ -390,7 +381,7 @@ func (m *LogisticRegression) Fit(X, Y mat.Matrix) base.Fiter {
 // GetNOutputs returns output columns number for Y to pass to predict
 func (m *LogisticRegression) GetNOutputs() int {
 	if m.lb != nil {
-		return len(m.lb.Classes[0])
+		return len(m.lb.Classes)
 	}
 	return m.NOutputs
 }
@@ -447,21 +438,32 @@ func (m *LogisticRegression) fitLbfgs(X, y blas64.General, activations []blas64.
 	for i := range w {
 		w[i] = float64(m.packedParameters[i])
 	}
-	// checkGradients(problem, w, &fd.Settings{Step: 1e-8})
+	if m.beforeMinimize != nil {
+		m.beforeMinimize(problem, w)
+	}
 	res, err := optimize.Minimize(problem, w, settings, method)
 	if err != nil {
 		log.Panic(err)
 	}
-	if res.Status != optimize.GradientThreshold {
+	if res.Status != optimize.GradientThreshold && res.Status != optimize.FunctionConvergence {
 		log.Printf("lbfgs optimizer: Maximum iterations (%d) reached and the optimization hasn't converged yet.\n", m.MaxIter)
 	}
 }
 
-// PredictProbas ...
+// PredictProbas return probability estimates.
+// The returned estimates for all classes are ordered by the label of classes.
 func (m *LogisticRegression) PredictProbas(Xmatrix mat.Matrix, Ymutable mat.Mutable) *mat.Dense {
 	X, Y := base.ToDense(Xmatrix).RawMatrix(), base.ToDense(Ymutable)
 	if Y.IsZero() {
-		Y = mat.NewDense(X.Rows, m.GetNOutputs(), nil)
+		fanOut := 0
+		if m.lb != nil {
+			for _, classes := range m.lb.Classes {
+				fanOut += len(classes)
+			}
+		} else {
+			fanOut = m.GetNOutputs()
+		}
+		Y = mat.NewDense(X.Rows, fanOut, nil)
 	}
 
 	// # Initialize layer
@@ -534,17 +536,4 @@ func rowSlice(X blas64.General, i, k int) blas64.General {
 	var tmp mat.Dense
 	(&tmp).SetRawMatrix(X)
 	return tmp.Slice(i, k, 0, X.Cols).(*mat.Dense).RawMatrix()
-}
-
-func checkGradients(problem optimize.Problem, x0 []float64, settings *fd.Settings) {
-	gA := make([]float64, len(x0))
-	gB := make([]float64, len(x0))
-	problem.Func(x0)
-	problem.Grad(gA, x0)
-	fd.Gradient(gB, problem.Func, x0, settings)
-	for i := range x0 {
-		if math.Abs(gB[i]-gA[i]) > 1e-4 {
-			panic(fmt.Errorf("bad gradient, expected:\n%.3f\ngot:\n%.3f", gB, gA))
-		}
-	}
 }

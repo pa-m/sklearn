@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"reflect"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -72,6 +73,7 @@ type BaseMultilayerPerceptron32 struct {
 	bestParameters      []float32
 	batchNorm           [][]float32
 	lb                  *LabelBinarizer32
+	beforeMinimize      func(optimize.Problem, []float64)
 }
 
 // Activations32 is a map containing the inplace_activation functions
@@ -208,13 +210,7 @@ func addIntercepts32(a blas32General, b []float32) {
 		}
 	}
 }
-func matDivFloat32(a blas32General, b float32) {
-	for arow, apos := 0, 0; arow < a.Rows; arow, apos = arow+1, apos+a.Stride {
-		for c := 0; c < a.Cols; c++ {
-			a.Data[apos+c] /= b
-		}
-	}
-}
+
 func matRowMean32(a blas32General, b []float32) {
 	for c := 0; c < a.Cols; c++ {
 		b[c] = 0
@@ -326,13 +322,11 @@ func (mlp *BaseMultilayerPerceptron32) sumCoefSquares() float32 {
 // computeLossGrad Compute the gradient of loss with respect to coefs and intercept for specified layer.
 // This function does backpropagation for the specified one layer.
 func (mlp *BaseMultilayerPerceptron32) computeLossGrad(layer, NSamples int, activations []blas32General, deltas []blas32General, coefGrads []blas32General, interceptGrads [][]float32) {
-	//coefGrads[layer] = safeSparseDot(activations[layer].T, deltas[layer])
-
-	gemm32(blas.Trans, blas.NoTrans, 1, activations[layer], deltas[layer], 0, coefGrads[layer])
-	//coefGrads[layer] += (self.alpha * self.coefs_[layer])
-	axpy32(len(coefGrads[layer].Data), mlp.Alpha, mlp.Coefs[layer].Data, coefGrads[layer].Data)
+	// coefGrads[layer] = safeSparseDot(activations[layer].T, deltas[layer])
+	// coefGrads[layer] += (self.alpha * self.coefs_[layer])
 	// coefGrads[layer] /= nSamples
-	matDivFloat32(coefGrads[layer], float32(NSamples))
+	gemm32(blas.Trans, blas.NoTrans, 1/float32(NSamples), activations[layer], deltas[layer], 0, coefGrads[layer])
+	axpy32(len(coefGrads[layer].Data), mlp.Alpha/float32(NSamples), mlp.Coefs[layer].Data, coefGrads[layer].Data)
 	// interceptGrads[layer] = np.mean(deltas[layer], 0)
 	matRowMean32(deltas[layer], interceptGrads[layer])
 }
@@ -673,6 +667,7 @@ func (mlp *BaseMultilayerPerceptron32) fitLbfgs(X, y blas32General, activations,
 			Relative:   float64(mlp.Tol),
 			Iterations: mlp.NIterNoChange,
 		},
+		Concurrent: runtime.GOMAXPROCS(0),
 	}
 
 	var mu sync.Mutex // sync access to mlp.Loss on LossCurve
@@ -706,11 +701,14 @@ func (mlp *BaseMultilayerPerceptron32) fitLbfgs(X, y blas32General, activations,
 	for i := range w {
 		w[i] = float64(mlp.packedParameters[i])
 	}
+	if mlp.beforeMinimize != nil {
+		mlp.beforeMinimize(problem, w)
+	}
 	res, err := optimize.Minimize(problem, w, settings, method)
 	if err != nil {
 		log.Panic(err)
 	}
-	if res.Status != optimize.GradientThreshold {
+	if res.Status != optimize.GradientThreshold && res.Status != optimize.FunctionConvergence {
 		log.Printf("lbfgs optimizer: Maximum iterations (%d) reached and the optimization hasn't converged yet.\n", mlp.MaxIter)
 	}
 }
@@ -929,7 +927,6 @@ func (mlp *BaseMultilayerPerceptron32) score(X, Y blas32General) float32 {
 	}
 	// R2Score
 	return r2Score32(Y, H)
-
 }
 
 func (mlp *BaseMultilayerPerceptron32) validateInput(X, y blas32General, incremental bool) (Xout, youy blas32General) {

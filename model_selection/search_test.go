@@ -89,7 +89,6 @@ func chkRandomState(rs rand.Source) {
 	}
 }
 func ExampleGridSearchCV() {
-	// TODO fix reproducibility
 	RandomState := base.NewSource(7)
 	ds := datasets.LoadBoston()
 	X, Y := preprocessing.NewStandardScaler().FitTransform(ds.X, ds.Y)

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/pa-m/sklearn/base"
 	"github.com/pa-m/sklearn/datasets"
 )
 
@@ -13,6 +14,7 @@ func ExampleBaseMultilayerPerceptron32_Fit_mnist() {
 	mlp.HiddenLayerSizes = []int{25}
 	mlp.LossFuncName = "binary_log_loss"
 	mlp.MaxIter = 200
+	mlp.RandomState = base.NewLockedSource(7)
 	mlp.Shuffle = true
 	mlp.BatchNormalize = true
 	expectedMinAccuracy := .988

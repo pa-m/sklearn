@@ -21,8 +21,10 @@ import (
 
 	"github.com/pa-m/sklearn/preprocessing"
 	"gonum.org/v1/gonum/blas/blas32"
+	"gonum.org/v1/gonum/diff/fd"
 	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
+	"gonum.org/v1/gonum/optimize"
 	"gonum.org/v1/plot"
 	"gonum.org/v1/plot/plotter"
 	"gonum.org/v1/plot/vg"
@@ -119,6 +121,20 @@ func TestMLPClassifierMicrochip(t *testing.T) {
 		"lbfgs",
 	}
 
+	checkGradients := func(problem optimize.Problem, initX []float64) {
+		settings := &fd.Settings{Step: 1e-8}
+		gradFromModel := make([]float64, len(initX))
+		gradFromFD := make([]float64, len(initX))
+		problem.Func(initX)
+		problem.Grad(gradFromModel, initX)
+		fd.Gradient(gradFromFD, problem.Func, initX, settings)
+		for i := range initX {
+			if math.Abs(gradFromFD[i]-gradFromModel[i]) > 1e-4 {
+				panic(fmt.Errorf("bad gradient, expected:\n%.3f\ngot:\n%.3f", gradFromFD, gradFromModel))
+			}
+		}
+	}
+
 	for _, optimizer := range Optimizers {
 		t.Run(optimizer, func(t *testing.T) {
 
@@ -133,6 +149,7 @@ func TestMLPClassifierMicrochip(t *testing.T) {
 			regr.MaxIter = 400
 			regr.LearningRateInit = .11
 			regr.BatchSize = 118 //1,2,59,118
+			regr.beforeMinimize = checkGradients
 
 			start := time.Now()
 			regr.Fit(Xp, Ytrue)

@@ -25,7 +25,6 @@ func TestLogLoss(t *testing.T) {
 }
 
 func TestCrossEntropyLoss(t *testing.T) {
-	// TODO tanh
 	for _, activationFunction := range base.Activations {
 		testLossDerivatives(t, CrossEntropyLoss, activationFunction)
 	}
