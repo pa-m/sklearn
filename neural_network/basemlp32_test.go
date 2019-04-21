@@ -12,7 +12,6 @@ func ExampleBaseMultilayerPerceptron32_Fit_mnist() {
 	X, Y := datasets.LoadMnist()
 	mlp := NewBaseMultilayerPerceptron32()
 	mlp.HiddenLayerSizes = []int{25}
-	mlp.LossFuncName = "binary_log_loss"
 	mlp.MaxIter = 200
 	mlp.RandomState = base.NewLockedSource(7)
 	mlp.Shuffle = true

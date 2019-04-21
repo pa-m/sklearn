@@ -894,7 +894,7 @@ func (m *Binarizer) Transform(X, Y mat.Matrix) (Xout, Yout *mat.Dense) {
 	return
 }
 
-// FitTransform fit to dat, then transform it
+// FitTransform fit to data, then transform it
 func (m *Binarizer) FitTransform(X, Y mat.Matrix) (Xout, Yout *mat.Dense) {
 	m.Fit(X, Y)
 	return m.Transform(X, Y)
@@ -1142,6 +1142,7 @@ type QuantileTransformer struct {
 	OutputDistribution string
 	RandomState        rand.Source
 	references         []float64
+	Quantiles          mat.Matrix
 }
 
 // NewQuantileTransformer returns a new QuantileTransformer
@@ -1151,16 +1152,28 @@ func NewQuantileTransformer(NQuantiles int, outputDistribution string, RandomSta
 
 // Fit for QuantileTransformer retain X or a part of it
 func (m *QuantileTransformer) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
+	nSamples, nFeatures := Xmatrix.Dims()
+	XT := mat.DenseCopyOf(Xmatrix.T())
 	m.references = make([]float64, m.NQuantiles)
+	Q := mat.NewDense(nFeatures, m.NQuantiles, nil)
 	for i := range m.references {
 		m.references[i] = float64(i) / float64(m.NQuantiles-1)
 	}
-	// for c := 0; c < ma.Cols; c++ {
-	// 	values := make([]float64, ma.Rows)
-	// 	mat.Col(values, c, X)
-	// 	min, max := floats.Min(values), floats.Max(values)
-
-	// }
+	for feature := 0; feature < nFeatures; feature++ {
+		values := XT.RawRowView(feature)
+		quantiles := Q.RawRowView(feature)
+		for i := range m.references {
+			realSample := float64(i) / float64(m.NQuantiles-1) * float64(nSamples-1)
+			i0 := int(math.Min(math.Floor(realSample), float64(nSamples-1)))
+			if realSample == float(i0) || i0+1 >= len(values) {
+				quantiles[i] = values[i0]
+			} else {
+				p := realSample - float64(i0)
+				quantiles[i] = (values[i0]*(1-p) + values[i0+1]*(p))
+			}
+		}
+	}
+	m.Quantiles = Q.T()
 	return m
 }
 
@@ -1168,35 +1181,17 @@ func (m *QuantileTransformer) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
 func (m *QuantileTransformer) Transform(Xmatrix, Ymatrix mat.Matrix) (Xout, Yout *mat.Dense) {
 	X, Y := base.ToDense(Xmatrix), base.ToDense(Ymatrix)
 	nSamples, nFeatures := X.Dims()
-	Xout = mat.NewDense(nSamples, X.RawMatrix().Cols, nil)
-	rm := X.RawMatrix()
-	xoutraw := Xout.RawMatrix()
-	_ = xoutraw
+	eps := 1e-7
+	Xout = mat.NewDense(nSamples, nFeatures, nil)
 	for c := 0; c < nFeatures && c < len(m.references); c++ {
-		values := make([]float64, rm.Rows)
-		mat.Col(values, c, X)
-		// min, max := floats.Min(values), floats.max(values)
-		idx := make([]int, rm.Rows)
-		for i := range idx {
-			idx[i] = i
-		}
-		sort.Slice(idx, func(i, j int) bool { return values[idx[i]] < values[idx[j]] })
-		idxposmax := rm.Rows - 1
-		xmax := X.At(idx[idxposmax], c)
 		for q := m.NQuantiles - 2; q >= 0; q-- {
-			idxposmin := int(math.Round(float64(q) / float64(m.NQuantiles-1) * float64(rm.Rows)))
-			xmin := 0.
-			if idxposmin >= 0 {
-				xmin = X.At(idx[idxposmin], c)
+			x0, x1 := m.Quantiles.At(q, c), m.Quantiles.At(q+1, c)
+			for i := 0; i < nSamples; i++ {
+				x := X.At(i, c)
+				if x >= x0 && x <= x1 {
+					Xout.Set(i, c, math.Min(m.references[m.NQuantiles-1]-eps, math.Max(m.references[0]+eps, m.references[q]+(x-x0)/(x1-x0)*(m.references[q+1]-m.references[q]))))
+				}
 			}
-			// fmt.Println(idxposmin, idxposmax)
-			for ii := idxposmin + 1; ii <= idxposmax; ii++ {
-				i := idx[ii]
-				xi := rm.Data[i*rm.Stride+c]
-				xoutraw.Data[i*xoutraw.Stride+c] = m.references[q] + (m.references[q+1]-m.references[q])*(xi-xmin)/(xmax-xmin)
-			}
-			idxposmax = idxposmin
-			xmax = xmin
 		}
 	}
 	return Xout, Y

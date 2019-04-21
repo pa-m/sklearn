@@ -1317,7 +1317,7 @@ func (m *LabelBinarizer32) Transform(X, Y mat.Matrix) (Xout, Yout General32) {
 	return
 }
 
-// FitTransform fit to dat, then transform it
+// FitTransform fit to data, then transform it
 func (m *LabelBinarizer32) FitTransform(X, Y mat.Matrix) (Xout, Yout General32) {
 	m.Fit(X, Y)
 	return m.Transform(X, Y)
