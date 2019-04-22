@@ -1,2 +1,2 @@
-// Package sklearn is a (very partial) port or scikit-learn in go
+// Package sklearn is a partial port of scikit-learn in go
 package sklearn

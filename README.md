@@ -6,6 +6,7 @@ Partial port of scikit-learn to [go](http://golang.org)
 [![Code Coverage](https://codecov.io/gh/pa-m/sklearn/branch/master/graph/badge.svg)](https://codecov.io/gh/pa-m/sklearn)
 [![Go Report Card](https://goreportcard.com/badge/github.com/pa-m/sklearn)](https://goreportcard.com/report/github.com/pa-m/sklearn)
 [![GoDoc](https://godoc.org/github.com/pa-m/sklearn?status.svg)](https://godoc.org/github.com/pa-m/sklearn)
+[![twitter](http://i.imgur.com/tXSoThF.png)](https://twitter.com/pmassch2)
 
 ## Examples
 ### cluster
