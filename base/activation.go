@@ -1,8 +1,6 @@
 package base
 
 import (
-	"gonum.org/v1/gonum/mat"
-	//"gonum.org/v1/gonum/mat"
 	"math"
 )
 
@@ -58,23 +56,6 @@ func (ReLU) Fprime(y float64) float64 {
 		return 0.
 	}
 	return 1.
-}
-
-// Softmax ...
-type Softmax struct{}
-
-// F for Softmax
-func (Softmax) F(z mat.Vector, output int) float64 {
-	outputs, _ := z.Dims()
-	var N, D float64
-	for o := 0; o < outputs; o++ {
-		expzo := math.Exp(z.AtVec(o))
-		D += expzo
-		if o == output {
-			N += expzo
-		}
-	}
-	return N / D
 }
 
 // Fprime ... DjSi = Si (1(i=j)-Sj)

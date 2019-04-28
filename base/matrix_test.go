@@ -1,20 +1,91 @@
 package base
 
 import (
+	"fmt"
 	"testing"
 
 	"gonum.org/v1/gonum/mat"
 )
 
-func TestMatrixFirstColumnRemoved(t *testing.T) {
-	Theta := mat.NewDense(1, 3, []float64{1, 2, 3})
-	Theta1 := MatFirstColumnRemoved{Theta}
-	_, c := Theta.Dims()
-	_, c1 := Theta1.Dims()
-	if c1 != c-1 {
-		t.Errorf("c1:%d expected:%d", c1, c-1)
+var _ mat.Mutable = MatTranspose{}
+
+func mustPanic(t *testing.T, f func()) {
+	defer func() {
+		if r := recover(); r != nil {
+
+		}
+	}()
+	f()
+	t.Error("must panic")
+}
+func TestMatConst(t *testing.T) {
+	m := MatConst{Rows: 2, Columns: 3, Value: 1}
+	r, c := m.Dims()
+	if r != 2 || c != 3 {
+		t.Fail()
 	}
-	if Theta1.At(0, 0) != 2 {
-		t.Errorf("Theta1.At(0,0):%g expected:%g", Theta1.At(0, 0), 2.)
+	if m.At(0, 0) != 1 || m.At(1, 1) != 1 {
+		t.Fail()
 	}
+	if m.T().At(0, 0) != 1 {
+		t.Fail()
+	}
+}
+func TestMatTranspose(t *testing.T) {
+	d := mat.NewDense(2, 2, []float64{0, 1, 0, 0})
+	m := MatTranspose{Matrix: d}
+	if m.At(1, 0) != 1 {
+		t.Fail()
+	}
+	m.Set(1, 0, 3)
+	if m.T().At(0, 1) != 3 {
+		t.Fail()
+	}
+}
+
+func TestMatStr(t *testing.T) {
+	actual := MatStr(mat.NewDense(2, 2, []float64{1, 2, 4, 5}), mat.NewDense(2, 1, []float64{3, 6}))
+	if MatStr() != "" {
+		t.Fail()
+	}
+	if MatStr(&mat.Dense{}) != "" {
+		t.Fail()
+	}
+	expected := "1\t2\t3\n4\t5\t6\n"
+	if expected != actual {
+		t.Errorf("expected:\n%s\ngot:\n%s\n", expected, actual)
+	}
+}
+
+func TestMatDenseSlice(t *testing.T) {
+	var actual string
+	actual = fmt.Sprintf("%g", mat.Formatted(MatDenseSlice(mat.NewDense(3, 2, []float64{
+		1, 2,
+		3, 4,
+		5, 6}), 1, 2, 1, 2)))
+	if "[4]" != actual {
+		t.Errorf("got: %s", actual)
+	}
+	actual = fmt.Sprintf("%g", mat.Formatted(MatDenseRowSlice(mat.NewDense(3, 2, []float64{1, 2, 3, 4, 5, 6}), 1, 2)))
+	if "[3  4]" != actual {
+		t.Errorf("got: %s", actual)
+	}
+	actual = fmt.Sprintf("%g", mat.Formatted(MatDenseColSlice(mat.NewDense(3, 2, []float64{1, 2, 3, 4, 5, 6}), 1, 2).T()))
+	if "[2  4  6]" != actual {
+		t.Errorf("got: %s", actual)
+	}
+}
+
+func TestToDense(t *testing.T) {
+	m := MatConst{Rows: 1, Columns: 1, Value: 1}
+	d := ToDense(m)
+	if "[1]" != fmt.Sprintf("%g", mat.Formatted(d)) {
+		t.Fail()
+	}
+	d2 := mat.NewDense(1, 1, []float64{0})
+	m2 := FromDense(d2, d)
+	if "[1]" != fmt.Sprintf("%g", mat.Formatted(m2)) {
+		t.Fail()
+	}
+
 }

@@ -4,9 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"math"
-
-	"golang.org/x/exp/rand"
 
 	"gonum.org/v1/gonum/blas/blas64"
 	"gonum.org/v1/gonum/mat"
@@ -53,78 +50,6 @@ func (m MatTranspose) T() mat.Matrix { return m.Matrix }
 // MatOnesPrepended is a matrix override representing its initializer with an initial column of ones added
 type MatOnesPrepended struct{ mat.Matrix }
 
-// Dims for MatOnesPrepended
-func (m MatOnesPrepended) Dims() (int, int) { r, c := m.Matrix.Dims(); return r, 1 + c }
-
-// At for MatOnesPrepended
-func (m MatOnesPrepended) At(i, j int) float64 {
-	if j == 0 {
-		return 1.
-	}
-	return m.Matrix.At(i, j-1)
-}
-
-// Set for MatOnesPrepended
-func (m MatOnesPrepended) Set(i, j int, v float64) {
-	if Mutable, ok := m.Matrix.(mat.Mutable); ok {
-		Mutable.Set(i, j-1, v)
-	} else {
-		panic("underling Matrix is not Mutable")
-	}
-}
-
-// T for MatOnesPrepended not implemented
-func (m MatOnesPrepended) T() mat.Matrix { return MatTranspose{m} }
-
-// MatFirstColumnRemoved is a matrix whose an initial column has been removed respective to its initializer
-type MatFirstColumnRemoved struct{ mat.Matrix }
-
-// Dims for MatFirstColumnRemoved
-func (m MatFirstColumnRemoved) Dims() (int, int) { r, c := m.Matrix.Dims(); return r, c - 1 }
-
-// At for MatFirstColumnRemoved
-func (m MatFirstColumnRemoved) At(i, j int) float64 {
-	return m.Matrix.At(i, j+1)
-}
-
-// Set for MatFirstColumnRemoved
-func (m MatFirstColumnRemoved) Set(i, j int, v float64) {
-	if Mutable, ok := m.Matrix.(mat.Mutable); ok {
-		Mutable.Set(i, j+1, v)
-	} else {
-		panic("underling Matrix is not Mutable")
-	}
-}
-
-// T for MatFirstColumnRemoved
-func (m MatFirstColumnRemoved) T() mat.Matrix { return MatTranspose{m} }
-
-// MatFirstRowZeroed is a matrix whose an initial Row has been set to zeros respective to its initializer
-type MatFirstRowZeroed struct{ mat.Matrix }
-
-// Dims for MatFirstRowZeroed
-func (m MatFirstRowZeroed) Dims() (int, int) { return m.Matrix.Dims() }
-
-// At for MatFirstRowZeroed
-func (m MatFirstRowZeroed) At(i, j int) float64 {
-	if i == 0 {
-		return 0.
-	}
-	return m.Matrix.At(i, j)
-}
-
-// Set for MatFirstRowZeroed
-func (m MatFirstRowZeroed) Set(i, j int, v float64) {
-	if Mutable, ok := m.Matrix.(mat.Mutable); ok {
-		Mutable.Set(i, j, v)
-	} else {
-		panic("underling Matrix is not Mutable")
-	}
-}
-
-// T for MatFirstRowZeroed
-func (m MatFirstRowZeroed) T() mat.Matrix { return MatTranspose{m} }
-
 // MatRowSlice is a matrix row chunk
 type MatRowSlice struct {
 	mat.Matrix
@@ -153,104 +78,6 @@ func (m MatRowSlice) Set(i, j int, v float64) {
 
 // T for MatRowSlice
 func (m MatRowSlice) T() mat.Matrix { return MatTranspose{m} }
-
-// MatApply0 is a mat.Matrix override where At returns a func-generated value
-type MatApply0 struct {
-	Rows, Columns int
-	Func          func() float64
-}
-
-// Dims for MatApply0
-func (m MatApply0) Dims() (int, int) { return m.Rows, m.Columns }
-
-// At for MatApply0
-func (m MatApply0) At(i, j int) float64 { return m.Func() }
-
-// T for MatApply0
-func (m MatApply0) T() mat.Matrix { return MatTranspose{m} }
-
-// MatApply1 is a mat.Matrix override where At returns a func-trancformed value whose inputs are elements from its initializers
-type MatApply1 struct {
-	mat.Matrix
-	Func func(float64) float64
-}
-
-// Dims for MatApply1
-func (m MatApply1) Dims() (int, int) { return m.Matrix.Dims() }
-
-// At for MatApply1
-func (m MatApply1) At(i, j int) float64 { return m.Func(m.Matrix.At(i, j)) }
-
-// T for MatApply1 returns a MatTranspose
-func (m MatApply1) T() mat.Matrix { return MatTranspose{m} }
-
-// MatApply2 is a mat.Matric overrides returning a function where args are elements from its two Matrix initializers
-type MatApply2 struct {
-	A, B mat.Matrix
-	Func func(a, b float64) float64
-}
-
-// Dims for MatApply2
-func (m MatApply2) Dims() (int, int) { return m.A.Dims() }
-
-// At for MatApply2
-func (m MatApply2) At(i, j int) float64 { return m.Func(m.A.At(i, j), m.B.At(i, j)) }
-
-// T for MatApply2
-func (m MatApply2) T() mat.Matrix { return MatTranspose{m} }
-
-// MatSub is a mat.Matrix override returning difference from its two initializers
-type MatSub struct{ A, B mat.Matrix }
-
-// Dims for MatSub
-func (m MatSub) Dims() (int, int) { return m.A.Dims() }
-
-// At for MatSub
-func (m MatSub) At(i, j int) float64 { return m.A.At(i, j) - m.B.At(i, j) }
-
-// T for MatSub
-func (m MatSub) T() mat.Matrix { return MatTranspose{m} }
-
-// MatMulElem is a mat.Matrix override returning elementwize product from its two initializers
-type MatMulElem struct{ A, B mat.Matrix }
-
-// Dims for MatMuilElem
-func (m MatMulElem) Dims() (int, int) { return m.A.Dims() }
-
-// At for MatMulElem
-func (m MatMulElem) At(i, j int) float64 { return m.A.At(i, j) * m.B.At(i, j) }
-
-// T for MatMulElem
-func (m MatMulElem) T() mat.Matrix { return MatTranspose{m} }
-
-// MatScaled  is a mat.Matrix override returning scaled value from its initializer
-type MatScaled struct {
-	mat.Matrix
-	Scale float64
-}
-
-// Dims for MatScaled
-func (m MatScaled) Dims() (int, int) { return m.Matrix.Dims() }
-
-// At for MatScaled
-func (m MatScaled) At(i, j int) float64 { return m.Matrix.At(i, j) * m.Scale }
-
-// T for MatScaled
-func (m MatScaled) T() mat.Matrix { return MatTranspose{m} }
-
-// MatOneMinus  is a mat.Matrix override returning 1.-value from its initializer
-type MatOneMinus struct {
-	mat.Matrix
-}
-
-// Dims for MatOnesMinus
-func (m MatOneMinus) Dims() (int, int) { return m.Dims() }
-
-// At for MatOneMinus
-func (m MatOneMinus) At(i, j int) float64 { return 1. - m.At(i, j) }
-
-// T for MatOneMinus
-func (m MatOneMinus) T() mat.Matrix { return MatTranspose{m} }
 
 // MatDimsString returns a string representing Dims of its several Matrix parameters
 func MatDimsString(mats ...mat.Matrix) string {
@@ -303,57 +130,6 @@ func MatStr(Xs ...mat.Matrix) string {
 		}
 	}
 	return b.String()
-}
-
-// MatColStr return the string for a matrix column
-func MatColStr(X mat.Matrix, j int) string {
-	nSamples, _ := X.Dims()
-	var t = make([]float64, nSamples)
-	mat.Col(t, j, X)
-	return fmt.Sprint(t)
-}
-
-// MatRowStr returns the string for a matrix row
-func MatRowStr(X mat.Matrix, i int) string {
-	_, nFeatures := X.Dims()
-	var t = make([]float64, nFeatures)
-	mat.Row(t, i, X)
-	return fmt.Sprint(t)
-}
-
-// MatShuffle shuffles the rows of X and Y matrices
-func MatShuffle(X, Y *mat.Dense) {
-	nSamples, nFeatures := X.Dims()
-	_, nOutputs := Y.Dims()
-	Xrowi := make([]float64, nFeatures, nFeatures)
-	Yrowi := make([]float64, nOutputs, nOutputs)
-	for i := nSamples - 1; i > 0; i-- {
-		j := rand.Intn(i + 1)
-		copy(Xrowi, X.RawRowView(i))
-		X.SetRow(i, X.RawRowView(j))
-		X.SetRow(j, Xrowi)
-		copy(Yrowi, Y.RawRowView(i))
-		Y.SetRow(i, Y.RawRowView(j))
-		Y.SetRow(j, Yrowi)
-	}
-}
-
-// MatSigmoid put emelent-wise sigmoid of X into dst
-func MatSigmoid(dst *mat.Dense, X mat.Matrix) *mat.Dense {
-	if dst == nil {
-		r, c := X.Dims()
-		dst = mat.NewDense(r, c, nil)
-	}
-	dst.Apply(func(i int, j int, v float64) float64 {
-		return 1. / (1. + math.Exp(-v))
-	}, X)
-	return dst
-}
-
-// MatDenseFirstColumnRemoved returns a *mat.Dense view of partial underlaying data of M
-func MatDenseFirstColumnRemoved(src *mat.Dense) *mat.Dense {
-	nSamples, nOutputs := src.Dims()
-	return MatDenseSlice(src, 0, nSamples, 1, nOutputs)
 }
 
 // MatDenseSlice returns a *mat.Dense view of partial underlaying data of M
