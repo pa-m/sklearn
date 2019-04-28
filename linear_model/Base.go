@@ -211,7 +211,7 @@ func (regr *SGDRegressor) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
 			fd.Gradient(grad, p.Func, coef, settings)
 
 		}*/
-		p.Grad = func(grad, coef []float) []float {
+		p.Grad = func(grad, coef []float) {
 			if grad == nil {
 				grad = make([]float64, len(coef))
 			}
@@ -237,7 +237,6 @@ func (regr *SGDRegressor) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
 				grad[j] = gradj + al1*sgn(gradj) + al2*gradj
 				return grad[j]
 			}, gradmat)
-			return grad
 		}
 		initialcoefs := make([]float, nFeatures, nFeatures)
 		/*for j := 0; j < nFeatures; j++ {
@@ -498,7 +497,7 @@ func LinFitGOM(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 					J := opts.Loss(Ytrue.ColView(o), X, mat.NewDense(nFeatures, 1, thetao), Ypred, Ydiff, nil, opts.Alpha, opts.L1Ratio, nSamples, opts.Activation, opts.DisableRegularizationOfFirstFeature)
 					return J
 				},
-				Grad: func(grad, thetao []float64) []float64 {
+				Grad: func(grad, thetao []float64) {
 					if grad == nil {
 						grad = make([]float64, len(thetao))
 					}
@@ -507,7 +506,6 @@ func LinFitGOM(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 					}
 
 					opts.Loss(Ytrue.ColView(o), X, mat.NewDense(nFeatures, 1, thetao), Ypred, Ydiff, mat.NewDense(nFeatures, 1, grad), opts.Alpha, opts.L1Ratio, nSamples, opts.Activation, opts.DisableRegularizationOfFirstFeature)
-					return grad
 				},
 			}
 			mat.Col(thetao, o, thetaM)
@@ -539,12 +537,11 @@ func LinFitGOM(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 				J := opts.Loss(Ytrue, X, mat.NewDense(nFeatures, nOutputs, theta), Ypred, Ydiff, nil, opts.Alpha, opts.L1Ratio, nSamples, opts.Activation, opts.DisableRegularizationOfFirstFeature)
 				return J
 			},
-			Grad: func(grad, theta []float64) []float64 {
+			Grad: func(grad, theta []float64) {
 				if grad == nil {
 					grad = make([]float64, len(theta))
 				}
 				opts.Loss(Ytrue, X, mat.NewDense(nFeatures, nOutputs, theta), Ypred, Ydiff, mat.NewDense(nFeatures, nOutputs, grad), opts.Alpha, opts.L1Ratio, nSamples, opts.Activation, opts.DisableRegularizationOfFirstFeature)
-				return grad
 			},
 		}
 		ret, err = optimize.Minimize(p, theta, fSettings(), opts.GOMethodCreator())

@@ -423,7 +423,7 @@ func (m *LogisticRegression) fitLbfgs(X, y blas64.General, activations []blas64.
 			mu.Unlock()
 			return loss
 		},
-		Grad: func(g, w []float64) []float64 {
+		Grad: func(g, w []float64) {
 			// Grad is called just after Func with same w
 			if g == nil { // g is nil at first call
 				g = make([]float64, len(w), len(w))
@@ -431,7 +431,6 @@ func (m *LogisticRegression) fitLbfgs(X, y blas64.General, activations []blas64.
 			for i := range w {
 				g[i] = float64(m.packedGrads[i])
 			}
-			return g
 		},
 	}
 	w := make([]float64, len(m.packedParameters), len(m.packedParameters))

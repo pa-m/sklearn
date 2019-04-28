@@ -686,7 +686,7 @@ func (mlp *BaseMultilayerPerceptron64) fitLbfgs(X, y blas64General, activations,
 			mu.Unlock()
 			return loss
 		},
-		Grad: func(g, w []float64) []float64 {
+		Grad: func(g, w []float64) {
 			// Grad is called just after Func with same w
 			if g == nil { // g is nil at first call
 				g = make([]float64, len(w), len(w))
@@ -694,7 +694,6 @@ func (mlp *BaseMultilayerPerceptron64) fitLbfgs(X, y blas64General, activations,
 			for i := range w {
 				g[i] = float64(mlp.packedGrads[i])
 			}
-			return g
 		},
 	}
 	w := make([]float64, len(mlp.packedParameters), len(mlp.packedParameters))
@@ -1317,7 +1316,7 @@ func (m *LabelBinarizer64) Transform(X, Y mat.Matrix) (Xout, Yout General64) {
 	return
 }
 
-// FitTransform fit to dat, then transform it
+// FitTransform fit to data, then transform it
 func (m *LabelBinarizer64) FitTransform(X, Y mat.Matrix) (Xout, Yout General64) {
 	m.Fit(X, Y)
 	return m.Transform(X, Y)

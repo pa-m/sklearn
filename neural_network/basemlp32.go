@@ -686,7 +686,7 @@ func (mlp *BaseMultilayerPerceptron32) fitLbfgs(X, y blas32General, activations,
 			mu.Unlock()
 			return loss
 		},
-		Grad: func(g, w []float64) []float64 {
+		Grad: func(g, w []float64) {
 			// Grad is called just after Func with same w
 			if g == nil { // g is nil at first call
 				g = make([]float64, len(w), len(w))
@@ -694,7 +694,6 @@ func (mlp *BaseMultilayerPerceptron32) fitLbfgs(X, y blas32General, activations,
 			for i := range w {
 				g[i] = float64(mlp.packedGrads[i])
 			}
-			return g
 		},
 	}
 	w := make([]float64, len(mlp.packedParameters), len(mlp.packedParameters))
