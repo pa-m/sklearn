@@ -55,19 +55,19 @@ func TestMLPClassifierMicrochip(t *testing.T) {
 	Ypred := mat.NewDense(nSamples, nOutputs, nil)
 
 	Alpha := 1.
-	regr := NewMLPClassifier([]int{}, "logistic", "adam", Alpha)
-	regr.BatchSize = nSamples
+	mlp := NewMLPClassifier([]int{}, "logistic", "adam", Alpha)
+	mlp.BatchSize = nSamples
 
 	// we allocate Coef here because we use it for loss and grad tests before Fit
-	regr.initialize(Ytrue.RawMatrix().Cols, []int{nFeatures, nOutputs}, true, false)
-	regr.WarmStart = true
-	regr.Shuffle = false
+	mlp.initialize(Ytrue.RawMatrix().Cols, []int{nFeatures, nOutputs}, true, false)
+	mlp.WarmStart = true
+	mlp.Shuffle = false
 
 	var J float64
 	loss := func() float64 {
-		regr.MaxIter = 1
-		regr.Fit(Xp, Ytrue)
-		return regr.Loss
+		mlp.MaxIter = 1
+		mlp.Fit(Xp, Ytrue)
+		return mlp.Loss
 	}
 	chkLoss := func(context string, expectedLoss float64) {
 		if math.Abs(J-expectedLoss) > 1e-3 {
@@ -75,7 +75,7 @@ func TestMLPClassifierMicrochip(t *testing.T) {
 		}
 	}
 	chkGrad := func(context string, expectedGradient []float64) {
-		actualGradient := append([]float64{regr.InterceptsGrads[0][0]}, regr.CoefsGrads[0].Data[0:len(expectedGradient)-1]...)
+		actualGradient := mlp.packedGrads[:len(expectedGradient)]
 
 		//fmt.Printf("%s grad=%v expected %v\n", context, actualGradient, expectedGradient)
 		for j := 0; j < len(expectedGradient); j++ {
@@ -86,20 +86,20 @@ func TestMLPClassifierMicrochip(t *testing.T) {
 		}
 	}
 	t.Run("loss and grad with Alpha=0", func(t *testing.T) {
-		for i := range regr.packedParameters {
-			regr.packedParameters[i] = 0
+		for i := range mlp.packedParameters {
+			mlp.packedParameters[i] = 0
 		}
-		regr.Alpha = 1
+		mlp.Alpha = 1
 		J = loss()
 		chkLoss("Microchip initial loss", 0.693)
 		chkGrad("Microchip initial gradient", []float64{0.0085, 0.0188, 0.0001, 0.0503, 0.0115})
-		for i := range regr.packedParameters {
-			regr.packedParameters[i] = 1
+		for i := range mlp.packedParameters {
+			mlp.packedParameters[i] = 1
 		}
 
 	})
 	t.Run("loss and grad with Alpha=10", func(t *testing.T) {
-		regr.Alpha = 10.
+		mlp.Alpha = 10.
 
 		J = loss()
 		chkLoss("At test theta", 3.164)
@@ -139,22 +139,22 @@ func TestMLPClassifierMicrochip(t *testing.T) {
 		t.Run(optimizer, func(t *testing.T) {
 
 			testSetup := optimizer
-			regr := NewMLPClassifier([]int{}, "logistic", optimizer, 1)
-			regr.RandomState = base.NewLockedSource(1)
-			regr.initialize(Ytrue.RawMatrix().Cols, []int{nFeatures, nOutputs}, true, false)
-			for i := range regr.packedParameters {
-				regr.packedParameters[i] = 0
+			mlp := NewMLPClassifier([]int{}, "logistic", optimizer, 1)
+			mlp.RandomState = base.NewLockedSource(1)
+			mlp.initialize(Ytrue.RawMatrix().Cols, []int{nFeatures, nOutputs}, true, false)
+			for i := range mlp.packedParameters {
+				mlp.packedParameters[i] = 0
 			}
-			regr.WarmStart = true
-			regr.MaxIter = 400
-			regr.LearningRateInit = .11
-			regr.BatchSize = 118 //1,2,59,118
-			regr.beforeMinimize = checkGradients
+			mlp.WarmStart = true
+			mlp.MaxIter = 400
+			mlp.LearningRateInit = .11
+			mlp.BatchSize = 118 //1,2,59,118
+			mlp.beforeMinimize = checkGradients
 
 			start := time.Now()
-			regr.Fit(Xp, Ytrue)
+			mlp.Fit(Xp, Ytrue)
 			elapsed := time.Since(start)
-			J := regr.Loss
+			J := mlp.Loss
 
 			if J < bestLoss {
 				bestLoss = J
@@ -164,7 +164,7 @@ func TestMLPClassifierMicrochip(t *testing.T) {
 				bestTime = elapsed
 				best["best for time"] = testSetup + fmt.Sprintf("(%s)", elapsed)
 			}
-			regr.Predict(Xp, Ypred)
+			mlp.Predict(Xp, Ypred)
 			accuracy := metrics.AccuracyScore(Ytrue, Ypred, true, nil)
 			// accuracy should be over 0.83
 			expectedAccuracy := 0.8305

@@ -65,15 +65,14 @@ type BaseMultilayerPerceptron64 struct {
 	BestValidationScore float64
 	BestLoss            float64
 	NoImprovementCount  int
-	InterceptsGrads     [][]float64
-	CoefsGrads          []blas64General
 	optimizer           Optimizer64
 	packedParameters    []float64
-	packedGrads         []float64
+	packedGrads         []float64 // packedGrads allow tests to check gradients
 	bestParameters      []float64
 	batchNorm           [][]float64
 	lb                  *LabelBinarizer64
-	beforeMinimize      func(optimize.Problem, []float64)
+	// beforeMinimize allow test to set weights
+	beforeMinimize func(optimize.Problem, []float64)
 }
 
 // Activations64 is a map containing the inplace_activation functions
@@ -433,15 +432,12 @@ func (mlp *BaseMultilayerPerceptron64) initialize(yCols int, layerUnits []int, i
 	//# Initialize coefficient and intercept layers
 	mlp.Coefs = make([]blas64General, mlp.NLayers-1, mlp.NLayers-1)
 	mlp.Intercepts = make([][]float64, mlp.NLayers-1, mlp.NLayers-1)
-	mlp.CoefsGrads = make([]blas64General, mlp.NLayers-1, mlp.NLayers-1)
-	mlp.InterceptsGrads = make([][]float64, mlp.NLayers-1, mlp.NLayers-1)
 	off := 0
 	for i := 0; i < mlp.NLayers-1; i++ {
 		off += (1 + layerUnits[i]) * layerUnits[i+1]
 	}
-	mem := make([]float64, 2*off, 2*off)
+	mem := make([]float64, off, off)
 	mlp.packedParameters = mem[0:off]
-	mlp.packedGrads = mem[off : 2*off]
 	if mlp.BatchNormalize {
 		// allocate batchNorm for non-terminal layers
 		mlp.batchNorm = make([][]float64, mlp.NLayers-2, mlp.NLayers-2)
@@ -481,12 +477,6 @@ func (mlp *BaseMultilayerPerceptron64) initialize(yCols int, layerUnits []int, i
 		if mlp.BatchNormalize && i < mlp.NLayers-2 {
 			mlp.batchNorm[i] = make([]float64, layerUnits[i+1])
 		}
-	}
-	for i := 0; i < mlp.NLayers-1; i++ {
-		mlp.InterceptsGrads[i] = mem[off : off+layerUnits[i+1]]
-		off += layerUnits[i+1]
-		mlp.CoefsGrads[i] = blas64General{Rows: layerUnits[i], Cols: layerUnits[i+1], Stride: layerUnits[i+1], Data: mem[off : off+layerUnits[i]*layerUnits[i+1]]}
-		off += layerUnits[i] * layerUnits[i+1]
 	}
 
 	mlp.BestLoss = M64.Inf(1)
@@ -537,22 +527,47 @@ func (mlp *BaseMultilayerPerceptron64) fit(X, y blas64General, incremental bool)
 		}
 	}
 	// # Initialize lists
-	activations := []blas64General{X}
-	deltas := []blas64General{}
+	activations := make([]blas64.General, 1, len(layerUnits))
+	activations[0] = X
+	deltas := make([]blas64.General, 0, len(layerUnits)-1)
+	// compute size of activations and deltas
+	off := 0
 	for _, nFanOut := range layerUnits[1:] {
-		activations = append(activations, blas64General{Rows: mlp.BatchSize, Cols: nFanOut, Stride: nFanOut, Data: make([]float64, mlp.BatchSize*nFanOut, mlp.BatchSize*nFanOut)})
-		deltas = append(deltas, blas64General{Rows: mlp.BatchSize, Cols: nFanOut, Stride: nFanOut, Data: make([]float64, mlp.BatchSize*nFanOut, mlp.BatchSize*nFanOut)})
+		size := mlp.BatchSize * nFanOut
+		off += size + size
+	}
+	mem := make([]float64, off, off)
+	off = 0
+	for _, nFanOut := range layerUnits[1:] {
+		size := mlp.BatchSize * nFanOut
+		activations = append(activations, blas64General{Rows: mlp.BatchSize, Cols: nFanOut, Stride: nFanOut, Data: mem[off : off+size]})
+		off += size
+		deltas = append(deltas, blas64General{Rows: mlp.BatchSize, Cols: nFanOut, Stride: nFanOut, Data: mem[off : off+size]})
+		off += size
+	}
+
+	off = len(mlp.packedParameters)
+	packedGrads := make([]float64, off, off)
+	CoefsGrads := make([]blas64General, mlp.NLayers-1, mlp.NLayers-1)
+	InterceptsGrads := make([][]float64, mlp.NLayers-1, mlp.NLayers-1)
+	off = 0
+	for i := 0; i < mlp.NLayers-1; i++ {
+		InterceptsGrads[i] = packedGrads[off : off+layerUnits[i+1]]
+		off += layerUnits[i+1]
+		CoefsGrads[i] = blas64General{Rows: layerUnits[i], Cols: layerUnits[i+1], Stride: layerUnits[i+1], Data: packedGrads[off : off+layerUnits[i]*layerUnits[i+1]]}
+		off += layerUnits[i] * layerUnits[i+1]
 	}
 
 	if strings.EqualFold(mlp.Solver, "lbfgs") {
 		// # Run the LBFGS solver
-		mlp.fitLbfgs(X, y, activations, deltas, mlp.CoefsGrads,
-			mlp.InterceptsGrads, layerUnits)
+		mlp.fitLbfgs(X, y, activations, deltas, CoefsGrads,
+			InterceptsGrads, packedGrads, layerUnits)
 	} else {
 		// # Run the Stochastic optimization solver
-		mlp.fitStochastic(X, y, activations, deltas, mlp.CoefsGrads,
-			mlp.InterceptsGrads, layerUnits, incremental)
+		mlp.fitStochastic(X, y, activations, deltas, CoefsGrads,
+			InterceptsGrads, packedGrads, layerUnits, incremental)
 	}
+	mlp.packedGrads = packedGrads
 }
 
 // IsClassifier return true if LossFuncName is not square_loss
@@ -659,7 +674,7 @@ func (mlp *BaseMultilayerPerceptron64) validateHyperparameters() {
 }
 
 func (mlp *BaseMultilayerPerceptron64) fitLbfgs(X, y blas64General, activations, deltas, coefGrads []blas64General,
-	interceptGrads [][]float64, layerUnits []int) {
+	interceptGrads [][]float64, packedGrads []float64, layerUnits []int) {
 	method := &optimize.LBFGS{}
 	settings := &optimize.Settings{
 		FuncEvaluations: mlp.MaxIter,
@@ -692,7 +707,7 @@ func (mlp *BaseMultilayerPerceptron64) fitLbfgs(X, y blas64General, activations,
 				g = make([]float64, len(w), len(w))
 			}
 			for i := range w {
-				g[i] = float64(mlp.packedGrads[i])
+				g[i] = float64(packedGrads[i])
 			}
 		},
 	}
@@ -713,7 +728,7 @@ func (mlp *BaseMultilayerPerceptron64) fitLbfgs(X, y blas64General, activations,
 }
 
 func (mlp *BaseMultilayerPerceptron64) fitStochastic(X, y blas64General, activations, deltas, coefGrads []blas64General,
-	interceptGrads [][]float64, layerUnits []int, incremental bool) {
+	interceptGrads [][]float64, packedGrads []float64, layerUnits []int, incremental bool) {
 	if !incremental || mlp.optimizer == Optimizer64(nil) {
 		params := mlp.packedParameters
 		switch mlp.Solver {
@@ -787,11 +802,11 @@ func (mlp *BaseMultilayerPerceptron64) fitStochastic(X, y blas64General, activat
 				}
 
 				//X, y blas64General, activations, deltas, coefGrads []blas64General, interceptGrads
-				batchLoss := mlp.backprop(Xbatch, Ybatch, activations, deltas, mlp.CoefsGrads, mlp.InterceptsGrads)
+				batchLoss := mlp.backprop(Xbatch, Ybatch, activations, deltas, coefGrads, interceptGrads)
 				accumulatedLoss += batchLoss * float64(batch[1]-batch[0])
 
 				//# update weights
-				mlp.optimizer.updateParams(mlp.packedGrads)
+				mlp.optimizer.updateParams(packedGrads)
 			}
 			mlp.NIter++
 			mlp.Loss = accumulatedLoss / float64(nSamples)
