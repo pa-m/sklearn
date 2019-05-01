@@ -784,7 +784,7 @@ func (m *OneHotEncoder) InverseTransform(X, Y *mat.Dense) (Xout, Yout *mat.Dense
 }
 
 // Shuffler shuffles rows of X and Y
-type Shuffler struct{ Perm []int }
+type Shuffler struct{ Perm []int; RandomState base.Source }
 
 // NewShuffler returns a *Shuffler
 func NewShuffler() *Shuffler { return &Shuffler{} }
@@ -798,7 +798,11 @@ func (m *Shuffler) TransformerClone() base.Transformer {
 // Fit for Shuffler
 func (m *Shuffler) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
 	X := base.ToDense(Xmatrix)
-	m.Perm = rand.Perm(X.RawMatrix().Rows)
+	Perm:=rand.Perm
+	if m.RandomState!=base.Source(nil){
+		Perm=rand.New(m.RandomState).Perm
+	}
+	m.Perm = Perm(X.RawMatrix().Rows)
 	return m
 }
 

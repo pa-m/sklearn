@@ -330,7 +330,6 @@ func (s *SGDOptimizer) initLocal(loc *optimize.Location) (op optimize.Operation,
 	//fmt.Println("SGDOptimizer.Init called with len(loc.X)=", len(loc.X))
 	if s.NFeatures == 0 || s.NOutputs == 0 {
 		s.NFeatures = len(loc.X)
-		return
 	}
 	if len(loc.X) == s.NFeatures {
 		s.NOutputs = 1

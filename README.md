@@ -2,11 +2,12 @@
 
 Partial port of scikit-learn to [go](http://golang.org)
 
+[![License MIT](https://img.shields.io/apm/l/vim-mode.svg)](https://en.wikipedia.org/wiki/MIT_License)
 [![Build Status](https://travis-ci.org/pa-m/sklearn.svg?branch=master)](https://travis-ci.org/pa-m/sklearn)
 [![Code Coverage](https://codecov.io/gh/pa-m/sklearn/branch/master/graph/badge.svg)](https://codecov.io/gh/pa-m/sklearn)
 [![Go Report Card](https://goreportcard.com/badge/github.com/pa-m/sklearn)](https://goreportcard.com/report/github.com/pa-m/sklearn)
 [![GoDoc](https://godoc.org/github.com/pa-m/sklearn?status.svg)](https://godoc.org/github.com/pa-m/sklearn)
-[![twitter](http://i.imgur.com/tXSoThF.png)](https://twitter.com/pmassch2)
+[![twitter](https://img.shields.io/twitter/follow/pmassch2.svg?style=social)](https://twitter.com/intent/follow?screen_name=pmassch2)
 
 
 ## Examples

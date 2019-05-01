@@ -6,6 +6,7 @@ require (
 	github.com/fogleman/gg v1.3.0 // indirect
 	github.com/jung-kurt/gofpdf v1.1.1 // indirect
 	github.com/pa-m/randomkit v0.0.0-20190414101838-b61cec1ec1e3
+	github.com/stretchr/testify v1.3.0
 	golang.org/x/exp v0.0.0-20190426190305-956cc1757749
 	golang.org/x/image v0.0.0-20190424155947-59b11bec70c7 // indirect
 	golang.org/x/tools v0.0.0-20190428024724-550556f78a90 // indirect

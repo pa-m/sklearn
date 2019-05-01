@@ -256,19 +256,19 @@ func ExampleOneHotEncoder() {
 func ExampleShuffler() {
 	X, Y := mat.NewDense(2, 3, []float64{1, 2, 3, 4, 5, 6}), mat.NewDense(2, 3, []float64{7, 8, 9, 10, 11, 12})
 	m := NewShuffler()
-	m.Fit(X, Y)
-	copy(m.Perm, []int{1, 0})
-	m.Transform(X, Y)
+	m.RandomState = base.NewSource(7)
+	X1,Y1:=m.FitTransform(X, Y)
+	
 	fmt.Println("Transformed:")
-	fmt.Println(base.MatStr(X, Y))
-	m.InverseTransform(X, Y)
+	fmt.Printf("%s",base.MatStr(X1, Y1))
+	X2,Y2:=m.InverseTransform(X1, Y1)
 	fmt.Println("InverseTransformed:")
-	fmt.Println(base.MatStr(X, Y))
+	fmt.Printf("%s",base.MatStr(X2, Y2))
+
 	// Output:
 	// Transformed:
 	// 4	5	6	10	11	12
 	// 1	2	3	7	8	9
-
 	// InverseTransformed:
 	// 1	2	3	7	8	9
 	// 4	5	6	10	11	12

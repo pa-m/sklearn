@@ -1,5 +1,60 @@
 package base
 
+import (
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"gonum.org/v1/gonum/mat"
+	"gonum.org/v1/gonum/optimize"
+)
+
+func assertPanics(t *testing.T, f func(), msg string) {
+	defer func() {
+		if r := recover(); r == nil {
+			if msg == "" {
+				msg = "should have panicked"
+			}
+			t.Error(msg)
+		}
+	}()
+	f()
+}
+func TestNewOptimizer(t *testing.T) {
+	assert.NotNil(t, NewOptimizer("sgd"))
+	sgd := NewSGDOptimizer()
+	assert.Equal(t, false, sgd.Adadelta || sgd.Adagrad || sgd.RMSProp || sgd.Adam)
+	assert.Equal(t, true, NewAdagradOptimizer().Adagrad)
+	assert.Equal(t, true, NewAdadeltaOptimizer().Adadelta)
+	assert.Equal(t, true, NewRMSPropOptimizer().RMSProp)
+	assert.Equal(t, true, NewAdamOptimizer().Adam)
+	for _, opt := range []string{"adadelta", "adagrad", "adam", "rmsprop", "sgd"} {
+		assert.Equal(t, 0, strings.Index(NewOptimizer(opt).String(), opt))
+	}
+	assert.Equal(t, true, sgd.Needs().Gradient)
+	uses, err := sgd.Uses(optimize.Available{Grad: true})
+	assert.Nil(t, err)
+	assert.Equal(t, true, uses.Grad)
+	sgd.SetTheta(mat.NewDense(1, 2, []float64{3, 4}))
+	assert.Equal(t, 1, sgd.NFeatures)
+	assert.Equal(t, 2, sgd.NOutputs)
+	th := sgd.GetTheta()
+	assert.Equal(t, []float64{3, 4}, th.RawMatrix().Data)
+
+	sgd.UpdateParams(mat.NewDense(1, 2, []float64{0, 0}))
+	assert.Equal(t, []float64{3, 4}, sgd.GetTheta().RawMatrix().Data)
+
+	assertPanics(t, func() { NewOptimizer("xxx") }, "NewOptimizer xxx should panic") // should panic
+
+	sgd = NewSGDOptimizer()
+	uses, err = sgd.Uses(optimize.Available{})
+	assert.NotNil(t, err)
+	sgd.initLocal(&optimize.Location{X: []float64{0, 0}})
+	assert.Equal(t, 2, sgd.NFeatures)
+	assert.Equal(t, 1, sgd.NOutputs)
+	assert.NotNil(t, sgd.Update)
+}
+
 // Commented out these tests because they are redundant with linear_model ones and theres an import cycle with linear_model
 
 // import (
