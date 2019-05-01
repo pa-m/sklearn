@@ -2,9 +2,7 @@
 language: go
 
 go:
-  - 1.11.x
   - 1.12.x
-  - tip
 
 before_install:
   - go get -t -v ./... && go build -v ./...
