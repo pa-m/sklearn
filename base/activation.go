@@ -5,7 +5,11 @@ import (
 )
 
 // Activations is the map of implemented activation functions
-var Activations = map[string]Activation{"identity": Identity{}, "logistic": Logistic{}, "relu": ReLU{}, "tanh": Tanh{}}
+var Activations map[string]Activation
+
+func init() { // go tip don't want this initialization wthout init
+	Activations = map[string]Activation{"identity": Identity{}, "logistic": Logistic{}, "relu": ReLU{}, "tanh": Tanh{}}
+}
 
 // see https://en.wikipedia.org/wiki/Activation_function
 
