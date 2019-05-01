@@ -257,13 +257,13 @@ func ExampleShuffler() {
 	X, Y := mat.NewDense(2, 3, []float64{1, 2, 3, 4, 5, 6}), mat.NewDense(2, 3, []float64{7, 8, 9, 10, 11, 12})
 	m := NewShuffler()
 	m.RandomState = base.NewSource(7)
-	X1,Y1:=m.FitTransform(X, Y)
-	
+	X1, Y1 := m.FitTransform(X, Y)
+
 	fmt.Println("Transformed:")
-	fmt.Printf("%s",base.MatStr(X1, Y1))
-	X2,Y2:=m.InverseTransform(X1, Y1)
+	fmt.Printf("%s", base.MatStr(X1, Y1))
+	X2, Y2 := m.InverseTransform(X1, Y1)
 	fmt.Println("InverseTransformed:")
-	fmt.Printf("%s",base.MatStr(X2, Y2))
+	fmt.Printf("%s", base.MatStr(X2, Y2))
 
 	// Output:
 	// Transformed:
