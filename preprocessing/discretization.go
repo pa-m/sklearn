@@ -116,7 +116,7 @@ func (m *KBinsDiscretizer) InverseTransform(X mat.Matrix, Y mat.Mutable) (Xout, 
 					ith = 0
 					for c := f*m.NBins + 1; c < (f+1)*m.NBins; c++ {
 						if X.At(i, c) > X.At(i, f*m.NBins+ith) {
-							ith = c- f*m.NBins
+							ith = c - f*m.NBins
 						}
 					}
 				}
