@@ -1,10 +1,12 @@
 package base
 
 import (
+	"math"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/exp/rand"
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/optimize"
 )
@@ -53,6 +55,20 @@ func TestNewOptimizer(t *testing.T) {
 	assert.Equal(t, 2, sgd.NFeatures)
 	assert.Equal(t, 1, sgd.NOutputs)
 	assert.NotNil(t, sgd.Update)
+}
+
+func TestColNorm(t *testing.T) {
+	rnd := rand.New(rand.NewSource(7))
+	m := mat.NewDense(2, 2, nil)
+	data := m.RawMatrix().Data
+	for i := range data {
+		data[i] = rnd.Float64()
+	}
+	for c := 0; c < 2; c++ {
+		if math.Abs(colNorm(m, c)-mat.Norm(m.ColView(c), 2)) > 1e-8 {
+			t.Fail()
+		}
+	}
 }
 
 // Commented out these tests because they are redundant with linear_model ones and theres an import cycle with linear_model
