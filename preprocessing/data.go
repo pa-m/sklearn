@@ -8,6 +8,7 @@ import (
 
 	"github.com/pa-m/sklearn/base"
 
+	"github.com/pa-m/optimize"
 	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/stat"
@@ -1214,4 +1215,253 @@ func (m *QuantileTransformer) FitTransform(Xmatrix, Ymatrix mat.Matrix) (Xout, Y
 func (m *QuantileTransformer) TransformerClone() Transformer {
 	clone := *m
 	return &clone
+}
+
+// PowerTransformer apply a power transform featurewise to make data more Gaussian-like
+// TODO support boxcox
+type PowerTransformer struct {
+	Method      string
+	Standardize bool
+
+	Lambdas []float64
+	Scaler  *StandardScaler
+}
+
+// NewPowerTransformer returns a PowerTransformer with method yeo-johnson and standardize=true
+func NewPowerTransformer() *PowerTransformer {
+	return &PowerTransformer{Method: "yeo-johnson", Standardize: true}
+}
+
+// TransformerClone allow duplication
+func (m *PowerTransformer) TransformerClone() base.Transformer {
+	clone := *m
+	return &clone
+}
+
+// Fit Estimate the optimal parameter lambda for each feature. The optimal lambda parameter for minimizing skewness is estimated on each feature independently using maximum likelihood.
+func (m *PowerTransformer) Fit(X, Y mat.Matrix) base.Fiter {
+	m.fit(X, Y, false)
+	return m
+}
+
+// Fit Estimate the optimal parameter lambda for each feature. The optimal lambda parameter for minimizing skewness is estimated on each feature independently using maximum likelihood.
+func (m *PowerTransformer) fit(X, Y mat.Matrix, forceTransform bool) (Xout *mat.Dense) {
+	nSamples, nFeatures := X.Dims()
+	m.Lambdas = make([]float64, nFeatures)
+	var optimFunc func(col []float64) float64
+	var transformFunc func(out, x []float64, lmbda float64)
+	switch m.Method {
+	case "yeo-johnson":
+		optimFunc = yeoJohnsonOptimize
+		transformFunc = yeoJohnsonTransform
+	default:
+		panic("not implemented")
+	}
+	if m.Standardize || forceTransform {
+		Xout = mat.NewDense(nSamples, nFeatures, nil)
+	}
+	base.Parallelize(-1, nFeatures, func(th, start, end int) {
+		col := make([]float64, nSamples)
+		out := make([]float64, nSamples)
+		for c := start; c < end; c++ {
+			mat.Col(col, c, X)
+			m.Lambdas[c] = optimFunc(col)
+			if m.Standardize || forceTransform {
+				transformFunc(out, col, m.Lambdas[c])
+				Xout.SetCol(c, out)
+			}
+		}
+	})
+	if m.Standardize {
+		m.Scaler = NewStandardScaler()
+		if forceTransform {
+			Xout, _ = m.Scaler.FitTransform(Xout, nil)
+		} else {
+			m.Scaler.Fit(Xout, nil)
+		}
+	}
+	return
+}
+
+// Transform apply the power transform to each feature using the fitted lambdas
+func (m *PowerTransformer) Transform(X, Y mat.Matrix) (Xout, Yout *mat.Dense) {
+	nSamples, nFeatures := X.Dims()
+	Xout = base.ToDense(X)
+	Yout = base.ToDense(Y)
+	var transformFunc func(out, x []float64, lmbda float64)
+	switch m.Method {
+	case "yeo-johnson":
+		transformFunc = yeoJohnsonTransform
+	default:
+		panic("not implemented")
+	}
+	base.Parallelize(-1, nFeatures, func(th, start, end int) {
+		col := make([]float64, nSamples)
+		out := make([]float64, nSamples)
+		for c := start; c < end; c++ {
+			mat.Col(col, c, X)
+			transformFunc(out, col, m.Lambdas[c])
+			Xout.SetCol(c, out)
+		}
+	})
+	if m.Standardize {
+		Xout, _ = m.Scaler.Transform(Xout, nil)
+	}
+	return
+}
+
+// FitTransform fits the data then transforms it
+func (m *PowerTransformer) FitTransform(X, Y mat.Matrix) (Xout, Yout *mat.Dense) {
+	Xout = m.fit(X, Y, true)
+	Yout = base.ToDense(Y)
+	return
+}
+
+// InverseTransform apply the inverse power transformation using the fitted lambdas.
+// The inverse of the Box-Cox transformation is given by::
+// 	if lambda == 0:
+// 		X = exp(X_trans)
+// 	else:
+// 		X = (X_trans * lambda + 1) ** (1 / lambda)
+// The inverse of the Yeo-Johnson transformation is given by::
+// 	if X >= 0 and lambda == 0:
+// 		X = exp(X_trans) - 1
+// 	elif X >= 0 and lambda != 0:
+// 		X = (X_trans * lambda + 1) ** (1 / lambda) - 1
+// 	elif X < 0 and lambda != 2:
+// 		X = 1 - (-(2 - lambda) * X_trans + 1) ** (1 / (2 - lambda))
+// 	elif X < 0 and lambda == 2:
+// 		X = 1 - exp(-X_trans)
+func (m *PowerTransformer) InverseTransform(X, Y mat.Matrix) (Xout, Yout *mat.Dense) {
+	nSamples, nFeatures := X.Dims()
+	Xout = mat.NewDense(nSamples, nFeatures, nil)
+	Yout = base.ToDense(Y)
+
+	var inverseTransformFunc func(out, x []float64, lmbda float64)
+	switch m.Method {
+	case "yeo-johnson":
+		inverseTransformFunc = yeoJohnsonInverseTransform
+	default:
+		panic("not implemented")
+	}
+	X1 := base.ToDense(X)
+	if m.Standardize {
+		X1, _ = m.Scaler.InverseTransform(X1, nil)
+	}
+	base.Parallelize(-1, nFeatures, func(th, start, end int) {
+		col := make([]float64, nSamples)
+		out := make([]float64, nSamples)
+		for c := start; c < end; c++ {
+			mat.Col(col, c, X1)
+			inverseTransformFunc(out, col, m.Lambdas[c])
+			Xout.SetCol(c, out)
+		}
+	})
+	return
+}
+
+// yeoJohnsonOptimize Find and return optimal lambda parameter of the Yeo-Johnson
+// transform by MLE, for observed data x.
+// Like for Box-Cox, MLE is done via the brent optimizer.
+func yeoJohnsonOptimize(x []float64) float64 {
+	xTrans := make([]float64, len(x))
+	negLogLikelihood := func(lmbda float64) float64 { // Return the negative log likelihood of the observed data x as a function of lambda
+		nSamples := len(x)
+		var sumlog1p, tmp float64
+		for _, xi := range x {
+
+			if xi > 0 {
+				tmp = math.Log1p(xi)
+			} else {
+				tmp = -math.Log1p(-xi)
+			}
+			sumlog1p += tmp
+		}
+		yeoJohnsonTransform(xTrans, x, lmbda)
+		loglike := -float64(nSamples)/2*math.Log(NumpyLike{}.Var(mat.NewDense(nSamples, 1, xTrans)).At(0, 0)) +
+			(lmbda-1)*sumlog1p
+		return -loglike
+	}
+	maxFev := func(n int) bool { return n >= 500 }
+	brent := optimize.NewBrentMinimizer(negLogLikelihood, 1.48e-8, math.MaxInt32, maxFev)
+
+	brent.Brack = []float64{-2, 2}
+
+	res, fx, iter, funcalls := brent.Optimize()
+	_, _, _ = fx, iter, funcalls
+	return res
+}
+
+// yeoJohnsonTransform returns in out transformed input x following Yeo-Johnson transform with parameter lambda
+func yeoJohnsonTransform(out, x []float64, lmbda float64) {
+	spacing := math.Nextafter(1, 1) - 1
+
+	//# when x >= 0
+	if math.Abs(lmbda) < spacing {
+		for pos := range x {
+			if x[pos] >= 0 {
+				out[pos] = math.Log1p(x[pos])
+			}
+		}
+	} else { // # lmbda != 0
+		for pos := range x {
+			if x[pos] >= 0 {
+				out[pos] = (math.Pow(x[pos]+1, lmbda) - 1) / lmbda
+			}
+		}
+	}
+	//# when x < 0
+	if math.Abs(lmbda-2) > spacing {
+		for pos := range x {
+			if x[pos] < 0 {
+
+				out[pos] = -(math.Pow(-x[pos]+1, 2-lmbda) - 1) / (2 - lmbda)
+			}
+		}
+	} else { // # lmbda == 2
+		for pos := range x {
+			if x[pos] < 0 {
+				out[pos] = -math.Log1p(-x[pos])
+			}
+		}
+	}
+}
+
+// yeoJohnsonInverseTransform returns inverse-transformed input x following Yeo-Johnson inverse transform with parameter lambda
+func yeoJohnsonInverseTransform(xinv, x []float64, lmbda float64) {
+	spacing := math.Nextafter(1, 1) - 1
+	abs := math.Abs
+	exp := math.Exp
+	power := math.Pow
+	// # when x >= 0
+	if abs(lmbda) < spacing {
+		for pos := range x {
+			if x[pos] >= 0 {
+				xinv[pos] = exp(x[pos]) - 1
+			}
+		}
+
+	} else { // # lmbda != 0
+		for pos := range x {
+			if x[pos] >= 0 {
+				xinv[pos] = power(x[pos]*lmbda+1, 1/lmbda) - 1
+			}
+		}
+
+	}
+	// # when x < 0
+	if abs(lmbda-2) > spacing {
+		for pos := range x {
+			if x[pos] < 0 {
+				xinv[pos] = 1 - power(-(2-lmbda)*x[pos]+1, 1/(2-lmbda))
+			}
+		}
+
+	} else { // # lmbda == 2
+		for pos := range x {
+			if x[pos] < 0 {
+				xinv[pos] = 1 - exp(-x[pos])
+			}
+		}
+	}
 }

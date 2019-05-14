@@ -416,3 +416,56 @@ func ExampleQuantileTransformer() {
 	// quantiles=[-0.13824745 0.30513118 0.46617223 0.53601089 0.59449906 0.62844542 0.71610905 0.82394042 0.94963856 1.06743866]
 	// transformed=[0.00000010  0.09871873  0.10643612  0.11754671  0.21017437  0.21945445  0.23498666  0.32443642  0.33333333  0.41360794  0.42339464  0.46257841  0.47112236  0.49834237  0.59986536  0.63390302  0.66666667  0.68873101  0.69611125  0.81280699  0.82160354  0.88126439  0.90516028  0.99319435  0.99999990]
 }
+
+func TestYeoJohsonTransform(t *testing.T) {
+	out := make([]float64, 3)
+	inv := make([]float64, 3)
+	col := []float64{1, 3, 4}
+	tests := []struct {
+		lmbda    float64
+		expected []float64
+	}{
+		{-2, []float64{0.375, 0.46875, 0.48}},
+		{2, []float64{1.5, 7.5, 12.}},
+		{8.472135999999999, []float64{41.79741712785609, 14884.620423090699, 98576.97748593768}},
+	}
+	for _, test := range tests {
+		yeoJohnsonTransform(out, col, test.lmbda)
+		if !floats.EqualApprox(test.expected, out, 1e-8) {
+			t.Errorf("expected %g, got %g", test.expected, out)
+		}
+		yeoJohnsonInverseTransform(inv, out, test.lmbda)
+		if !floats.EqualApprox(col, inv, 1e-8) {
+			t.Errorf("expected %g, got %g", col, inv)
+		}
+	}
+	if math.Abs(1.3866817390302772-yeoJohnsonOptimize(col)) > 1e-8 {
+		t.Errorf("yeoJohnsonOptimize failed")
+	}
+}
+func ExamplePowerTransformer() {
+	pt := NewPowerTransformer()
+	data := mat.NewDense(3, 2, []float64{
+		1, 2,
+		3, 2,
+		4, 5,
+	})
+	Xout, _ := pt.FitTransform(data, nil)
+
+	fmt.Printf("lambdas: %.4f\n", pt.Lambdas)
+	fmt.Printf("transformed:\n%.4f\n", mat.Formatted(Xout))
+	Xinv, _ := pt.InverseTransform(Xout, nil)
+	fmt.Printf("inverse transformed:\n%.4f\n", mat.Formatted(Xinv))
+
+	// Output:
+	// lambdas: [1.3867 -3.1005]
+	// transformed:
+	// ⎡-1.3162  -0.7071⎤
+	// ⎢ 0.2100  -0.7071⎥
+	// ⎣ 1.1062   1.4142⎦
+	// inverse transformed:
+	// ⎡1.0000  2.0000⎤
+	// ⎢3.0000  2.0000⎥
+	// ⎣4.0000  5.0000⎦
+
+}
