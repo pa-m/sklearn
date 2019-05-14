@@ -102,8 +102,7 @@ func ExampleGridSearchCV() {
 	scorer := func(Y, Ypred mat.Matrix) float64 {
 		return metrics.MeanSquaredError(Y, Ypred, nil, "").At(0, 0)
 	}
-	var gscv *GridSearchCV
-	gscv = &GridSearchCV{
+	gscv := &GridSearchCV{
 		Estimator: mlp,
 		ParamGrid: map[string][]interface{}{
 			"Alpha":       {2e-4, 5e-4, 1e-3},

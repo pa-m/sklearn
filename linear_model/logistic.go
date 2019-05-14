@@ -55,9 +55,9 @@ type LogisticRegression struct {
 	CoefsGrads         blas64.General
 	packedParameters   []float64
 	packedGrads        []float64
-	bestParameters     []float64
-	lb                 *preprocessing.LabelBinarizer
-	beforeMinimize     func(optimize.Problem, []float64)
+	// bestParameters     []float64
+	lb             *preprocessing.LabelBinarizer
+	beforeMinimize func(optimize.Problem, []float64)
 }
 
 // logregActivation is a map containing the inplace_activation functions
@@ -288,7 +288,7 @@ func (m *LogisticRegression) initialize(yCols int, layerUnits []int, isMultiClas
 	//# Initialize coefficient and intercept layers
 	off := (1 + layerUnits[0]) * layerUnits[1]
 
-	mem := make([]float64, 2*off, 2*off)
+	mem := make([]float64, 2*off)
 	m.packedParameters = mem[0:off]
 	m.packedGrads = mem[off : 2*off]
 
@@ -369,8 +369,8 @@ func (m *LogisticRegression) Fit(X, Y mat.Matrix) base.Fiter {
 	batchSize := nSamples
 	activations := []blas64.General{x}
 	nFanOut := layerUnits[1]
-	activations = append(activations, blas64.General{Rows: batchSize, Cols: nFanOut, Stride: nFanOut, Data: make([]float64, batchSize*nFanOut, batchSize*nFanOut)})
-	deltas := blas64.General{Rows: batchSize, Cols: nFanOut, Stride: nFanOut, Data: make([]float64, batchSize*nFanOut, batchSize*nFanOut)}
+	activations = append(activations, blas64.General{Rows: batchSize, Cols: nFanOut, Stride: nFanOut, Data: make([]float64, batchSize*nFanOut)})
+	deltas := blas64.General{Rows: batchSize, Cols: nFanOut, Stride: nFanOut, Data: make([]float64, batchSize*nFanOut)}
 
 	// # Run the LBFGS solver
 	m.fitLbfgs(x, y, activations, deltas, m.CoefsGrads,
@@ -426,14 +426,14 @@ func (m *LogisticRegression) fitLbfgs(X, y blas64.General, activations []blas64.
 		Grad: func(g, w []float64) {
 			// Grad is called just after Func with same w
 			if g == nil { // g is nil at first call
-				g = make([]float64, len(w), len(w))
+				g = make([]float64, len(w))
 			}
 			for i := range w {
 				g[i] = float64(m.packedGrads[i])
 			}
 		},
 	}
-	w := make([]float64, len(m.packedParameters), len(m.packedParameters))
+	w := make([]float64, len(m.packedParameters))
 	for i := range w {
 		w[i] = float64(m.packedParameters[i])
 	}
@@ -531,8 +531,10 @@ func isBinarized(Y *mat.Dense) bool {
 	return true
 }
 
+/*
 func rowSlice(X blas64.General, i, k int) blas64.General {
 	var tmp mat.Dense
 	(&tmp).SetRawMatrix(X)
 	return tmp.Slice(i, k, 0, X.Cols).(*mat.Dense).RawMatrix()
 }
+*/

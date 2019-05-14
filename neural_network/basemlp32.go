@@ -430,17 +430,17 @@ func (mlp *BaseMultilayerPerceptron32) initialize(yCols int, layerUnits []int, i
 		mlp.LossFuncName = "binary_log_loss"
 	}
 	//# Initialize coefficient and intercept layers
-	mlp.Coefs = make([]blas32General, mlp.NLayers-1, mlp.NLayers-1)
-	mlp.Intercepts = make([][]float32, mlp.NLayers-1, mlp.NLayers-1)
+	mlp.Coefs = make([]blas32General, mlp.NLayers-1)
+	mlp.Intercepts = make([][]float32, mlp.NLayers-1)
 	off := 0
 	for i := 0; i < mlp.NLayers-1; i++ {
 		off += (1 + layerUnits[i]) * layerUnits[i+1]
 	}
-	mem := make([]float32, off, off)
+	mem := make([]float32, off)
 	mlp.packedParameters = mem[0:off]
 	if mlp.BatchNormalize {
 		// allocate batchNorm for non-terminal layers
-		mlp.batchNorm = make([][]float32, mlp.NLayers-2, mlp.NLayers-2)
+		mlp.batchNorm = make([][]float32, mlp.NLayers-2)
 	}
 
 	off = 0
@@ -536,7 +536,7 @@ func (mlp *BaseMultilayerPerceptron32) fit(X, y blas32General, incremental bool)
 		size := mlp.BatchSize * nFanOut
 		off += size + size
 	}
-	mem := make([]float32, off, off)
+	mem := make([]float32, off)
 	off = 0
 	for _, nFanOut := range layerUnits[1:] {
 		size := mlp.BatchSize * nFanOut
@@ -547,9 +547,9 @@ func (mlp *BaseMultilayerPerceptron32) fit(X, y blas32General, incremental bool)
 	}
 
 	off = len(mlp.packedParameters)
-	packedGrads := make([]float32, off, off)
-	CoefsGrads := make([]blas32General, mlp.NLayers-1, mlp.NLayers-1)
-	InterceptsGrads := make([][]float32, mlp.NLayers-1, mlp.NLayers-1)
+	packedGrads := make([]float32, off)
+	CoefsGrads := make([]blas32General, mlp.NLayers-1)
+	InterceptsGrads := make([][]float32, mlp.NLayers-1)
 	off = 0
 	for i := 0; i < mlp.NLayers-1; i++ {
 		InterceptsGrads[i] = packedGrads[off : off+layerUnits[i+1]]
@@ -704,14 +704,14 @@ func (mlp *BaseMultilayerPerceptron32) fitLbfgs(X, y blas32General, activations,
 		Grad: func(g, w []float64) {
 			// Grad is called just after Func with same w
 			if g == nil { // g is nil at first call
-				g = make([]float64, len(w), len(w))
+				g = make([]float64, len(w))
 			}
 			for i := range w {
 				g[i] = float64(packedGrads[i])
 			}
 		},
 	}
-	w := make([]float64, len(mlp.packedParameters), len(mlp.packedParameters))
+	w := make([]float64, len(mlp.packedParameters))
 	for i := range w {
 		w[i] = float64(mlp.packedParameters[i])
 	}
@@ -759,12 +759,12 @@ func (mlp *BaseMultilayerPerceptron32) fitStochastic(X, y blas32General, activat
 		testSize = int(M32.Ceil(mlp.ValidationFraction * float32(nSamples)))
 		XVal = blas32General(General32(X).RowSlice(nSamples-testSize, nSamples))
 		yVal = blas32General(General32(y).RowSlice(nSamples-testSize, nSamples))
-		mlp.bestParameters = make([]float32, len(mlp.packedParameters), len(mlp.packedParameters))
+		mlp.bestParameters = make([]float32, len(mlp.packedParameters))
 		// if isClassifier(self):
 		// 	yVal = self.LabelBinarizer32.inverseTransform(yVal)
 	}
 	batchSize := mlp.BatchSize
-	idx := make([]int, nSamples, nSamples)
+	idx := make([]int, nSamples)
 	for i := range idx {
 		idx[i] = i
 	}
@@ -906,7 +906,7 @@ func (mlp *BaseMultilayerPerceptron32) predictProbas(X, Y blas32General) {
 		if i == len(layerUnits)-2 {
 			activation = Y
 		} else {
-			activation = blas32General{Rows: X.Rows, Cols: nFanOut, Stride: nFanOut, Data: make([]float32, X.Rows*nFanOut, X.Rows*nFanOut)}
+			activation = blas32General{Rows: X.Rows, Cols: nFanOut, Stride: nFanOut, Data: make([]float32, X.Rows*nFanOut)}
 		}
 		activations = append(activations, activation)
 	}
@@ -933,7 +933,7 @@ func (mlp *BaseMultilayerPerceptron32) predict(X, Y blas32General) {
 }
 
 func (mlp *BaseMultilayerPerceptron32) score(X, Y blas32General) float32 {
-	H := blas32General{Rows: Y.Rows, Cols: Y.Cols, Stride: Y.Stride, Data: make([]float32, len(Y.Data), len(Y.Data))}
+	H := blas32General{Rows: Y.Rows, Cols: Y.Cols, Stride: Y.Stride, Data: make([]float32, len(Y.Data))}
 	mlp.predict(X, H)
 	if mlp.LossFuncName != "square_loss" {
 		// accuracy
@@ -1025,7 +1025,7 @@ func (opt *SGDOptimizer32) triggerStopping(msg string, verbose bool) bool {
 }
 func (opt *SGDOptimizer32) updateParams(grads []float32) {
 	if opt.velocities == nil {
-		opt.velocities = make([]float32, len(grads), len(grads))
+		opt.velocities = make([]float32, len(grads))
 	}
 	for i := range grads {
 		update := opt.Momentum*opt.velocities[i] - opt.LearningRate*grads[i]
@@ -1055,8 +1055,8 @@ func (opt *AdamOptimizer32) iterationEnds(timeStep float32)                {}
 func (opt *AdamOptimizer32) triggerStopping(msg string, verbose bool) bool { return true }
 func (opt *AdamOptimizer32) updateParams(grads []float32) {
 	if opt.t == 0 {
-		opt.ms = make([]float32, len(grads), len(grads))
-		opt.vs = make([]float32, len(grads), len(grads))
+		opt.ms = make([]float32, len(grads))
+		opt.vs = make([]float32, len(grads))
 		opt.beta1t, opt.beta2t = 1, 1
 	}
 	opt.t++
@@ -1178,12 +1178,12 @@ func (mlp *BaseMultilayerPerceptron32) Unmarshal(buf []byte) error {
 			if len(c64) == 0 {
 				return fmt.Errorf("coefs_ must be non-empty")
 			}
-			b64coefs := make([]blas64General, len(c64), len(c64))
+			b64coefs := make([]blas64General, len(c64))
 			for i := range b64coefs {
 				b64coefs[i] = blas64FromInterface(c64[i])
 			}
 			mlp.NLayers = len(b64coefs) + 1
-			mlp.HiddenLayerSizes = make([]int, mlp.NLayers-2, mlp.NLayers-2)
+			mlp.HiddenLayerSizes = make([]int, mlp.NLayers-2)
 
 			NInputs := b64coefs[0].Rows
 			mlp.NOutputs = b64coefs[len(b64coefs)-1].Cols

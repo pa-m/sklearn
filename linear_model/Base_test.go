@@ -182,8 +182,6 @@ func TestRegularizedRegression(t *testing.T) {
 			if math.Sqrt(mse) > regr.Tol {
 				t.Errorf("Test %T %s normalize=%v r2score=%g (%v) mse=%g mae=%g \n", regr, solver, normalize, r2score, mat.Formatted(metrics.R2Score(p.Y, Ypred, nil, "raw_values")), mse, mae)
 				t.Fail()
-			} else {
-				//fmt.Printf("Test %T %s ok normalize=%v r2score=%g  mse=%g mae=%g elapsed=%s\n", regr, optimizer, normalize, r2score, mse, mae, elapsed)
 			}
 		}
 	}
@@ -242,8 +240,6 @@ func TestGonumOptimizeRegressor(t *testing.T) {
 			if r2score < .99 {
 				t.Errorf("Test %T %12T normalize=%v\nr2score=%g (%v) mse=%g mae=%g \n", regr, method, normalize, r2score, *metrics.R2Score(p.Y, Ypred, nil, "raw_values"), mse, mae)
 				t.Fail()
-			} else {
-				//fmt.Printf("Test %T %12T ok normalize=%v\nr2score=%g  mse=%g mae=%g elapsed=%s\n", regr, method, normalize, r2score, mse, mae, elapsed)
 			}
 		}
 	}
@@ -308,8 +304,6 @@ func TestLinFitGOM(t *testing.T) {
 			if r2score < .99 {
 				t.Errorf("Test %T %12T normalize=%v\nr2score=%g (%v) mse=%g mae=%g \n", regr, methodCreator(), normalize, r2score, *metrics.R2Score(p.Y, Ypred, nil, "raw_values"), mse, mae)
 				t.Fail()
-			} else {
-				//fmt.Printf("Test %T %12T ok normalize=%v\nr2score=%g  mse=%g mae=%g elapsed=%s\n", regr, method, normalize, r2score, mse, mae, elapsed)
 			}
 		}
 	}
@@ -362,8 +356,6 @@ func TestBestRegressionImplementation(t *testing.T) {
 		if r2score < .95 {
 			t.Errorf("Test %s\nr2score=%g (%v) mse=%g mae=%g \n", testSetup, r2score, *metrics.R2Score(p.Y, Ypred, nil, "raw_values"), mse, mae)
 			t.Fail()
-		} else {
-			//fmt.Printf("Test %s ok\nr2score=%g  mse=%g mae=%g elapsed=%s\n", testSetup, r2score, mse, mae, elapsed)
 		}
 		//}
 	}

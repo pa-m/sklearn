@@ -2,9 +2,10 @@ package linearmodel
 
 import (
 	"fmt"
-	"golang.org/x/exp/rand"
 	"math"
 	"testing"
+
+	"golang.org/x/exp/rand"
 
 	"github.com/pa-m/sklearn/base"
 	"gonum.org/v1/gonum/diff/fd"
@@ -43,8 +44,8 @@ func testLossDerivatives(t *testing.T, lossFunc Loss, activation Activation) {
 		// scaler := preprocessing.NewMinMaxScaler([]float64{0, 1})
 		// X, Ytrue := scaler.Fit(p.X, p.Y).Transform(p.X, p.Y)
 		X, Ytrue := p.X, p.Y
-		Ytrue.Apply(func(i int, j int, v float64) float64 {
-			v = rand.Float64()
+		Ytrue.Apply(func(i int, j int, _ float64) float64 {
+			v := rand.Float64()
 			return activation.F(v)
 		}, Ytrue)
 		//fmt.Printf("TestLoss %#v\n", activation)

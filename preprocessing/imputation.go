@@ -29,9 +29,9 @@ func (m *Imputer) TransformerClone() base.Transformer {
 func (m *Imputer) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
 	X := base.ToDense(Xmatrix)
 	Xmat := X.RawMatrix()
-	m.MissingValues = make([]float64, Xmat.Cols, Xmat.Cols)
+	m.MissingValues = make([]float64, Xmat.Cols)
 	base.Parallelize(-1, Xmat.Cols, func(th, start, end int) {
-		tmp := make([]float64, Xmat.Rows, Xmat.Rows)
+		tmp := make([]float64, Xmat.Rows)
 		var def, v float64
 		for i := start; i < end; i++ {
 			tmp = tmp[0:0]

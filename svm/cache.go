@@ -17,7 +17,7 @@ func cachedKernel(X *mat.Dense, CacheSize uint, KernelFunction func(X1, X2 []flo
 		float64 // cached value
 	}
 	KcacheCap := (CacheSize << 20) / uint(unsafe.Sizeof(KcacheEntry{}))
-	KcacheDiag := make([]DiagEntry, m, m)
+	KcacheDiag := make([]DiagEntry, m)
 	KcacheNDiag := map[[2]int]*KcacheEntry{}
 	Ktime := uint64(0)
 

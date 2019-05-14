@@ -46,9 +46,9 @@ func (m *SVR) PredicterClone() base.Predicter {
 
 func svrTrain(X *mat.Dense, Y []float64, C, Epsilon float64, KernelFunction func(X1, X2 []float64) float64, Tol float64, MaxPasses int, CacheSize uint, RandomState base.Source) *Model {
 	m, n := X.Dims()
-	alphas := make([]float64, m, m)
+	alphas := make([]float64, m)
 	b := 0.
-	E := make([]float64, m, m)
+	E := make([]float64, m)
 	eta := 0.
 	passes := 0
 	L, H := 0., 0.
@@ -212,7 +212,6 @@ func svrPredict(model *Model, X, Y *mat.Dense, output int) {
 		}
 		Ymat.Data[yoff] = y
 	}
-	return
 }
 
 // Predict for SVR

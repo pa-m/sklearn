@@ -177,6 +177,7 @@ func getClasses(Y mat.Matrix) (classes [][]float64, counts [][]int) {
 		}
 		sort.Float64s(clvalues)
 		classes = append(classes, clvalues)
+		counts = append(counts, clcounts)
 	}
 	return
 }

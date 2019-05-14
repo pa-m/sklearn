@@ -42,8 +42,6 @@ func TestRidge(t *testing.T) {
 		if math.Sqrt(mse) > regr.Tol {
 			t.Errorf("Test %T normalize=%v r2score=%g (%v) mse=%g mae=%g \n", regr, normalize, r2score, metrics.R2Score(Y, Ypred, nil, "raw_values"), mse, mae)
 			t.Fail()
-		} else {
-			//fmt.Printf("Test %T ok normalize=%v r2score=%g  mse=%g mae=%g elapsed=%s\n", regr, normalize, r2score, mse, mae, elapsed)
 		}
 	}
 

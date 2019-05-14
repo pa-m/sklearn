@@ -63,11 +63,8 @@ func dot64(n, xinc, yinc int, x, y []float64) float64 {
 	return blas64.Dot(blas64.Vector{N: n, Inc: xinc, Data: x}, blas64.Vector{N: n, Inc: yinc, Data: y})
 }
 
-var dotXX = dot32
-
 var gemm32 = blas32.Gemm
 var gemm64 = blas64.Gemm
-var gemmXX = gemm32
 
 // axpy32 adds x scaled by alpha to y:
 //  y[i] += alpha*x[i] for all i.

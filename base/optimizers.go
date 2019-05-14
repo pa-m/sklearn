@@ -76,8 +76,6 @@ type SGDOptimizer struct {
 	// Adam specific
 	Beta1, Beta2 float64
 	Mt, Vt       *mat.Dense
-	// lastOp is for Iterate when used as optimize.Method
-	lastOp optimize.Operation
 
 	status optimize.Status
 	err    error
@@ -277,8 +275,8 @@ func (s *SGDOptimizer) GetUpdate(update *mat.Dense, grad mat.Matrix) {
 			return s.Beta1*s.Mt.At(j, o) + (1.-s.Beta1)*gradientClipped(j, o)
 		}, grad)
 		// vt ← β2 · vt−1 + (1 − β2) · gt² (Update biased second raw moment estimate)
-		s.Vt.Apply(func(j, o int, gradjo float64) float64 {
-			gradjo = gradientClipped(j, o)
+		s.Vt.Apply(func(j, o int, _ float64) float64 {
+			gradjo := gradientClipped(j, o)
 			return s.Beta2*s.Vt.At(j, o) + (1.-s.Beta2)*gradjo*gradjo
 		}, grad)
 		// mb t ← mt/(1 − β1^t) (Compute bias-corrected first moment estimate)
@@ -335,7 +333,7 @@ func (s *SGDOptimizer) initLocal(loc *optimize.Location) (op optimize.Operation,
 		s.NOutputs = 1
 	}
 	if len(loc.X) != s.NFeatures*s.NOutputs {
-		err = fmt.Errorf("Size error. expected %d,%d got %d", s.NFeatures, s.NOutputs, len(loc.X))
+		err = fmt.Errorf("size error. expected %d,%d got %d", s.NFeatures, s.NOutputs, len(loc.X))
 		return
 	}
 	s.Update = mat.NewDense(s.NFeatures, s.NOutputs, nil)
@@ -346,38 +344,6 @@ func (s *SGDOptimizer) initLocal(loc *optimize.Location) (op optimize.Operation,
 // Run implements optimize.Method.Run for SGDOptimizer
 func (s *SGDOptimizer) Run(operation chan<- optimize.Task, result <-chan optimize.Task, tasks []optimize.Task) {
 	(&optimize.GradientDescent{}).Run(operation, result, tasks)
-	return
-}
-
-// Iterate retrieves data from loc, performs one iteration of the method,
-// updates loc and returns the next operation.
-func (s *SGDOptimizer) iterateLocal(loc *optimize.Location) (op optimize.Operation, err error) {
-	theta := mat.NewDense(s.NFeatures, s.NOutputs, loc.X)
-
-	s.GetUpdate(s.Update, mat.NewDense(s.NFeatures, s.NOutputs, loc.Gradient))
-	theta.Add(theta, s.Update)
-	//op = optimize.FuncEvaluation | optimize.GradEvaluation
-	if s.lastOp == optimize.FuncEvaluation|optimize.GradEvaluation {
-		op = optimize.MajorIteration
-	} else {
-		op = optimize.FuncEvaluation | optimize.GradEvaluation
-	}
-	s.lastOp = op
-	return
-}
-
-// Needs is for when SGDOptimizer is used as an optimize.Method
-func (*SGDOptimizer) Needs() struct {
-	Gradient bool
-	Hessian  bool
-} {
-	return struct {
-		Gradient bool
-		Hessian  bool
-	}{
-		Gradient: true,
-		Hessian:  false,
-	}
 }
 
 // Uses  is for when SGDOptimizer is used as an optimize.Method

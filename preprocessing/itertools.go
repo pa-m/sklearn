@@ -1,7 +1,7 @@
 package preprocessing
 
 func intrange(n int) []int {
-	r := make([]int, n, n)
+	r := make([]int, n)
 	for i := range r {
 		r[i] = i
 	}

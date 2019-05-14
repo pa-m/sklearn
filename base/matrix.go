@@ -113,12 +113,12 @@ func MatStr(Xs ...mat.Matrix) string {
 	if len(Xs) == 0 {
 		return ""
 	}
-	nSamples, nFeatures := Xs[0].Dims()
+	nSamples, _ := Xs[0].Dims()
 	b := bytes.NewBuffer(nil)
 
 	for i := 0; i < nSamples; i++ {
 		for imat, X := range Xs {
-			_, nFeatures = X.Dims()
+			_, nFeatures := X.Dims()
 			for j := 0; j < nFeatures; j++ {
 				io.WriteString(b, fmt.Sprintf("%g", X.At(i, j)))
 				if j < nFeatures-1 || imat < len(Xs)-1 {

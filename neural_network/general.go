@@ -254,7 +254,7 @@ func (mat *General32) Copy(a Matrix) {
 	rows, cols := a.Dims()
 	size := rows * cols
 	if cap(mat.Data) < size {
-		*mat = General32{Rows: rows, Cols: cols, Stride: cols, Data: make([]float32, size, size)}
+		*mat = General32{Rows: rows, Cols: cols, Stride: cols, Data: make([]float32, size)}
 	} else {
 		*mat = General32{Rows: rows, Cols: cols, Stride: cols, Data: mat.Data[:size]}
 	}
@@ -280,7 +280,7 @@ func (mat *General64) Copy(a Matrix) {
 	rows, cols := a.Dims()
 	size := rows * cols
 	if cap(mat.Data) < size {
-		*mat = General64{Rows: rows, Cols: cols, Stride: cols, Data: make([]float64, size, size)}
+		*mat = General64{Rows: rows, Cols: cols, Stride: cols, Data: make([]float64, size)}
 	} else {
 		*mat = General64{Rows: rows, Cols: cols, Stride: cols, Data: mat.Data[:size]}
 	}

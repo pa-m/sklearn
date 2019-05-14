@@ -58,7 +58,7 @@ func (m *KMeans) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
 	}
 
 	m.Centroids = mat.NewDense(m.NClusters, NFeatures, nil)
-	row := make([]float64, NFeatures, NFeatures)
+	row := make([]float64, NFeatures)
 	for ic := 0; ic < m.NClusters; ic++ {
 		mat.Row(row, ic, X)
 		m.Centroids.SetRow(ic, row)
@@ -82,7 +82,7 @@ func (m *KMeans) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
 		m.Centroids.Sub(m.Centroids, m.Centroids)
 		var mu sync.Mutex // mu locks m.Centroids modifications
 		base.Parallelize(m.NJobs, NSamples, func(th, start, end int) {
-			row := make([]float64, NFeatures, NFeatures)
+			row := make([]float64, NFeatures)
 			for sample := start; sample < end; sample++ {
 				ic := NearestCentroid[sample]
 				mu.Lock()
@@ -107,12 +107,10 @@ func (m *KMeans) GetNOutputs() int { return 1 }
 func (m *KMeans) predict(Xscaled mat.Matrix, y, CentroidCount []int, changed *bool) {
 	NSamples, NFeatures := Xscaled.Dims()
 	if y == nil {
-		y = make([]int, NSamples, NSamples)
+		y = make([]int, NSamples)
 	}
-	if CentroidCount != nil {
-		for ic := range CentroidCount {
-			CentroidCount[ic] = 0
-		}
+	for ic := range CentroidCount {
+		CentroidCount[ic] = 0
 	}
 	var m1, m2 sync.Mutex
 	base.Parallelize(runtime.NumCPU(), NSamples, func(th, start, end int) {
@@ -153,7 +151,7 @@ func (m *KMeans) Predict(X mat.Matrix, Ymutable mat.Mutable) *mat.Dense {
 	if Y.IsZero() {
 		*Y = *mat.NewDense(nSamples, m.GetNOutputs(), nil)
 	}
-	y := make([]int, nSamples, nSamples)
+	y := make([]int, nSamples)
 	m.predict(X, y, nil, nil)
 	for i, y1 := range y {
 		Y.Set(i, 0, float64(y1))

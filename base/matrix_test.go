@@ -9,15 +9,6 @@ import (
 
 var _ mat.Mutable = MatTranspose{}
 
-func mustPanic(t *testing.T, f func()) {
-	defer func() {
-		if r := recover(); r != nil {
-
-		}
-	}()
-	f()
-	t.Error("must panic")
-}
 func TestMatConst(t *testing.T) {
 	m := MatConst{Rows: 2, Columns: 3, Value: 1}
 	r, c := m.Dims()
@@ -63,15 +54,15 @@ func TestMatDenseSlice(t *testing.T) {
 		1, 2,
 		3, 4,
 		5, 6}), 1, 2, 1, 2)))
-	if "[4]" != actual {
+	if actual != "[4]" {
 		t.Errorf("got: %s", actual)
 	}
 	actual = fmt.Sprintf("%g", mat.Formatted(MatDenseRowSlice(mat.NewDense(3, 2, []float64{1, 2, 3, 4, 5, 6}), 1, 2)))
-	if "[3  4]" != actual {
+	if actual != "[3  4]" {
 		t.Errorf("got: %s", actual)
 	}
 	actual = fmt.Sprintf("%g", mat.Formatted(MatDenseColSlice(mat.NewDense(3, 2, []float64{1, 2, 3, 4, 5, 6}), 1, 2).T()))
-	if "[2  4  6]" != actual {
+	if actual != "[2  4  6]" {
 		t.Errorf("got: %s", actual)
 	}
 }
@@ -79,12 +70,12 @@ func TestMatDenseSlice(t *testing.T) {
 func TestToDense(t *testing.T) {
 	m := MatConst{Rows: 1, Columns: 1, Value: 1}
 	d := ToDense(m)
-	if "[1]" != fmt.Sprintf("%g", mat.Formatted(d)) {
+	if fmt.Sprintf("%g", mat.Formatted(d)) != "[1]" {
 		t.Fail()
 	}
 	d2 := mat.NewDense(1, 1, []float64{0})
 	m2 := FromDense(d2, d)
-	if "[1]" != fmt.Sprintf("%g", mat.Formatted(m2)) {
+	if fmt.Sprintf("%g", mat.Formatted(m2)) != "[1]" {
 		t.Fail()
 	}
 

@@ -91,7 +91,7 @@ func (m *DBSCAN) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
 	_, neighborhoods := m.NeighborsModel.RadiusNeighbors(X, m.Eps)
 
 	NSamples, _ := X.Dims()
-	NNeighbors := make([]float64, NSamples, NSamples)
+	NNeighbors := make([]float64, NSamples)
 
 	if m.SampleWeight == nil {
 		for i, neighbors := range neighborhoods {
@@ -106,12 +106,12 @@ func (m *DBSCAN) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
 
 	}
 	// # Initially, all samples are noise.
-	m.Labels = make([]int, NSamples, NSamples)
+	m.Labels = make([]int, NSamples)
 	for i := range m.Labels {
 		m.Labels[i] = -1
 	}
 	// # A list of all core samples found.
-	isCore := make([]bool, NSamples, NSamples)
+	isCore := make([]bool, NSamples)
 	for sample := range NNeighbors {
 		if NNeighbors[sample] > m.MinSamples {
 			isCore[sample] = true

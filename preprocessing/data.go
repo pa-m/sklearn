@@ -242,7 +242,7 @@ func MeanStdDev(X mat.Matrix) (mean, std *mat.Dense) {
 	m, n := X.Dims()
 	mean, std = mat.NewDense(1, n, nil), mat.NewDense(1, n, nil)
 	base.Parallelize(-1, n, func(th, start, end int) {
-		tmp := make([]float64, m, m)
+		tmp := make([]float64, m)
 		for col := start; col < end; col++ {
 			mat.Col(tmp, col, X)
 			meancol, stdcol := stat.MeanStdDev(tmp, nil)
@@ -259,7 +259,7 @@ func Mean(X mat.Matrix) (mean *mat.Dense) {
 	m, n := X.Dims()
 	mean = mat.NewDense(1, n, nil)
 	base.Parallelize(-1, n, func(th, start, end int) {
-		tmp := make([]float64, m, m)
+		tmp := make([]float64, m)
 		for col := start; col < end; col++ {
 			mat.Col(tmp, col, X)
 			meancol := stat.Mean(tmp, nil)
@@ -278,7 +278,7 @@ func (NumpyLike) Var(X mat.Matrix) *mat.Dense {
 	mean := Mean(X)
 	variance := mat.NewDense(1, n, nil)
 	base.Parallelize(-1, n, func(th, start, end int) {
-		tmp := make([]float64, m, m)
+		tmp := make([]float64, m)
 		for col := start; col < end; col++ {
 			mat.Col(tmp, col, X)
 			floats.AddConst(-mean.At(0, col), tmp)
@@ -927,8 +927,8 @@ func (m *MaxAbsScaler) TransformerClone() base.Transformer {
 func (m *MaxAbsScaler) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
 	X, Y := base.ToDense(Xmatrix), base.ToDense(Ymatrix)
 	Xmat := X.RawMatrix()
-	m.MaxAbs = make([]float64, Xmat.Cols, Xmat.Cols)
-	m.Scale = make([]float64, Xmat.Cols, Xmat.Cols)
+	m.MaxAbs = make([]float64, Xmat.Cols)
+	m.Scale = make([]float64, Xmat.Cols)
 	return m.PartialFit(X, Y)
 }
 
@@ -1100,7 +1100,7 @@ func (m *KernelCenterer) TransformerClone() base.Transformer {
 func (m *KernelCenterer) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
 	X := base.ToDense(Xmatrix)
 	r, c := X.Dims()
-	m.KFitRows = make([]float64, c, c)
+	m.KFitRows = make([]float64, c)
 
 	for col := 0; col < c; col++ {
 		Xmat := X.RawMatrix()
@@ -1119,7 +1119,7 @@ func (m *KernelCenterer) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
 func (m *KernelCenterer) Transform(Xmatrix, Y mat.Matrix) (Xout, Yout *mat.Dense) {
 	X := base.ToDense(Xmatrix)
 	r, _ := X.Dims()
-	KPredCols := make([]float64, r, r)
+	KPredCols := make([]float64, r)
 	base.Parallelize(-1, r, func(th, start, end int) {
 		for i := start; i < end; i++ {
 			KPredCols[i] = floats.Sum(X.RawRowView(i)) / float64(len(m.KFitRows))

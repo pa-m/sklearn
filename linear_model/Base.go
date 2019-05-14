@@ -238,7 +238,7 @@ func (regr *SGDRegressor) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
 				return grad[j]
 			}, gradmat)
 		}
-		initialcoefs := make([]float, nFeatures, nFeatures)
+		initialcoefs := make([]float, nFeatures)
 		/*for j := 0; j < nFeatures; j++ {
 			initialcoefs[j] = rand.Float64()
 		}*/
@@ -318,6 +318,7 @@ type LinFitResult struct {
 func initRecorder(recorder optimize.Recorder) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
+			err = fmt.Errorf("%v", r)
 		}
 	}()
 	err = errors.New("no recorcder")
@@ -336,11 +337,11 @@ func LinFit(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 		return LinFitGOM(X, Ytrue, opts)
 	}
 
-	thetaSlice := make([]float64, nFeatures*nOutputs, nFeatures*nOutputs)
-	thetaSliceBest := make([]float64, nFeatures*nOutputs, nFeatures*nOutputs)
+	thetaSlice := make([]float64, nFeatures*nOutputs)
+	thetaSliceBest := make([]float64, nFeatures*nOutputs)
 
 	Theta := mat.NewDense(nFeatures, nOutputs, thetaSlice)
-	gradSlice := make([]float64, nFeatures*nOutputs, nFeatures*nOutputs)
+	gradSlice := make([]float64, nFeatures*nOutputs)
 	grad := mat.NewDense(nFeatures, nOutputs, gradSlice)
 
 	if opts.ThetaInitializer != nil {
@@ -406,7 +407,7 @@ func LinFit(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 			}
 			miniBatchRows := miniBatchEnd - miniBatchStart
 
-			J = opts.Loss(
+			opts.Loss(
 				Ys.Slice(miniBatchStart, miniBatchEnd, 0, nOutputs),
 				Xs.Slice(miniBatchStart, miniBatchEnd, 0, nFeatures),
 				Theta,
@@ -470,7 +471,7 @@ func LinFitGOM(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 		return settings
 	}
 
-	theta := make([]float64, nFeatures*nOutputs, nFeatures*nOutputs)
+	theta := make([]float64, nFeatures*nOutputs)
 	thetaM := mat.NewDense(nFeatures, nOutputs, theta)
 	for j := 0; j < len(theta); j++ {
 		theta[j] = 0.01 * rand.NormFloat64()
@@ -491,7 +492,7 @@ func LinFitGOM(X, Ytrue *mat.Dense, opts *LinFitOptions) *LinFitResult {
 		fitOutput := func(o int, chanret chan fitOutputRes) {
 			Ypred := mat.NewDense(nSamples, 1, nil)
 			Ydiff := mat.NewDense(nSamples, 1, nil)
-			thetao := make([]float64, nFeatures, nFeatures)
+			thetao := make([]float64, nFeatures)
 			p := optimize.Problem{
 				Func: func(thetao []float64) float64 {
 					J := opts.Loss(Ytrue.ColView(o), X, mat.NewDense(nFeatures, 1, thetao), Ypred, Ydiff, nil, opts.Alpha, opts.L1Ratio, nSamples, opts.Activation, opts.DisableRegularizationOfFirstFeature)
@@ -565,31 +566,6 @@ func (regr *LinearModel) setIntercept(XOffset, YOffset, XScale mat.Matrix) {
 	if regr.FitIntercept {
 		regr.Intercept.Mul(XOffset, regr.Coef)
 		regr.Intercept.Sub(YOffset, regr.Intercept)
-	}
-}
-
-func dims(mats ...mat.Matrix) string {
-	s := ""
-	for _, m := range mats {
-		r, c := m.Dims()
-		s = fmt.Sprintf("%s %d,%d", s, r, c)
-	}
-	return s
-}
-
-func chkdims(op string, R, X, Y mat.Matrix) {
-	rx, cx := X.Dims()
-	ry, cy := Y.Dims()
-	rr, cr := R.Dims()
-	switch op {
-	case "+", "-", "*", "/":
-		if rx != ry || cx != cy || rr != rx || cr != cx {
-			panic(fmt.Errorf("%s %s", op, dims(R, X, Y)))
-		}
-	case ".":
-		if cx != ry || rr != rx || cr != cy {
-			panic(fmt.Errorf("%s %s", op, dims(R, X, Y)))
-		}
 	}
 }
 

@@ -71,8 +71,8 @@ func (m *NearestNeighbors) KNeighbors(X mat.Matrix, NNeighbors int) (distances, 
 	base.Parallelize(m.NJobs, NSamples, func(th, start, end int) {
 		Xsample := mat.NewVecDense(NFeatures, nil)
 		NFitSamples, _ := m.X.Dims()
-		idx := make([]int, NFitSamples, NFitSamples)
-		sampleDistance := make([]float64, NFitSamples, NFitSamples)
+		idx := make([]int, NFitSamples)
+		sampleDistance := make([]float64, NFitSamples)
 
 		for sample := start; sample < end; sample++ {
 

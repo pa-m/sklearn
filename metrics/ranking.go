@@ -199,9 +199,7 @@ func PrecisionRecallCurve(Ytrue, ProbasPred *mat.Dense, posLabel float64, sample
 			a[i], a[j] = a[j], a[i]
 		}
 		a = a[:l]
-		for _, vj := range v {
-			a = append(a, vj)
-		}
+		a = append(a, v...)
 		return a
 	}
 	precision = reverseAndAppend(precision, lastInd+1, 1.)

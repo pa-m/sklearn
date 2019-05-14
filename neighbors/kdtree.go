@@ -68,7 +68,7 @@ func (r *Rectangle) Split(d int, split float64) (less, greater *Rectangle) {
 // p : float, optional 	Input.
 func (r *Rectangle) MinDistancePoint(x []float64, p float64) float64 {
 	l := len(x)
-	v := make([]float64, l, l)
+	v := make([]float64, l)
 	for d := 0; d < l; d++ {
 		v[d] = math.Max(0, math.Max(r.Mins[d]-x[d], x[d]-r.Maxes[d]))
 	}
@@ -81,7 +81,7 @@ func (r *Rectangle) MinDistancePoint(x []float64, p float64) float64 {
 // p : float, optional	Input.
 func (r *Rectangle) MaxDistancePoint(x []float64, p float64) float64 {
 	l := len(x)
-	v := make([]float64, l, l)
+	v := make([]float64, l)
 	for d := 0; d < l; d++ {
 		v[d] = math.Max(r.Maxes[d]-x[d], x[d]-r.Mins[d])
 	}
@@ -94,7 +94,7 @@ func (r *Rectangle) MaxDistancePoint(x []float64, p float64) float64 {
 // p : float Input.
 func (r *Rectangle) MinDistanceRectangle(other *Rectangle, p float64) float64 {
 	l := len(other.Maxes)
-	v := make([]float64, l, l)
+	v := make([]float64, l)
 	for d := 0; d < l; d++ {
 		v[d] = math.Max(0, math.Max(r.Mins[d]-other.Maxes[d], other.Mins[d]-r.Maxes[d]))
 	}
@@ -107,7 +107,7 @@ func (r *Rectangle) MinDistanceRectangle(other *Rectangle, p float64) float64 {
 // p : float, optional      Input.
 func (r *Rectangle) MaxDistanceRectangle(other *Rectangle, p float64) float64 {
 	l := len(other.Maxes)
-	v := make([]float64, l, l)
+	v := make([]float64, l)
 	for d := 0; d < l; d++ {
 		v[d] = math.Max(r.Maxes[d]-other.Mins[d], other.Maxes[d]-r.Mins[d])
 	}
@@ -159,8 +159,8 @@ func NewKDTree(data mat.Matrix, LeafSize int) *KDTree {
 		tr.LeafSize = 1
 	}
 	n, m := data.Dims()
-	tr.Maxes = make([]float64, m, m)
-	tr.Mins = make([]float64, m, m)
+	tr.Maxes = make([]float64, m)
+	tr.Mins = make([]float64, m)
 	copy(tr.Maxes, tr.Data.RawRowView(0))
 	copy(tr.Mins, tr.Data.RawRowView(0))
 	rawdata := tr.Data.RawMatrix()
@@ -183,7 +183,7 @@ func NewKDTree(data mat.Matrix, LeafSize int) *KDTree {
 }
 
 func _arange(n int) (a []int) {
-	a = make([]int, n, n)
+	a = make([]int, n)
 	for i := range a {
 		a[i] = i
 	}
@@ -292,7 +292,7 @@ func (tr *KDTree) _build(idx []int, maxes, mins []float64) Node {
 
 func (tr *KDTree) _query(X mat.Vector, k int, eps, p float64, distanceUpperBound float64, callback func(ith int, dist float64, indice int)) {
 	cx := X.Len()
-	sideDistances := make([]float64, cx, cx)
+	sideDistances := make([]float64, cx)
 	for j := 0; j < cx; j++ {
 		x := X.AtVec(j)
 		d := math.Max(0, math.Max(x-tr.Maxes[j], tr.Mins[j]-x))
@@ -318,7 +318,7 @@ func (tr *KDTree) _query(X mat.Vector, k int, eps, p float64, distanceUpperBound
 		sideDistances []float64
 		headNode      Node
 	}
-	type qSlice []qEle
+	// type qSlice []qEle
 
 	q := []qEle{{minDistance, sideDistances, tr.Tree}}
 	qLess := func(i, j int) bool { return q[i].minDistance < q[j].minDistance }
@@ -400,7 +400,7 @@ func (tr *KDTree) _query(X mat.Vector, k int, eps, p float64, distanceUpperBound
 			qHeappush(qEle{minDistance, sideDistances, near})
 			// # far child is further by an amount depending only
 			// # on the split value
-			sd := make([]float64, cx, cx)
+			sd := make([]float64, cx)
 			copy(sd, sideDistances)
 			if math.IsInf(p, 1) {
 				minDistance = math.Max(minDistance, math.Abs(innernode.split-x))
@@ -474,7 +474,7 @@ func (tr *KDTree) Query(X mat.Matrix, k int, eps, p, distanceUpperBound float64)
 		XRowViewer, _ := X.(mat.RowViewer)
 		var row []float64
 		if XRowViewer == nil {
-			row = make([]float64, NFeatures, NFeatures)
+			row = make([]float64, NFeatures)
 		}
 		for sample := start; sample < end; sample++ {
 			callback := func(ik int, dist float64, ind int) {

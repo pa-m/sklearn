@@ -119,7 +119,7 @@ func TestMeanSquaredError(t *testing.T) {
 	yPred := mat.NewDense(1, 4, []float64{2.5, 0.0, 2, 8})
 	var sampleWeight *mat.Dense
 	multioutput := ""
-	if 0.375 != MeanSquaredError(yTrue, yPred, sampleWeight, multioutput).At(0, 0) {
+	if MeanSquaredError(yTrue, yPred, sampleWeight, multioutput).At(0, 0) != 0.375 {
 		t.Fail()
 	}
 	yTrue = mat.NewDense(3, 2, []float64{0.5, 1, -1, 1, 7, -6})
@@ -141,7 +141,7 @@ func TestMeanAbsoluteError(t *testing.T) {
 	yPred := mat.NewDense(1, 4, []float64{2.5, 0.0, 2, 8})
 	var sampleWeight *mat.Dense
 	multioutput := ""
-	if 0.5 != MeanAbsoluteError(yTrue, yPred, sampleWeight, multioutput).At(0, 0) {
+	if MeanAbsoluteError(yTrue, yPred, sampleWeight, multioutput).At(0, 0) != 0.5 {
 		t.Fail()
 	}
 

@@ -35,9 +35,6 @@ func testActivationDerivatives(t *testing.T, activation Activation) {
 
 		if !floats.EqualWithinAbs(expected, actual, 1e-3) {
 			t.Errorf("testActivationDerivatives %T x:%g theta:%g y:%g expected:%g actual:%g", activation, x, theta, y, expected, actual)
-		} else {
-			//	fmt.Printf("testActivationDerivatives %T ok x:%g theta:%g y:%g expected:%g actual:%g\n", activation, x, theta, y, expected, actual)
-
 		}
 	}
 }

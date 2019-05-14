@@ -117,7 +117,7 @@ func LoadOctaveBin(filename string) map[string]*mat.Dense {
 		//fmt.Printf("%d x %d\n", Rows, Cols)
 		// read 1 unknown byte
 		read(f, 1)
-		data := make([]float64, Rows*Cols, Rows*Cols)
+		data := make([]float64, Rows*Cols)
 		t := mat.NewDense(int(Rows), int(Cols), data)
 
 		coldata := make([]float64, int(Rows))

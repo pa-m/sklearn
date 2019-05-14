@@ -49,9 +49,9 @@ type Model struct {
 // %           SVMLight (http://svmlight.joachims.org/)
 func svmTrain(X *mat.Dense, Y []float64, C, Epsilon float64, KernelFunction func(X1, X2 []float64) float64, Tol float64, MaxPasses int, CacheSize uint, RandomState base.RandomState) *Model {
 	m, n := X.Dims()
-	alphas := make([]float64, m, m)
+	alphas := make([]float64, m)
 	b := 0.
-	E := make([]float64, m, m)
+	E := make([]float64, m)
 	eta := 0.
 	passes := 0
 	L, H := 0., 0.
@@ -195,7 +195,6 @@ func svmPredict(model *Model, X, Y *mat.Dense, output int, binary bool) {
 			Ymat.Data[yoff] = prediction
 		}
 	}
-	return
 }
 
 // BaseLibSVM is a base for SVC and SVR

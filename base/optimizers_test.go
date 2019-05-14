@@ -33,7 +33,6 @@ func TestNewOptimizer(t *testing.T) {
 	for _, opt := range []string{"adadelta", "adagrad", "adam", "rmsprop", "sgd"} {
 		assert.Equal(t, 0, strings.Index(NewOptimizer(opt).String(), opt))
 	}
-	assert.Equal(t, true, sgd.Needs().Gradient)
 	uses, err := sgd.Uses(optimize.Available{Grad: true})
 	assert.Nil(t, err)
 	assert.Equal(t, true, uses.Grad)

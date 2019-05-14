@@ -100,8 +100,8 @@ func R2Score(yTrue, yPred mat.Matrix, sampleWeight *mat.Dense, multioutput strin
 	yTrueAvg.Mul(sampleWeight.T(), yTrue)
 	yTrueAvg.Scale(1./sampleWeightSum, yTrueAvg)
 
-	diff2.Apply(func(i int, j int, v float64) float64 {
-		v = yTrue.At(i, j) - yTrueAvg.At(0, j)
+	diff2.Apply(func(i int, j int, _ float64) float64 {
+		v := yTrue.At(i, j) - yTrueAvg.At(0, j)
 		return v * v
 	}, diff2)
 	denominator := mat.NewDense(1, nOutputs, nil)

@@ -45,7 +45,7 @@ func (m *NearestCentroid) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
 	base.Parallelize(runtime.NumCPU(), NClasses*NFeatures, func(th, start, end int) {
 		var centroidXfeat, vclass float64
 		var icl, feature, rows, sample int
-		col := make([]float64, NSamples, NSamples)
+		col := make([]float64, NSamples)
 		for index := start; index < end; index++ {
 			icl = index / NFeatures
 			feature = index % NFeatures

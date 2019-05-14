@@ -78,7 +78,7 @@ func (regr *BayesianRidge) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
 	U, S, VhT := svd.UTo(nil), svd.Values(nil), svd.VTo(nil)
 	unused(U)
 
-	eigenVals := make([]float, len(S), len(S))
+	eigenVals := make([]float, len(S))
 	for j, Sj := range S {
 		eigenVals[j] = Sj * Sj
 	}
@@ -90,7 +90,7 @@ func (regr *BayesianRidge) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
 		coef := calcsigmaCoef
 		right := calcsigmaRight
 		for i := 0; i < nFeatures; i++ {
-			rightrow := make([]float, nFeatures, nFeatures)
+			rightrow := make([]float, nFeatures)
 			mat.Col(rightrow, i, VhT)
 			floats.Scale(1./(eigenVals[i]+lambda/alpha), rightrow)
 			right.SetRow(i, rightrow)
@@ -254,7 +254,7 @@ func (regr *BayesianRidge) Predict2(X, Y, yStd *mat.Dense) {
 		}
 		return v
 	}, sigmasSquaredData)
-	yStd = mat.NewDense(nSamples, 1, nil)
+	*yStd = *mat.NewDense(nSamples, 1, nil)
 	yStd.Apply(func(i int, j int, sigmasSquaredData float64) float64 {
 		return sigmasSquaredData + 1./regr.Alpha
 	}, sigmasSquaredData)
