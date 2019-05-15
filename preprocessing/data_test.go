@@ -469,3 +469,31 @@ func ExamplePowerTransformer() {
 	// ⎣4.0000  5.0000⎦
 
 }
+
+func ExamplePowerTransformer_boxcox() {
+	pt := NewPowerTransformer()
+	pt.Method = "box-cox"
+	data := mat.NewDense(3, 2, []float64{
+		1, 2,
+		3, 2,
+		4, 5,
+	})
+	Xout, _ := pt.FitTransform(data, nil)
+
+	fmt.Printf("lambdas: %.4f\n", pt.Lambdas)
+	fmt.Printf("transformed:\n%.4f\n", mat.Formatted(Xout))
+	Xinv, _ := pt.InverseTransform(Xout, nil)
+	fmt.Printf("inverse transformed:\n%.4f\n", mat.Formatted(Xinv))
+
+	// Output:
+	// lambdas: [1.0517 -2.3455]
+	// transformed:
+	// ⎡-1.3327  -0.7071⎤
+	// ⎢ 0.2565  -0.7071⎥
+	// ⎣ 1.0762   1.4142⎦
+	// inverse transformed:
+	// ⎡1.0000  2.0000⎤
+	// ⎢3.0000  2.0000⎥
+	// ⎣4.0000  5.0000⎦
+
+}

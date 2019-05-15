@@ -1,6 +1,7 @@
 package preprocessing
 
 import (
+	"fmt"
 	"math"
 	"sort"
 
@@ -1254,8 +1255,11 @@ func (m *PowerTransformer) fit(X, Y mat.Matrix, forceTransform bool) (Xout *mat.
 	case "yeo-johnson":
 		optimFunc = yeoJohnsonOptimize
 		transformFunc = yeoJohnsonTransform
+	case "box-cox":
+		optimFunc = boxCoxOptimize
+		transformFunc = boxCoxTransform
 	default:
-		panic("not implemented")
+		panic(fmt.Errorf("'method' must be one of ('box-cox', 'yeo-johnson'), got %s instead", m.Method))
 	}
 	if m.Standardize || forceTransform {
 		Xout = mat.NewDense(nSamples, nFeatures, nil)
@@ -1292,8 +1296,10 @@ func (m *PowerTransformer) Transform(X, Y mat.Matrix) (Xout, Yout *mat.Dense) {
 	switch m.Method {
 	case "yeo-johnson":
 		transformFunc = yeoJohnsonTransform
+	case "box-cox":
+		transformFunc = boxCoxTransform
 	default:
-		panic("not implemented")
+		panic(fmt.Errorf("'method' must be one of ('box-cox', 'yeo-johnson'), got %s instead", m.Method))
 	}
 	base.Parallelize(-1, nFeatures, func(th, start, end int) {
 		col := make([]float64, nSamples)
@@ -1341,8 +1347,10 @@ func (m *PowerTransformer) InverseTransform(X, Y mat.Matrix) (Xout, Yout *mat.De
 	switch m.Method {
 	case "yeo-johnson":
 		inverseTransformFunc = yeoJohnsonInverseTransform
+	case "box-cox":
+		inverseTransformFunc = boxCoxInverseTransform
 	default:
-		panic("not implemented")
+		panic(fmt.Errorf("'method' must be one of ('box-cox', 'yeo-johnson'), got %s instead", m.Method))
 	}
 	X1 := base.ToDense(X)
 	if m.Standardize {
@@ -1462,6 +1470,55 @@ func yeoJohnsonInverseTransform(xinv, x []float64, lmbda float64) {
 			if x[pos] < 0 {
 				xinv[pos] = 1 - exp(-x[pos])
 			}
+		}
+	}
+}
+
+func boxCoxOptimize(x []float64) float64 {
+	xTrans := make([]float64, len(x))
+	negLogLikelihood := func(lmbda float64) float64 { // Return the negative log likelihood of the observed data x as a function of lambda
+		nSamples := len(x)
+		var sumlog float64
+		for _, xi := range x {
+			sumlog += math.Log(xi)
+		}
+		boxCoxTransform(xTrans, x, lmbda)
+		loglike := -float64(nSamples)/2*math.Log(NumpyLike{}.Var(mat.NewDense(nSamples, 1, xTrans)).At(0, 0)) +
+			(lmbda-1)*sumlog
+		return -loglike
+	}
+	maxFev := func(n int) bool { return n >= 500 }
+	brent := optimize.NewBrentMinimizer(negLogLikelihood, 1.48e-8, math.MaxInt32, maxFev)
+
+	brent.Brack = []float64{-2, 2}
+
+	res, fx, iter, funcalls := brent.Optimize()
+	_, _, _ = fx, iter, funcalls
+	return res
+}
+func boxCoxTransform(out, x []float64, lmbda float64) {
+	var f = func(x float64) float64 { return (math.Pow(x, lmbda) - 1) / lmbda }
+	if lmbda == 0 {
+		f = math.Log
+	}
+	for pos, xi := range x {
+		if xi > 0 || (xi >= 0 && lmbda > 0) {
+			out[pos] = f(xi)
+		} else {
+			out[pos] = math.NaN()
+		}
+	}
+}
+func boxCoxInverseTransform(out, x []float64, lmbda float64) {
+	var f = func(x float64) float64 { return math.Pow(x*lmbda+1, 1/lmbda) }
+	if lmbda == 0 {
+		f = math.Exp
+	}
+	for pos, xi := range x {
+		if xi > 0 || (xi >= 0 && lmbda > 0) {
+			out[pos] = f(xi)
+		} else {
+			out[pos] = math.NaN()
 		}
 	}
 }
