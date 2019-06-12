@@ -183,7 +183,7 @@ func (regr *BayesianRidge) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
 			}
 		}
 
-		coefOld.Clone(coef)
+		coefOld.CloneFrom(coef)
 
 	}
 	//sigma = np.dot(Vh.T,Vh / (eigenVals + lambda / alpha)[:, np.newaxis])

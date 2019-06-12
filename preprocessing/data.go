@@ -70,8 +70,8 @@ func (scaler *MinMaxScaler) PartialFit(Xmatrix, Ymatrix mat.Matrix) Transformer 
 		scaler.Min = mat.NewDense(1, nFeatures, nil)
 		scaler.Scale = mat.NewDense(1, nFeatures, nil)
 
-		scaler.DataMin.Clone(X.RowView(0).T())
-		scaler.DataMax.Clone(X.RowView(0).T())
+		scaler.DataMin.CloneFrom(X.RowView(0).T())
+		scaler.DataMax.CloneFrom(X.RowView(0).T())
 	}
 	X.Apply(func(i int, j int, x float64) float64 {
 		scaler.DataMin.Set(0, j, math.Min(scaler.DataMin.At(0, j), x))
@@ -507,12 +507,12 @@ func IncrementalMeanAndVar(X, lastMean, lastVariance *mat.Dense,
 	}
 
 	if lastSampleCount == 0 { //# Avoid division by 0
-		updatedUnnormalizedVariance.Clone(newUnnormalizedVariance)
+		updatedUnnormalizedVariance.CloneFrom(newUnnormalizedVariance)
 	} else {
 		lastOverNewCount := float(lastSampleCount) / float(newSampleCount)
 		//lastUnnormalizedVariance := lastVariance * lastSampleCount
 		lastUnnormalizedVariance := mat.NewDense(1, nFeatures, nil)
-		lastUnnormalizedVariance.Clone(lastVariance)
+		lastUnnormalizedVariance.CloneFrom(lastVariance)
 		lastUnnormalizedVariance.Scale(float(lastSampleCount), lastUnnormalizedVariance)
 
 		// updatedUnnormalizedVariance = (
@@ -520,19 +520,19 @@ func IncrementalMeanAndVar(X, lastMean, lastVariance *mat.Dense,
 		//     newUnnormalizedVariance +
 		//     lastOverNewCount / updatedSampleCount *
 		//     (lastSum / lastOverNewCount - newSum) ** 2)
-		tmp.Clone(lastSum)
+		tmp.CloneFrom(lastSum)
 		tmp.Scale(1./lastOverNewCount, tmp)
 		tmp.Add(tmp, newSum)
 		tmp.Mul(tmp, tmp)
 		tmp.Scale(lastOverNewCount/float(updatedSampleCount), tmp)
 
-		updatedUnnormalizedVariance.Clone(lastUnnormalizedVariance)
+		updatedUnnormalizedVariance.CloneFrom(lastUnnormalizedVariance)
 		updatedUnnormalizedVariance.Add(updatedUnnormalizedVariance, newUnnormalizedVariance)
 		updatedUnnormalizedVariance.Add(updatedUnnormalizedVariance, tmp)
 	}
 	//updatedVariance = updatedUnnormalizedVariance / updatedSampleCount
 	updatedVariance = mat.NewDense(1, nFeatures, nil)
-	updatedVariance.Clone(updatedUnnormalizedVariance)
+	updatedVariance.CloneFrom(updatedUnnormalizedVariance)
 	updatedVariance.Scale(1./float(updatedSampleCount), updatedVariance)
 
 	return updatedMean, updatedVariance, updatedSampleCount
@@ -675,7 +675,7 @@ func AddDummyFeature(X *mat.Dense) {
 		}
 		return X.At(i, j-1)
 	}, X1)
-	X.Clone(X1)
+	X.CloneFrom(X1)
 }
 
 // OneHotEncoder Encode categorical integer features using a one-hot aka one-of-K scheme.

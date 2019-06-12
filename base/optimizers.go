@@ -301,7 +301,7 @@ func (s *SGDOptimizer) GetUpdate(update *mat.Dense, grad mat.Matrix) {
 			return s.Momentum*s.PrevUpdate.At(j, o) + updjo
 		}, update)
 	}
-	s.PrevUpdate.Clone(update)
+	s.PrevUpdate.CloneFrom(update)
 }
 
 // colNorm returns the L2 norm of a matrix column
