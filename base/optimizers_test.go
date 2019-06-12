@@ -2,10 +2,10 @@ package base
 
 import (
 	"math"
+	"reflect"
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"golang.org/x/exp/rand"
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/optimize"
@@ -22,38 +22,55 @@ func assertPanics(t *testing.T, f func(), msg string) {
 	}()
 	f()
 }
+
+func assertNil(t testing.TB, x interface{}) {
+	if x != nil {
+		t.FailNow()
+	}
+}
+func assertNotNil(t testing.TB, x interface{}) {
+	if x == nil {
+		t.FailNow()
+	}
+}
+func assertEqual(t testing.TB, a, b interface{}) {
+	if !reflect.DeepEqual(a, b) {
+		t.FailNow()
+	}
+}
+
 func TestNewOptimizer(t *testing.T) {
-	assert.NotNil(t, NewOptimizer("sgd"))
+	assertNotNil(t, NewOptimizer("sgd"))
 	sgd := NewSGDOptimizer()
-	assert.Equal(t, false, sgd.Adadelta || sgd.Adagrad || sgd.RMSProp || sgd.Adam)
-	assert.Equal(t, true, NewAdagradOptimizer().Adagrad)
-	assert.Equal(t, true, NewAdadeltaOptimizer().Adadelta)
-	assert.Equal(t, true, NewRMSPropOptimizer().RMSProp)
-	assert.Equal(t, true, NewAdamOptimizer().Adam)
+	assertEqual(t, false, sgd.Adadelta || sgd.Adagrad || sgd.RMSProp || sgd.Adam)
+	assertEqual(t, true, NewAdagradOptimizer().Adagrad)
+	assertEqual(t, true, NewAdadeltaOptimizer().Adadelta)
+	assertEqual(t, true, NewRMSPropOptimizer().RMSProp)
+	assertEqual(t, true, NewAdamOptimizer().Adam)
 	for _, opt := range []string{"adadelta", "adagrad", "adam", "rmsprop", "sgd"} {
-		assert.Equal(t, 0, strings.Index(NewOptimizer(opt).String(), opt))
+		assertEqual(t, 0, strings.Index(NewOptimizer(opt).String(), opt))
 	}
 	uses, err := sgd.Uses(optimize.Available{Grad: true})
-	assert.Nil(t, err)
-	assert.Equal(t, true, uses.Grad)
+	assertNil(t, err)
+	assertEqual(t, true, uses.Grad)
 	sgd.SetTheta(mat.NewDense(1, 2, []float64{3, 4}))
-	assert.Equal(t, 1, sgd.NFeatures)
-	assert.Equal(t, 2, sgd.NOutputs)
+	assertEqual(t, 1, sgd.NFeatures)
+	assertEqual(t, 2, sgd.NOutputs)
 	th := sgd.GetTheta()
-	assert.Equal(t, []float64{3, 4}, th.RawMatrix().Data)
+	assertEqual(t, []float64{3, 4}, th.RawMatrix().Data)
 
 	sgd.UpdateParams(mat.NewDense(1, 2, []float64{0, 0}))
-	assert.Equal(t, []float64{3, 4}, sgd.GetTheta().RawMatrix().Data)
+	assertEqual(t, []float64{3, 4}, sgd.GetTheta().RawMatrix().Data)
 
 	assertPanics(t, func() { NewOptimizer("xxx") }, "NewOptimizer xxx should panic") // should panic
 
 	sgd = NewSGDOptimizer()
 	uses, err = sgd.Uses(optimize.Available{})
-	assert.NotNil(t, err)
+	assertNotNil(t, err)
 	sgd.initLocal(&optimize.Location{X: []float64{0, 0}})
-	assert.Equal(t, 2, sgd.NFeatures)
-	assert.Equal(t, 1, sgd.NOutputs)
-	assert.NotNil(t, sgd.Update)
+	assertEqual(t, 2, sgd.NFeatures)
+	assertEqual(t, 1, sgd.NOutputs)
+	assertNotNil(t, sgd.Update)
 }
 
 func TestColNorm(t *testing.T) {
