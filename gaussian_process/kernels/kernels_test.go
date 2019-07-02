@@ -1,4 +1,4 @@
-package kernel
+package kernels
 
 import (
 	"fmt"
@@ -8,7 +8,7 @@ import (
 	"github.com/pa-m/randomkit"
 )
 
-var _ = []Kernel{&ConstantKernel{}, &DotProduct{}}
+var _ = []Kernel{&ConstantKernel{}, &WhiteKernel{}, &RBF{}, &DotProduct{}}
 
 type Float64er interface{ Float64() float64 }
 
@@ -27,8 +27,10 @@ func ExampleConstantKernel() {
 	// X=np.reshape(np.random.sample(6),(3,2))
 	X, Y := sample(state, 3, 2), sample(state, 3, 2)
 	K := &ConstantKernel{ConstantValue: 1.23}
+	fmt.Printf("K=%s, stationary:%v\n", K, K.IsStationary())
 	fmt.Printf("X=\n%.8f\nY=\n%.8f\nK(X,Y)=\n%.8f\nK(X,X)=\n%.8f\n", mat.Formatted(X), mat.Formatted(Y), mat.Formatted(K.Eval(X, Y)), mat.Formatted(K.Diag(X)))
 	// Output:
+	// K=1.23**2, stationary:true
 	// X=
 	// ⎡0.41702200  0.72032449⎤
 	// ⎢0.00011437  0.30233257⎥
@@ -53,8 +55,11 @@ func ExampleWhiteKernel() {
 	// X=np.reshape(np.random.sample(6),(3,2))
 	X, Y := sample(state, 3, 2), sample(state, 3, 2)
 	K := &WhiteKernel{NoiseLevel: 1.23}
+	fmt.Printf("K=%s, stationary:%v\n", K, K.IsStationary())
+
 	fmt.Printf("X=\n%.8f\nY=\n%.8f\nK(X,Y)=\n%.8f\nK(X,X)=\n%.8f\n", mat.Formatted(X), mat.Formatted(Y), mat.Formatted(K.Eval(X, Y)), mat.Formatted(K.Diag(X)))
 	// Output:
+	// K=WhiteKernel(noise_level=1.23), stationary:true
 	// X=
 	// ⎡0.41702200  0.72032449⎤
 	// ⎢0.00011437  0.30233257⎥
@@ -80,8 +85,11 @@ func ExampleRBF() {
 	X, Y := sample(state, 3, 2), sample(state, 3, 2)
 	// K=DotProduct(sigma_0=1.23)
 	K := &RBF{LengthScale: 1.23}
+	fmt.Printf("K=%s, stationary:%v\n", K, K.IsStationary())
+
 	fmt.Printf("X=\n%.8f\nY=\n%.8f\nK(X,Y)=\n%.8f\nK(X,X)=\n%.8f\n", mat.Formatted(X), mat.Formatted(Y), mat.Formatted(K.Eval(X, Y)), mat.Formatted(K.Diag(X)))
 	// Output:
+	// K=RBF(1.23), stationary:true
 	// X=
 	// ⎡0.41702200  0.72032449⎤
 	// ⎢0.00011437  0.30233257⎥
@@ -108,8 +116,11 @@ func ExampleDotProduct() {
 	X, Y := sample(state, 3, 2), sample(state, 3, 2)
 	// K=DotProduct(sigma_0=1.23)
 	K := &DotProduct{Sigma0: 1.23}
+	fmt.Printf("K=%s, stationary:%v\n", K, K.IsStationary())
+
 	fmt.Printf("X=\n%.8f\nY=\n%.8f\nK(X,Y)=\n%.8f\nK(X,X)=\n%.8f\n", mat.Formatted(X), mat.Formatted(Y), mat.Formatted(K.Eval(X, Y)), mat.Formatted(K.Diag(X)))
 	// Output:
+	// K=DotProduct(sigma_0=1.23), stationary:false
 	// X=
 	// ⎡0.41702200  0.72032449⎤
 	// ⎢0.00011437  0.30233257⎥
