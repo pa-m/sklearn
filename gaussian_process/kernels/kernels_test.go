@@ -8,7 +8,7 @@ import (
 	"github.com/pa-m/randomkit"
 )
 
-var _ = []Kernel{&ConstantKernel{}, &WhiteKernel{}, &RBF{}, &DotProduct{}}
+var _ = []Kernel{&ConstantKernel{}, &WhiteKernel{}, &RBF{}, &DotProduct{},&Sum{},&Product{},&Exponentiation{}}
 
 type Float64er interface{ Float64() float64 }
 
@@ -30,7 +30,7 @@ func ExampleConstantKernel() {
 	fmt.Printf("K=%s, stationary:%v\n", K, K.IsStationary())
 	fmt.Printf("X=\n%.8f\nY=\n%.8f\nK(X,Y)=\n%.8f\nK(X,X)=\n%.8f\n", mat.Formatted(X), mat.Formatted(Y), mat.Formatted(K.Eval(X, Y)), mat.Formatted(K.Diag(X)))
 	// Output:
-	// K=1.23**2, stationary:true
+	// K=1.11**2, stationary:true
 	// X=
 	// ⎡0.41702200  0.72032449⎤
 	// ⎢0.00011437  0.30233257⎥
@@ -137,5 +137,70 @@ func ExampleDotProduct() {
 	// ⎡2.20567473  0.00000000  0.00000000⎤
 	// ⎢0.00000000  1.60430500  0.00000000⎥
 	// ⎣0.00000000  0.00000000  1.54296371⎦
+
+}
+
+func ExampleSum() {
+	// np.random.seed(1)
+	state := randomkit.NewRandomkitSource(1)
+	// X=np.reshape(np.random.sample(6),(3,2))
+	X, Y := sample(state, 3, 2), sample(state, 3, 2)
+	// K=DotProduct(sigma_0=1.23)
+	K := &Sum{KernelOperator{k1:&ConstantKernel{ ConstantValue:1.23 },k2:&WhiteKernel{NoiseLevel: 1.23}}}
+	fmt.Printf("K=%s, stationary:%v\n", K, K.IsStationary())
+
+	fmt.Printf("X=\n%.8f\nY=\n%.8f\nK(X,Y)=\n%.8f\nK(X,X)=\n%.8f\n", mat.Formatted(X), mat.Formatted(Y), mat.Formatted(K.Eval(X, Y)), mat.Formatted(K.Diag(X)))
+	// Output:
+	// K=1.11**2 + WhiteKernel(noise_level=1.23), stationary:true
+	// X=
+	// ⎡0.41702200  0.72032449⎤
+	// ⎢0.00011437  0.30233257⎥
+	// ⎣0.14675589  0.09233859⎦
+	// Y=
+	// ⎡0.18626021  0.34556073⎤
+	// ⎢0.39676747  0.53881673⎥
+	// ⎣0.41919451  0.68521950⎦
+	// K(X,Y)=
+	// ⎡1.23000000  1.23000000  1.23000000⎤
+	// ⎢1.23000000  1.23000000  1.23000000⎥
+	// ⎣1.23000000  1.23000000  1.23000000⎦
+	// K(X,X)=
+	// ⎡2.46000000  0.00000000  0.00000000⎤
+	// ⎢0.00000000  2.46000000  0.00000000⎥
+	// ⎣0.00000000  0.00000000  2.46000000⎦
+
+}
+
+func ExampleProduct() {
+	// np.random.seed(1)
+	state := randomkit.NewRandomkitSource(1)
+	// X=np.reshape(np.random.sample(6),(3,2))
+	X, Y := sample(state, 3, 2), sample(state, 3, 2)
+	// K=DotProduct(sigma_0=1.23)
+	K := &Product{KernelOperator{
+		k1:&ConstantKernel{ ConstantValue:1.23 },
+		k2:&DotProduct{Sigma0: 1.23}},
+	}
+	fmt.Printf("K=%s, stationary:%v\n", K, K.IsStationary())
+
+	fmt.Printf("X=\n%.8f\nY=\n%.8f\nK(X,Y)=\n%.8f\nK(X,X)=\n%.8f\n", mat.Formatted(X), mat.Formatted(Y), mat.Formatted(K.Eval(X, Y)), mat.Formatted(K.Diag(X)))
+	// Output:
+	// K=1.11**2 * DotProduct(sigma_0=1.23), stationary:false
+	// X=
+	// ⎡0.41702200  0.72032449⎤
+	// ⎢0.00011437  0.30233257⎥
+	// ⎣0.14675589  0.09233859⎦
+	// Y=
+	// ⎡0.18626021  0.34556073⎤
+	// ⎢0.39676747  0.53881673⎥
+	// ⎣0.41919451  0.68521950⎦
+	//K(X,Y)=
+	// ⎡2.26257327  2.54177490  2.68299128⎤
+	// ⎢1.98939655  2.06129209  2.11573791⎥
+	// ⎣1.93373635  1.99368430  2.01436051⎦
+	// K(X,X)=
+	// ⎡2.71297992  0.00000000  0.00000000⎤
+	// ⎢0.00000000  1.97329515  0.00000000⎥
+	// ⎣0.00000000  0.00000000  1.89784536⎦
 
 }

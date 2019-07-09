@@ -20,6 +20,7 @@ type Kernel interface {
 // StationaryKernelMixin mixin for kernels which are stationary: k(X, Y)= f(X-Y)
 type StationaryKernelMixin struct{}
 
+// IsStationary returns whether the kernel is stationary
 func (StationaryKernelMixin) IsStationary() bool { return true }
 
 // NormalizedKernelMixin is Mixin for kernels which are normalized: k(X, X)=1
@@ -35,6 +36,95 @@ func (k NormalizedKernelMixin) Diag(X mat.Matrix) (K *mat.DiagDense) {
 
 	}
 	return
+}
+
+// KernelOperator is a kernel based on two others
+type KernelOperator struct {
+	k1, k2 Kernel
+}
+
+// IsStationary returns whether the kernel is stationary
+func (k *KernelOperator) IsStationary() bool {
+	return k.k1.IsStationary() && k.k2.IsStationary()
+}
+
+// Sum kernel k1 + k2 of two kernels k1 and k2
+type Sum struct {
+	KernelOperator
+}
+// Eval return the kernel k(X, Y) and optionally its gradient
+func (k *Sum) Eval(X, Y mat.Matrix) *mat.Dense {
+
+	K1 := k.k1.Eval(X, Y)
+	K2 := k.k2.Eval(X, Y)
+	K1.Add(K1, K2)
+	return K1
+}
+// Diag returns the diagonal of the kernel k(X, X)
+func (k *Sum) Diag(X mat.Matrix) *mat.DiagDense {
+	K1 := k.k1.Diag(X)
+	K2 := k.k2.Diag(X)
+	nx, _ := K1.Dims()
+	for i := 0; i < nx; i++ {
+		K1.SetDiag(i, K1.At(i, i)+K2.At(i, i))
+	}
+	return K1
+}
+// String ...
+func (k *Sum) String() string {
+	return k.k1.String() + " + " + k.k2.String()
+}
+// Product kernel k1 * k2 of two kernels k1 and k2
+type Product struct {
+	KernelOperator
+}
+// Eval return the kernel k(X, Y) and optionally its gradient
+func (k *Product) Eval(X, Y mat.Matrix) *mat.Dense {
+
+	K1 := k.k1.Eval(X, Y)
+	K2 := k.k2.Eval(X, Y)
+	K1.MulElem(K1, K2)
+	return K1
+}
+// Diag returns the diagonal of the kernel k(X, X)
+func (k *Product) Diag(X mat.Matrix) *mat.DiagDense {
+	K1 := k.k1.Diag(X)
+	K2 := k.k2.Diag(X)
+	nx, _ := K1.Dims()
+	for i := 0; i < nx; i++ {
+		K1.SetDiag(i, K1.At(i, i)*K2.At(i, i))
+	}
+	return K1
+}
+// String ...
+func (k *Product) String() string {
+	return k.k1.String() + " * " + k.k2.String()
+}
+// Exponentiation exponentiate kernel by given exponent
+type Exponentiation struct {
+	Kernel
+	Exponent float64
+}
+// Eval return the kernel k(X, Y) and optionally its gradient
+func (k *Exponentiation) Eval(X, Y mat.Matrix) *mat.Dense {
+	K := k.Kernel.Eval(X, Y)
+	K.Apply(func(_, _ int, v float64) float64 {
+		return math.Pow(v, k.Exponent)
+	}, K)
+	return K
+}
+// Diag returns the diagonal of the kernel k(X, X)
+func (k *Exponentiation) Diag(X mat.Matrix) *mat.DiagDense {
+	K := k.Kernel.Diag(X)
+	nx, _ := K.Dims()
+	for i := 0; i < nx; i++ {
+		K.SetDiag(i, math.Pow(K.At(i, i), k.Exponent))
+	}
+	return K
+}
+// String ...
+func(k* Exponentiation) String() string {
+	return fmt.Sprintf("%s ** %g", k.Kernel.String(),k.Exponent)
 }
 
 // ConstantKernel can be used as part of a product-kernel where it scales the magnitude of the other factor (kernel) or as part of a sum-kernel, where it modifies the mean of the Gaussian process.
@@ -76,10 +166,10 @@ func (k *ConstantKernel) Diag(X mat.Matrix) (K *mat.DiagDense) {
 
 // String returns  string representation of kernel
 func (k *ConstantKernel) String() string {
-	return fmt.Sprintf("%.3g**2", k.ConstantValue)
+	return fmt.Sprintf("%.3g**2", math.Sqrt(k.ConstantValue))
 }
 
-// WhiteKernel....
+// WhiteKernel ...
 // The main use-case of this kernel is as part of a sum-kernel where it
 // explains the noise-component of the signal. Tuning its parameter
 // corresponds to estimating the noise-level.
