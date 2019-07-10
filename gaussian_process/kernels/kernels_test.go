@@ -84,12 +84,12 @@ func ExampleRBF() {
 	// X=np.reshape(np.random.sample(6),(3,2))
 	X, Y := sample(state, 3, 2), sample(state, 3, 2)
 	// K=DotProduct(sigma_0=1.23)
-	K := &RBF{LengthScale: 1.23}
+	K := &RBF{LengthScale: []float64{1.23}}
 	fmt.Printf("K=%s, stationary:%v\n", K, K.IsStationary())
 
 	fmt.Printf("X=\n%.8f\nY=\n%.8f\nK(X,Y)=\n%.8f\nK(X,X)=\n%.8f\n", mat.Formatted(X), mat.Formatted(Y), mat.Formatted(K.Eval(X, Y)), mat.Formatted(K.Diag(X)))
 	// Output:
-	// K=RBF(1.23), stationary:true
+	// K=RBF([1.23]), stationary:true
 	// X=
 	// ⎡0.41702200  0.72032449⎤
 	// ⎢0.00011437  0.30233257⎥

@@ -9,12 +9,29 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
+// Hyperparameter specification
+// for no value_type is mat.Vector
+// bounds is [2]float64
+// IsFixed() is true if bounds are equal
+type Hyperparameter struct {
+	Name string
+	PValue *float64
+	PBounds *[2]float64
+}
+func (param Hyperparameter)IsFixed()bool {
+	return param.PBounds==nil || (*param.PBounds)[1]==(*param.PBounds)[0]
+}
+
 // Kernel interface
 type Kernel interface {
+	Hyperparameters()[]Hyperparameter
 	Eval(X, Y mat.Matrix) *mat.Dense
 	Diag(X mat.Matrix) (K *mat.DiagDense)
 	IsStationary() bool
 	String() string
+
+	//GetParams() map[string]interface{}
+	//SetParams(interface{})
 }
 
 // StationaryKernelMixin mixin for kernels which are stationary: k(X, Y)= f(X-Y)
@@ -41,6 +58,11 @@ func (k NormalizedKernelMixin) Diag(X mat.Matrix) (K *mat.DiagDense) {
 // KernelOperator is a kernel based on two others
 type KernelOperator struct {
 	k1, k2 Kernel
+}
+
+// Hyperparameters ...
+func (k KernelOperator)Hyperparameters()[]Hyperparameter {
+	return append(k.k1.Hyperparameters(),k.k2.Hyperparameters()...)
 }
 
 // IsStationary returns whether the kernel is stationary
@@ -105,6 +127,17 @@ type Exponentiation struct {
 	Kernel
 	Exponent float64
 }
+// Hyperparameters ...
+func (k Exponentiation)Hyperparameters()[]Hyperparameter {
+	hps:=k.Hyperparameters()
+	params:=make([]Hyperparameter,len(hps))
+	for i,p:=range hps{
+		p.Name="kernel_" +p.Name
+		params[i]=p
+	}
+	return params
+}
+
 // Eval return the kernel k(X, Y) and optionally its gradient
 func (k *Exponentiation) Eval(X, Y mat.Matrix) *mat.Dense {
 	K := k.Kernel.Eval(X, Y)
@@ -133,6 +166,12 @@ type ConstantKernel struct {
 	ConstantValue       float64
 	ConstantValueBounds [2]float64
 	StationaryKernelMixin
+}
+// Hyperparameters ...
+func (k *ConstantKernel)Hyperparameters()[]Hyperparameter {
+	return []Hyperparameter{
+		{"constant_value", &k.ConstantValue,&k.ConstantValueBounds},
+	}
 }
 
 // Eval returns
@@ -178,6 +217,12 @@ type WhiteKernel struct {
 	NoiseLevel       float64
 	NoiseLevelBounds [2]float64
 	StationaryKernelMixin
+}
+// Hyperparameters ...
+func (k *WhiteKernel)Hyperparameters()[]Hyperparameter {
+	return []Hyperparameter{
+		{"noise_level", &k.NoiseLevel,&k.NoiseLevelBounds},
+	}
 }
 
 // Eval return the kernel k(X, Y)
@@ -227,10 +272,19 @@ func (k *WhiteKernel) String() string {
 // kernel as covariance function have mean square derivatives of all orders,
 // and are thus very smooth.
 type RBF struct {
-	LengthScale       interface{}
-	LengthScaleBounds [2]float64
+	LengthScale       []float64
+	LengthScaleBounds [][2]float64
 	StationaryKernelMixin
 	NormalizedKernelMixin
+}
+// Hyperparameters ...
+func (k *RBF)Hyperparameters()[]Hyperparameter {
+	params:=make([]Hyperparameter,len(k.LengthScale))
+	for i:=range k.LengthScale{
+		params=append(params,Hyperparameter{Name:fmt.Sprintf("length_scale_%d",i),PValue:&k.LengthScale[i],PBounds:&k.LengthScaleBounds[i]})
+
+	}
+	return params
 }
 
 // Eval return the kernel k(X, Y)
@@ -241,18 +295,14 @@ func (k *RBF) Eval(X, Y mat.Matrix) (K *mat.Dense) {
 	}
 	ny, _ := Y.Dims()
 	var scale func([]float64, int) float64
-	switch lengthScale := k.LengthScale.(type) {
-	case int:
-		scale = func(X []float64, feat int) float64 { return X[feat] / float64(lengthScale) }
-	case float64:
-		scale = func(X []float64, feat int) float64 { return X[feat] / lengthScale }
-	case []float64:
-		if len(lengthScale) != nfeat {
+	switch len(k.LengthScale) {
+	case 1:
+		scale = func(X []float64, feat int) float64 { return X[feat] / k.LengthScale[0] }
+	default:
+		if len(k.LengthScale) != nfeat {
 			panic("LengthScale has wrong dimension")
 		}
-		scale = func(X []float64, feat int) float64 { return X[feat] / lengthScale[feat] }
-	default:
-		panic("float64 or []float64 expected")
+		scale = func(X []float64, feat int) float64 { return X[feat] / k.LengthScale[feat] }
 	}
 
 	K = mat.NewDense(nx, ny, nil)
@@ -277,10 +327,7 @@ func (k *RBF) Eval(X, Y mat.Matrix) (K *mat.Dense) {
 
 // IsAnisotropic ...
 func (k *RBF) IsAnisotropic() bool {
-	if s, ok := k.LengthScale.([]float64); ok && len(s) > 1 {
-		return true
-	}
-	return false
+	return len(k.LengthScale)>1
 }
 
 // String returns  string representation of kernel
@@ -301,6 +348,12 @@ func (k *RBF) String() string {
 type DotProduct struct {
 	Sigma0       float64
 	Sigma0Bounds [2]float64
+}
+// Hyperparameters ...
+func (k *DotProduct)Hyperparameters()[]Hyperparameter {
+	return []Hyperparameter{
+		{"sigma_0",&k.Sigma0,&k.Sigma0Bounds},
+	}
 }
 
 // Eval return the kernel k(X, Y)
