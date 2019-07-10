@@ -25,6 +25,8 @@ func (param Hyperparameter)IsFixed()bool {
 // Kernel interface
 type Kernel interface {
 	Hyperparameters()[]Hyperparameter
+	Theta()mat.Matrix
+	Bounds()mat.Matrix
 	Eval(X, Y mat.Matrix) *mat.Dense
 	Diag(X mat.Matrix) (K *mat.DiagDense)
 	IsStationary() bool
@@ -32,6 +34,41 @@ type Kernel interface {
 
 	//GetParams() map[string]interface{}
 	//SetParams(interface{})
+}
+
+func kernelTheta(k Kernel) (t mat.Matrix) {
+	params:=k.Hyperparameters()
+	notFixed:=[]Hyperparameter{}
+	for _,p:=range params{
+		if !p.IsFixed(){notFixed=append(notFixed,p)}
+	}
+	return matFromFunc{
+		r:len(notFixed),
+		c:1,
+		at:func(i,j int)float64{
+			return *notFixed[i].PValue
+		},
+		set:func(i,j int,v float64){
+			*notFixed[i].PValue=v
+		},
+	}
+}
+func kernelBounds(k Kernel) (t mat.Matrix) {
+	params:=k.Hyperparameters()
+	notFixed:=[]Hyperparameter{}
+	for _,p:=range params{
+		if !p.IsFixed(){notFixed=append(notFixed,p)}
+	}
+	return matFromFunc{
+		r:len(notFixed),
+		c:2,
+		at:func(i,j int)float64{
+			return (*notFixed[i].PBounds)[j]
+		},
+		set:func(i,j int,v float64){
+			(*notFixed[i].PBounds)[j]=v
+		},
+	}
 }
 
 // StationaryKernelMixin mixin for kernels which are stationary: k(X, Y)= f(X-Y)
@@ -63,6 +100,14 @@ type KernelOperator struct {
 // Hyperparameters ...
 func (k KernelOperator)Hyperparameters()[]Hyperparameter {
 	return append(k.k1.Hyperparameters(),k.k2.Hyperparameters()...)
+}
+// Theta ...
+func (k KernelOperator)Theta()mat.Matrix {
+	return matVStack([]mat.Matrix{k.k1.Theta(),k.k2.Theta()})
+}
+// Bounds ...
+func (k KernelOperator)Bounds()mat.Matrix {
+	return matVStack([]mat.Matrix{k.k1.Bounds(),k.k2.Bounds()})
 }
 
 // IsStationary returns whether the kernel is stationary
@@ -173,6 +218,14 @@ func (k *ConstantKernel)Hyperparameters()[]Hyperparameter {
 		{"constant_value", &k.ConstantValue,&k.ConstantValueBounds},
 	}
 }
+// Theta ...
+func (k*ConstantKernel)Theta()mat.Matrix{
+	return kernelTheta(k)
+}
+// Bounds ...
+func (k*ConstantKernel)Bounds()mat.Matrix{
+	return kernelBounds(k)
+}
 
 // Eval returns
 // K : array, shape (n_samples_X, n_samples_Y)
@@ -223,6 +276,14 @@ func (k *WhiteKernel)Hyperparameters()[]Hyperparameter {
 	return []Hyperparameter{
 		{"noise_level", &k.NoiseLevel,&k.NoiseLevelBounds},
 	}
+}
+// Theta ...
+func (k*WhiteKernel)Theta()mat.Matrix{
+	return kernelTheta(k)
+}
+// Bounds ...
+func (k*WhiteKernel)Bounds()mat.Matrix{
+	return kernelBounds(k)
 }
 
 // Eval return the kernel k(X, Y)
@@ -285,6 +346,14 @@ func (k *RBF)Hyperparameters()[]Hyperparameter {
 
 	}
 	return params
+}
+// Theta ...
+func (k*RBF)Theta()mat.Matrix{
+	return kernelTheta(k)
+}
+// Bounds ...
+func (k*RBF)Bounds()mat.Matrix{
+	return kernelBounds(k)
 }
 
 // Eval return the kernel k(X, Y)
@@ -354,6 +423,14 @@ func (k *DotProduct)Hyperparameters()[]Hyperparameter {
 	return []Hyperparameter{
 		{"sigma_0",&k.Sigma0,&k.Sigma0Bounds},
 	}
+}
+// Theta ...
+func (k*DotProduct)Theta()mat.Matrix{
+	return kernelTheta(k)
+}
+// Bounds ...
+func (k*DotProduct)Bounds()mat.Matrix{
+	return kernelBounds(k)
 }
 
 // Eval return the kernel k(X, Y)

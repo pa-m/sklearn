@@ -1,6 +1,8 @@
 package kernels
 
-import "gonum.org/v1/gonum/mat"
+import (
+	"gonum.org/v1/gonum/mat"
+)
 
 func denseVStack(b1,b2 *mat.Dense)*mat.Dense {
 	r1,c1:=b1.Dims()
@@ -38,5 +40,29 @@ func (m matFromFunc)At(i,j int)float64{
 	return m.at(i,j)
 }
 func (m matFromFunc)T()mat.Matrix {
+	return transposed{Matrix:m}
+}
+
+type matVStack []mat.Matrix
+
+func (m matVStack)Dims() (r,c int){
+	_,c=m[0].Dims()
+	for _,part:=range m{
+		rpart,_:=part.Dims()
+		r+=rpart
+	}
+	return
+}
+func (m matVStack)At(i,j int)float64{
+	for _,part:=range m{
+		rpart,_:=part.Dims()
+		if(i<rpart){
+			return part.At(i,j)
+		}
+		i-=rpart
+	}
+	panic("matVStack.At: row out of range")
+}
+func (m matVStack)T()mat.Matrix{
 	return transposed{Matrix:m}
 }
