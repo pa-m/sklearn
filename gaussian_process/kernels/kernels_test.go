@@ -210,7 +210,7 @@ func ExampleProduct() {
 func ExampleKernel_Theta() {
 	kernel := &Product{KernelOperator{
 		k1: &ConstantKernel{ConstantValue: 1., ConstantValueBounds: [2]float64{1e-3, 1e3}},
-		k2: &RBF{LengthScale: []float64{10}, LengthScaleBounds: [][2]float64{[2]float64{1e-2, 1e2}}},
+		k2: &RBF{LengthScale: []float64{10}, LengthScaleBounds: [][2]float64{{1e-2, 1e2}}},
 	}}
 	fmt.Printf("%.8f\n", mat.Formatted(kernel.Theta()))
 	// Output:
@@ -220,7 +220,7 @@ func ExampleKernel_Theta() {
 func ExampleKernel_Bounds() {
 	kernel := &Product{KernelOperator{
 		k1: &ConstantKernel{ConstantValue: 1., ConstantValueBounds: [2]float64{1e-3, 1e3}},
-		k2: &RBF{LengthScale: []float64{10}, LengthScaleBounds: [][2]float64{[2]float64{1e-2, 1e2}}},
+		k2: &RBF{LengthScale: []float64{10}, LengthScaleBounds: [][2]float64{{1e-2, 1e2}}},
 	}}
 	fmt.Printf("%.8f\n", mat.Formatted(kernel.Bounds()))
 	// Output:
@@ -228,44 +228,44 @@ func ExampleKernel_Bounds() {
 	// ⎣-4.60517019   4.60517019⎦
 }
 
-func assertEq(t testing.TB,expected,actual mat.Matrix,msg string) {
+func assertEq(t testing.TB, expected, actual mat.Matrix, msg string) {
 	diff := mat.DenseCopyOf(expected)
 	diff.Sub(diff, actual)
 	if mat.Norm(diff, 1) > 1e-6 {
-		t.Errorf("%s\nexpected:\n%g\ngot:\n%g\n",msg, mat.Formatted(expected), mat.Formatted(actual));
+		t.Errorf("%s\nexpected:\n%g\ngot:\n%g\n", msg, mat.Formatted(expected), mat.Formatted(actual))
 	}
 }
 
-func TestWhiteKernel(t*testing.T){
-	kernel:=&WhiteKernel{NoiseLevel:1.,NoiseLevelBounds:[2]float64{1e-5,1e5}}
+func TestWhiteKernel(t *testing.T) {
+	kernel := &WhiteKernel{NoiseLevel: 1., NoiseLevelBounds: [2]float64{1e-5, 1e5}}
 	assertEq(
 		t,
-		mat.NewDense(1,1,[]float64{0}),
+		mat.NewDense(1, 1, []float64{0}),
 		kernel.Theta(),
 		"wrong theta")
 	assertEq(
 		t,
-		mat.NewDense(1,2,[]float64{math.Log(1e-5),math.Log(1e5)}),
+		mat.NewDense(1, 2, []float64{math.Log(1e-5), math.Log(1e5)}),
 		kernel.Bounds(),
 		"wrong bounds")
 }
 
-func TestExponentiation(t*testing.T){
+func TestExponentiation(t *testing.T) {
 	var kernel Kernel
 	kernel = &Product{KernelOperator{
 		k1: &ConstantKernel{ConstantValue: 1., ConstantValueBounds: [2]float64{1e-3, 1e3}},
-		k2: &RBF{LengthScale: []float64{10}, LengthScaleBounds: [][2]float64{[2]float64{1e-2, 1e2}}},
+		k2: &RBF{LengthScale: []float64{10}, LengthScaleBounds: [][2]float64{{1e-2, 1e2}}},
 	}}
-	kernel=&Exponentiation{kernel,2.}
+	kernel = &Exponentiation{kernel, 2.}
 
 	assertEq(
 		t,
-		mat.NewDense(2,1,[]float64{0,math.Log(10)}),
+		mat.NewDense(2, 1, []float64{0, math.Log(10)}),
 		kernel.Theta(),
 		"wrong theta")
 	assertEq(
 		t,
-		mat.NewDense(2,2,[]float64{math.Log(1e-3),math.Log(1e3),math.Log(1e-2),math.Log(1e2)}),
+		mat.NewDense(2, 2, []float64{math.Log(1e-3), math.Log(1e3), math.Log(1e-2), math.Log(1e2)}),
 		kernel.Bounds(),
 		"wrong bounds")
 
@@ -273,19 +273,37 @@ func TestExponentiation(t*testing.T){
 	state := randomkit.NewRandomkitSource(1)
 	// X=np.reshape(np.random.sample(6),(3,2))
 	X, Y := sample(state, 3, 2), sample(state, 3, 2)
-	actual:=kernel.Eval(X,Y)
+	actual := kernel.Eval(X, Y)
 	assertEq(
 		t,
-		mat.NewDense(3,3,[]float64{
-			0.99806489, 0.9996665 , 0.99998763,
+		mat.NewDense(3, 3, []float64{
+			0.99806489, 0.9996665, 0.99998763,
 			0.99963488, 0.99786969, 0.99678288,
-			0.9993434 , 0.99738494, 0.99575174,
+			0.9993434, 0.99738494, 0.99575174,
 		}),
 		actual,
 		"wrong K(X,Y)")
 	assertEq(
 		t,
-		mat.NewDiagDense(3,[]float64{1,1,1}),
+		mat.NewDiagDense(3, []float64{1, 1, 1}),
 		kernel.Diag(X),
 		"wrong K(X,X)")
+}
+
+func TestKernel_CloneWithTheta(t *testing.T) {
+	k1 := &ConstantKernel{ConstantValue: 1., ConstantValueBounds: [2]float64{1e-3, 1e3}}
+	k2 := &RBF{LengthScale: []float64{10}, LengthScaleBounds: [][2]float64{{1e-2, 1e2}}}
+	var kernel Kernel
+	kernel = &Product{KernelOperator{
+		k1: k1,
+		k2: k2,
+	}}
+	newTheta := mat.NewDense(2, 1, []float64{1.1, 1.2})
+
+	clone := kernel.CloneWithTheta(newTheta)
+	assertEq(
+		t,
+		newTheta,
+		clone.Theta(),
+		"wrong theta")
 }

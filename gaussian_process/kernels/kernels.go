@@ -10,68 +10,71 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
-// Hyperparameter specification
+// hyperparameter specification
 // for no value_type is mat.Vector
 // bounds is [2]float64
 // IsFixed() is true if bounds are equal
-type Hyperparameter struct {
-	Name string
-	PValue *float64
+type hyperparameter struct {
+	Name    string
+	PValue  *float64
 	PBounds *[2]float64
 }
+
 // IsFixed return true when bounds are equal or missing
-func (param Hyperparameter)IsFixed()bool {
-	return param.PBounds==nil || (*param.PBounds)[1]==(*param.PBounds)[0]
+func (param hyperparameter) IsFixed() bool {
+	return param.PBounds == nil || (*param.PBounds)[1] == (*param.PBounds)[0]
+}
+
+// hyperparameters ...
+type hyperparameters []hyperparameter
+
+func (params hyperparameters) notFixed() hyperparameters {
+	notFixed := hyperparameters{}
+	for _, p := range params {
+		if !p.IsFixed() {
+			notFixed = append(notFixed, p)
+		}
+	}
+	return notFixed
+}
+func (params hyperparameters) Theta() mat.Matrix {
+	notFixed := params.notFixed()
+	return matFromFunc{
+		r: len(notFixed),
+		c: 1,
+
+		at: func(i, j int) float64 {
+			return math.Log(*notFixed[i].PValue)
+		},
+		set: func(i, j int, v float64) {
+			*notFixed[i].PValue = math.Exp(v)
+		},
+	}
+}
+func (params hyperparameters) Bounds() (t mat.Matrix) {
+	notFixed := params.notFixed()
+	return matFromFunc{
+		r: len(notFixed),
+		c: 2,
+		at: func(i, j int) float64 {
+			return math.Log((*notFixed[i].PBounds)[j])
+		},
+		set: func(i, j int, v float64) {
+			(*notFixed[i].PBounds)[j] = math.Exp(v)
+		},
+	}
 }
 
 // Kernel interface
 type Kernel interface {
-	Hyperparameters()[]Hyperparameter
-	Theta()mat.Matrix
-	Bounds()mat.Matrix
+	hyperparameters() hyperparameters
+	Theta() mat.Matrix
+	Bounds() mat.Matrix
 	CloneWithTheta(theta mat.Matrix) Kernel
 	Eval(X, Y mat.Matrix) *mat.Dense
 	Diag(X mat.Matrix) (K *mat.DiagDense)
 	IsStationary() bool
 	String() string
-
-	//GetParams() map[string]interface{}
-	//SetParams(interface{})
-}
-
-func kernelTheta(k Kernel) (t mat.Matrix) {
-	params:=k.Hyperparameters()
-	notFixed:=[]Hyperparameter{}
-	for _,p:=range params{
-		if !p.IsFixed(){notFixed=append(notFixed,p)}
-	}
-	return matFromFunc{
-		r:len(notFixed),
-		c:1,
-		at:func(i,j int)float64{
-			return math.Log(*notFixed[i].PValue)
-		},
-		set:func(i,j int,v float64){
-			*notFixed[i].PValue=math.Exp(v)
-		},
-	}
-}
-func kernelBounds(k Kernel) (t mat.Matrix) {
-	params:=k.Hyperparameters()
-	notFixed:=[]Hyperparameter{}
-	for _,p:=range params{
-		if !p.IsFixed(){notFixed=append(notFixed,p)}
-	}
-	return matFromFunc{
-		r:len(notFixed),
-		c:2,
-		at:func(i,j int)float64{
-			return math.Log((*notFixed[i].PBounds)[j])
-		},
-		set:func(i,j int,v float64){
-			(*notFixed[i].PBounds)[j]=math.Exp(v)
-		},
-	}
 }
 
 // StationaryKernelMixin mixin for kernels which are stationary: k(X, Y)= f(X-Y)
@@ -100,44 +103,49 @@ type KernelOperator struct {
 	k1, k2 Kernel
 }
 
-// Hyperparameters ...
-func (k KernelOperator)Hyperparameters()[]Hyperparameter {
-	return append(k.k1.Hyperparameters(),k.k2.Hyperparameters()...)
+// hyperparameters ...
+func (k KernelOperator) hyperparameters() hyperparameters {
+	return append(k.k1.hyperparameters(), k.k2.hyperparameters()...)
 }
+
 // Theta ...
-func (k KernelOperator)Theta()mat.Matrix {
-	return matVStack([]mat.Matrix{k.k1.Theta(),k.k2.Theta()})
+func (k KernelOperator) Theta() mat.Matrix {
+	return k.hyperparameters().Theta()
 }
+
 // Bounds ...
-func (k KernelOperator)Bounds()mat.Matrix {
-	return matVStack([]mat.Matrix{k.k1.Bounds(),k.k2.Bounds()})
+func (k KernelOperator) Bounds() mat.Matrix {
+	return k.hyperparameters().Bounds()
 }
+
 // CloneWithTheta ...
 func (k KernelOperator) CloneWithTheta(theta mat.Matrix) Kernel {
-	var td=base.ToDense(theta)
-	n1,_:=k.k1.Theta().Dims()
-	n2,_:=k.k2.Theta().Dims()
-	return &KernelOperator{
-		k1:k.k1.CloneWithTheta(td.Slice(0,n1,0,1)),
-		k2:k.k2.CloneWithTheta(td.Slice(n1,n1+n2,0,1)),
+	var td = base.ToDense(theta)
+	n1, _ := k.k1.Theta().Dims()
+	n2, _ := k.k2.Theta().Dims()
+	return KernelOperator{
+		k1: k.k1.CloneWithTheta(td.Slice(0, n1, 0, 1)),
+		k2: k.k2.CloneWithTheta(td.Slice(n1, n1+n2, 0, 1)),
 	}
 }
+
 // Eval ...
-func (k KernelOperator) Eval(X,Y mat.Matrix)*mat.Dense{
+func (k KernelOperator) Eval(X, Y mat.Matrix) *mat.Dense {
 	panic("Eval must be implemented by wrapper")
 }
+
 // Diag ...
-func (k KernelOperator) Diag(X mat.Matrix)*mat.DiagDense{
-	panic("Diag must be implemented by wrapper")
-}
-// String ...
-func (k KernelOperator) String()string{
+func (k KernelOperator) Diag(X mat.Matrix) *mat.DiagDense {
 	panic("Diag must be implemented by wrapper")
 }
 
+// String ...
+func (k KernelOperator) String() string {
+	panic("Diag must be implemented by wrapper")
+}
 
 // IsStationary returns whether the kernel is stationary
-func (k *KernelOperator) IsStationary() bool {
+func (k KernelOperator) IsStationary() bool {
 	return k.k1.IsStationary() && k.k2.IsStationary()
 }
 
@@ -145,6 +153,12 @@ func (k *KernelOperator) IsStationary() bool {
 type Sum struct {
 	KernelOperator
 }
+
+// CloneWithTheta ...
+func (k *Sum) CloneWithTheta(theta mat.Matrix) Kernel {
+	return &Sum{KernelOperator: k.KernelOperator.CloneWithTheta(theta).(KernelOperator)}
+}
+
 // Eval return the kernel k(X, Y) and optionally its gradient
 func (k *Sum) Eval(X, Y mat.Matrix) *mat.Dense {
 
@@ -153,6 +167,7 @@ func (k *Sum) Eval(X, Y mat.Matrix) *mat.Dense {
 	K1.Add(K1, K2)
 	return K1
 }
+
 // Diag returns the diagonal of the kernel k(X, X)
 func (k *Sum) Diag(X mat.Matrix) *mat.DiagDense {
 	K1 := k.k1.Diag(X)
@@ -163,14 +178,23 @@ func (k *Sum) Diag(X mat.Matrix) *mat.DiagDense {
 	}
 	return K1
 }
+
 // String ...
 func (k *Sum) String() string {
 	return k.k1.String() + " + " + k.k2.String()
 }
+
 // Product kernel k1 * k2 of two kernels k1 and k2
 type Product struct {
 	KernelOperator
 }
+
+// CloneWithTheta ...
+func (k *Product) CloneWithTheta(theta mat.Matrix) Kernel {
+
+	return &Product{KernelOperator: k.KernelOperator.CloneWithTheta(theta).(KernelOperator)}
+}
+
 // Eval return the kernel k(X, Y) and optionally its gradient
 func (k *Product) Eval(X, Y mat.Matrix) *mat.Dense {
 
@@ -179,6 +203,7 @@ func (k *Product) Eval(X, Y mat.Matrix) *mat.Dense {
 	K1.MulElem(K1, K2)
 	return K1
 }
+
 // Diag returns the diagonal of the kernel k(X, X)
 func (k *Product) Diag(X mat.Matrix) *mat.DiagDense {
 	K1 := k.k1.Diag(X)
@@ -189,22 +214,25 @@ func (k *Product) Diag(X mat.Matrix) *mat.DiagDense {
 	}
 	return K1
 }
+
 // String ...
 func (k *Product) String() string {
 	return k.k1.String() + " * " + k.k2.String()
 }
+
 // Exponentiation exponentiate kernel by given exponent
 type Exponentiation struct {
 	Kernel
 	Exponent float64
 }
-// Hyperparameters ...
-func (k Exponentiation)Hyperparameters()[]Hyperparameter {
-	hps:=k.Hyperparameters()
-	params:=make([]Hyperparameter,len(hps))
-	for i,p:=range hps{
-		p.Name="kernel_" +p.Name
-		params[i]=p
+
+// hyperparameters ...
+func (k Exponentiation) hyperparameters() hyperparameters {
+	hps := k.hyperparameters()
+	params := make(hyperparameters, len(hps))
+	for i, p := range hps {
+		p.Name = "kernel_" + p.Name
+		params[i] = p
 	}
 	return params
 }
@@ -217,6 +245,7 @@ func (k *Exponentiation) Eval(X, Y mat.Matrix) *mat.Dense {
 	}, K)
 	return K
 }
+
 // Diag returns the diagonal of the kernel k(X, X)
 func (k *Exponentiation) Diag(X mat.Matrix) *mat.DiagDense {
 	K := k.Kernel.Diag(X)
@@ -226,9 +255,10 @@ func (k *Exponentiation) Diag(X mat.Matrix) *mat.DiagDense {
 	}
 	return K
 }
+
 // String ...
-func(k* Exponentiation) String() string {
-	return fmt.Sprintf("%s ** %g", k.Kernel.String(),k.Exponent)
+func (k *Exponentiation) String() string {
+	return fmt.Sprintf("%s ** %g", k.Kernel.String(), k.Exponent)
 }
 
 // ConstantKernel can be used as part of a product-kernel where it scales the magnitude of the other factor (kernel) or as part of a sum-kernel, where it modifies the mean of the Gaussian process.
@@ -238,26 +268,31 @@ type ConstantKernel struct {
 	ConstantValueBounds [2]float64
 	StationaryKernelMixin
 }
-// Hyperparameters ...
-func (k *ConstantKernel)Hyperparameters()[]Hyperparameter {
-	return []Hyperparameter{
-		{"constant_value", &k.ConstantValue,&k.ConstantValueBounds},
+
+// hyperparameters ...
+func (k *ConstantKernel) hyperparameters() hyperparameters {
+	return hyperparameters{
+		{"constant_value", &k.ConstantValue, &k.ConstantValueBounds},
 	}
 }
+
 // Theta ...
-func (k*ConstantKernel)Theta()mat.Matrix{
-	return kernelTheta(k)
+func (k *ConstantKernel) Theta() mat.Matrix {
+	return k.hyperparameters().Theta()
 }
+
 // Bounds ...
-func (k*ConstantKernel)Bounds()mat.Matrix{
-	return kernelBounds(k)
+func (k *ConstantKernel) Bounds() mat.Matrix {
+	return k.hyperparameters().Bounds()
 }
+
 // CloneWithTheta ...
-func (k*ConstantKernel)CloneWithTheta(theta mat.Matrix)Kernel{
-	clone:=*k;
-	matCopy(k.Theta().(mat.Mutable),theta)
+func (k *ConstantKernel) CloneWithTheta(theta mat.Matrix) Kernel {
+	clone := *k
+	matCopy(clone.Theta().(mat.Mutable), theta)
 	return &clone
 }
+
 // Eval returns
 // K : array, shape (n_samples_X, n_samples_Y)
 // Kernel k(X, Y)
@@ -302,24 +337,28 @@ type WhiteKernel struct {
 	NoiseLevelBounds [2]float64
 	StationaryKernelMixin
 }
-// Hyperparameters ...
-func (k *WhiteKernel)Hyperparameters()[]Hyperparameter {
-	return []Hyperparameter{
-		{"noise_level", &k.NoiseLevel,&k.NoiseLevelBounds},
+
+// hyperparameters ...
+func (k *WhiteKernel) hyperparameters() hyperparameters {
+	return hyperparameters{
+		{"noise_level", &k.NoiseLevel, &k.NoiseLevelBounds},
 	}
 }
+
 // Theta ...
-func (k*WhiteKernel)Theta()mat.Matrix{
-	return kernelTheta(k)
+func (k *WhiteKernel) Theta() mat.Matrix {
+	return k.hyperparameters().Theta()
 }
+
 // Bounds ...
-func (k*WhiteKernel)Bounds()mat.Matrix{
-	return kernelBounds(k)
+func (k *WhiteKernel) Bounds() mat.Matrix {
+	return k.hyperparameters().Bounds()
 }
+
 // CloneWithTheta ...
-func (k*WhiteKernel)CloneWithTheta(theta mat.Matrix)Kernel{
-	clone:=*k;
-	matCopy(k.Theta().(mat.Mutable),theta)
+func (k *WhiteKernel) CloneWithTheta(theta mat.Matrix) Kernel {
+	clone := *k
+	matCopy(k.Theta().(mat.Mutable), theta)
 	return &clone
 }
 
@@ -375,31 +414,35 @@ type RBF struct {
 	StationaryKernelMixin
 	NormalizedKernelMixin
 }
-// Hyperparameters ...
-func (k *RBF)Hyperparameters()[]Hyperparameter {
-	params:=make([]Hyperparameter,len(k.LengthScale))
-	for i:=range k.LengthScale{
-		params=append(params,Hyperparameter{Name:fmt.Sprintf("length_scale_%d",i),PValue:&k.LengthScale[i],PBounds:&k.LengthScaleBounds[i]})
+
+// hyperparameters ...
+func (k *RBF) hyperparameters() hyperparameters {
+	params := make(hyperparameters, len(k.LengthScale))
+	for i := range k.LengthScale {
+		params = append(params, hyperparameter{Name: fmt.Sprintf("length_scale_%d", i), PValue: &k.LengthScale[i], PBounds: &k.LengthScaleBounds[i]})
 
 	}
 	return params
 }
+
 // Theta ...
-func (k*RBF)Theta()mat.Matrix{
-	return kernelTheta(k)
+func (k *RBF) Theta() mat.Matrix {
+	return k.hyperparameters().Theta()
 }
+
 // Bounds ...
-func (k*RBF)Bounds()mat.Matrix{
-	return kernelBounds(k)
+func (k *RBF) Bounds() mat.Matrix {
+	return k.hyperparameters().Bounds()
 }
+
 // CloneWithTheta ...
-func (k*RBF)CloneWithTheta(theta mat.Matrix)Kernel{
-	clone:=*k;
-	clone.LengthScale=make([]float64,len(k.LengthScale))
-	copy(clone.LengthScale,k.LengthScale)
-	clone.LengthScaleBounds=make([][2]float64,len(k.LengthScaleBounds))
-	copy(clone.LengthScaleBounds,k.LengthScaleBounds)
-	matCopy(k.Theta().(mat.Mutable),theta)
+func (k *RBF) CloneWithTheta(theta mat.Matrix) Kernel {
+	clone := *k
+	clone.LengthScale = make([]float64, len(k.LengthScale))
+	copy(clone.LengthScale, k.LengthScale)
+	clone.LengthScaleBounds = make([][2]float64, len(k.LengthScaleBounds))
+	copy(clone.LengthScaleBounds, k.LengthScaleBounds)
+	matCopy(clone.Theta().(mat.Mutable), theta)
 	return &clone
 }
 
@@ -443,7 +486,7 @@ func (k *RBF) Eval(X, Y mat.Matrix) (K *mat.Dense) {
 
 // IsAnisotropic ...
 func (k *RBF) IsAnisotropic() bool {
-	return len(k.LengthScale)>1
+	return len(k.LengthScale) > 1
 }
 
 // String returns  string representation of kernel
@@ -465,24 +508,28 @@ type DotProduct struct {
 	Sigma0       float64
 	Sigma0Bounds [2]float64
 }
-// Hyperparameters ...
-func (k *DotProduct)Hyperparameters()[]Hyperparameter {
-	return []Hyperparameter{
-		{"sigma_0",&k.Sigma0,&k.Sigma0Bounds},
+
+// hyperparameters ...
+func (k *DotProduct) hyperparameters() hyperparameters {
+	return hyperparameters{
+		{"sigma_0", &k.Sigma0, &k.Sigma0Bounds},
 	}
 }
+
 // Theta ...
-func (k*DotProduct)Theta()mat.Matrix{
-	return kernelTheta(k)
+func (k *DotProduct) Theta() mat.Matrix {
+	return k.hyperparameters().Theta()
 }
+
 // Bounds ...
-func (k*DotProduct)Bounds()mat.Matrix{
-	return kernelBounds(k)
+func (k *DotProduct) Bounds() mat.Matrix {
+	return k.hyperparameters().Bounds()
 }
+
 // CloneWithTheta ...
-func (k*DotProduct)CloneWithTheta(theta mat.Matrix)Kernel{
-	clone:=*k;
-	matCopy(k.Theta().(mat.Mutable),theta)
+func (k *DotProduct) CloneWithTheta(theta mat.Matrix) Kernel {
+	clone := *k
+	matCopy(clone.Theta().(mat.Mutable), theta)
 	return &clone
 }
 
@@ -528,4 +575,3 @@ func (k *DotProduct) IsStationary() bool { return false }
 func (k *DotProduct) String() string {
 	return fmt.Sprintf("DotProduct(sigma_0=%.3g)", k.Sigma0)
 }
-
