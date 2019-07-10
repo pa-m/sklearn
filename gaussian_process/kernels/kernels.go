@@ -18,6 +18,7 @@ type Hyperparameter struct {
 	PValue *float64
 	PBounds *[2]float64
 }
+// IsFixed return true when bounds are equal or missing
 func (param Hyperparameter)IsFixed()bool {
 	return param.PBounds==nil || (*param.PBounds)[1]==(*param.PBounds)[0]
 }
