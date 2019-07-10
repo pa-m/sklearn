@@ -39,6 +39,10 @@ func (m matFromFunc)Dims() (r,c int){
 func (m matFromFunc)At(i,j int)float64{
 	return m.at(i,j)
 }
+func (m matFromFunc)Set(i,j int,v float64){
+	m.set(i,j,v)
+}
+
 func (m matFromFunc)T()mat.Matrix {
 	return transposed{Matrix:m}
 }
@@ -65,6 +69,15 @@ func (m matVStack)At(i,j int)float64{
 }
 func (m matVStack)T()mat.Matrix{
 	return transposed{Matrix:m}
+}
+
+func matCopy(dst mat.Mutable,src mat.Matrix){
+	r,c:=src.Dims()
+	for i:=0;i<r;i++{
+		for j:=0;j<c;j++{
+			dst.Set(i,j,src.At(i,j))
+		}
+	}
 }
 /*
 type matElementwizeTransform struct{

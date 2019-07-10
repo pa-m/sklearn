@@ -2,6 +2,7 @@ package kernels
 
 import (
 	"fmt"
+	"github.com/pa-m/sklearn/base"
 	"math"
 
 	"gonum.org/v1/gonum/floats"
@@ -28,6 +29,7 @@ type Kernel interface {
 	Hyperparameters()[]Hyperparameter
 	Theta()mat.Matrix
 	Bounds()mat.Matrix
+	CloneWithTheta(theta mat.Matrix) Kernel
 	Eval(X, Y mat.Matrix) *mat.Dense
 	Diag(X mat.Matrix) (K *mat.DiagDense)
 	IsStationary() bool
@@ -110,6 +112,29 @@ func (k KernelOperator)Theta()mat.Matrix {
 func (k KernelOperator)Bounds()mat.Matrix {
 	return matVStack([]mat.Matrix{k.k1.Bounds(),k.k2.Bounds()})
 }
+// CloneWithTheta ...
+func (k KernelOperator) CloneWithTheta(theta mat.Matrix) Kernel {
+	var td=base.ToDense(theta)
+	n1,_:=k.k1.Theta().Dims()
+	n2,_:=k.k2.Theta().Dims()
+	return &KernelOperator{
+		k1:k.k1.CloneWithTheta(td.Slice(0,n1,0,1)),
+		k2:k.k2.CloneWithTheta(td.Slice(n1,n1+n2,0,1)),
+	}
+}
+// Eval ...
+func (k KernelOperator) Eval(X,Y mat.Matrix)*mat.Dense{
+	panic("Eval must be implemented by wrapper")
+}
+// Diag ...
+func (k KernelOperator) Diag(X mat.Matrix)*mat.DiagDense{
+	panic("Diag must be implemented by wrapper")
+}
+// String ...
+func (k KernelOperator) String()string{
+	panic("Diag must be implemented by wrapper")
+}
+
 
 // IsStationary returns whether the kernel is stationary
 func (k *KernelOperator) IsStationary() bool {
@@ -227,7 +252,12 @@ func (k*ConstantKernel)Theta()mat.Matrix{
 func (k*ConstantKernel)Bounds()mat.Matrix{
 	return kernelBounds(k)
 }
-
+// CloneWithTheta ...
+func (k*ConstantKernel)CloneWithTheta(theta mat.Matrix)Kernel{
+	clone:=*k;
+	matCopy(k.Theta().(mat.Mutable),theta)
+	return &clone
+}
 // Eval returns
 // K : array, shape (n_samples_X, n_samples_Y)
 // Kernel k(X, Y)
@@ -285,6 +315,12 @@ func (k*WhiteKernel)Theta()mat.Matrix{
 // Bounds ...
 func (k*WhiteKernel)Bounds()mat.Matrix{
 	return kernelBounds(k)
+}
+// CloneWithTheta ...
+func (k*WhiteKernel)CloneWithTheta(theta mat.Matrix)Kernel{
+	clone:=*k;
+	matCopy(k.Theta().(mat.Mutable),theta)
+	return &clone
 }
 
 // Eval return the kernel k(X, Y)
@@ -355,6 +391,16 @@ func (k*RBF)Theta()mat.Matrix{
 // Bounds ...
 func (k*RBF)Bounds()mat.Matrix{
 	return kernelBounds(k)
+}
+// CloneWithTheta ...
+func (k*RBF)CloneWithTheta(theta mat.Matrix)Kernel{
+	clone:=*k;
+	clone.LengthScale=make([]float64,len(k.LengthScale))
+	copy(clone.LengthScale,k.LengthScale)
+	clone.LengthScaleBounds=make([][2]float64,len(k.LengthScaleBounds))
+	copy(clone.LengthScaleBounds,k.LengthScaleBounds)
+	matCopy(k.Theta().(mat.Mutable),theta)
+	return &clone
 }
 
 // Eval return the kernel k(X, Y)
@@ -432,6 +478,12 @@ func (k*DotProduct)Theta()mat.Matrix{
 // Bounds ...
 func (k*DotProduct)Bounds()mat.Matrix{
 	return kernelBounds(k)
+}
+// CloneWithTheta ...
+func (k*DotProduct)CloneWithTheta(theta mat.Matrix)Kernel{
+	clone:=*k;
+	matCopy(k.Theta().(mat.Mutable),theta)
+	return &clone
 }
 
 // Eval return the kernel k(X, Y)
