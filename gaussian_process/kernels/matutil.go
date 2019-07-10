@@ -66,3 +66,19 @@ func (m matVStack)At(i,j int)float64{
 func (m matVStack)T()mat.Matrix{
 	return transposed{Matrix:m}
 }
+/*
+type matElementwizeTransform struct{
+	mat.Matrix
+	transform func(v float64)float64
+	inverseTransform  func(v float64)float64
+}
+func (m matElementwizeTransform)Dims() (r,c int){
+	return m.Matrix.Dims()
+}
+func (m matElementwizeTransform)At(i,j int)float64{
+	return m.transform(m.Matrix.At(i,j))
+}
+func (m matElementwizeTransform)Set(i,j int,v float64){
+	m.Matrix.(mat.Mutable).Set(i,j,m.inverseTransform(v))
+}
+*/

@@ -46,10 +46,10 @@ func kernelTheta(k Kernel) (t mat.Matrix) {
 		r:len(notFixed),
 		c:1,
 		at:func(i,j int)float64{
-			return *notFixed[i].PValue
+			return math.Log(*notFixed[i].PValue)
 		},
 		set:func(i,j int,v float64){
-			*notFixed[i].PValue=v
+			*notFixed[i].PValue=math.Exp(v)
 		},
 	}
 }
@@ -63,10 +63,10 @@ func kernelBounds(k Kernel) (t mat.Matrix) {
 		r:len(notFixed),
 		c:2,
 		at:func(i,j int)float64{
-			return (*notFixed[i].PBounds)[j]
+			return math.Log((*notFixed[i].PBounds)[j])
 		},
 		set:func(i,j int,v float64){
-			(*notFixed[i].PBounds)[j]=v
+			(*notFixed[i].PBounds)[j]=math.Exp(v)
 		},
 	}
 }
@@ -475,3 +475,4 @@ func (k *DotProduct) IsStationary() bool { return false }
 func (k *DotProduct) String() string {
 	return fmt.Sprintf("DotProduct(sigma_0=%.3g)", k.Sigma0)
 }
+
