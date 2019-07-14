@@ -47,3 +47,4 @@ func matCopy(dst mat.Mutable, src mat.Matrix) {
 		}
 	}
 }
+

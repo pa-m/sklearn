@@ -30,7 +30,9 @@ func ExampleConstantKernel() {
 	X, Y := sample(state, 3, 2), sample(state, 3, 2)
 	K := &ConstantKernel{ConstantValue: 1.23}
 	fmt.Printf("K=%s, stationary:%v\n", K, K.IsStationary())
-	fmt.Printf("X=\n%.8f\nY=\n%.8f\nK(X,Y)=\n%.8f\nK(X,X)=\n%.8f\n", mat.Formatted(X), mat.Formatted(Y), mat.Formatted(K.Eval(X, Y)), mat.Formatted(K.Diag(X)))
+	KXY,_:=K.Eval(X,Y,false)
+	KXX:= K.Diag(X)
+	fmt.Printf("X=\n%.8f\nY=\n%.8f\nK(X,Y)=\n%.8f\nK(X,X)=\n%.8f\n", mat.Formatted(X), mat.Formatted(Y), mat.Formatted(KXY), mat.Formatted(KXX))
 	// Output:
 	// K=1.11**2, stationary:true
 	// X=
@@ -59,7 +61,9 @@ func ExampleWhiteKernel() {
 	K := &WhiteKernel{NoiseLevel: 1.23}
 	fmt.Printf("K=%s, stationary:%v\n", K, K.IsStationary())
 
-	fmt.Printf("X=\n%.8f\nY=\n%.8f\nK(X,Y)=\n%.8f\nK(X,X)=\n%.8f\n", mat.Formatted(X), mat.Formatted(Y), mat.Formatted(K.Eval(X, Y)), mat.Formatted(K.Diag(X)))
+	KXY,_:=K.Eval(X,Y,false)
+	KXX:= K.Diag(X)
+	fmt.Printf("X=\n%.8f\nY=\n%.8f\nK(X,Y)=\n%.8f\nK(X,X)=\n%.8f\n", mat.Formatted(X), mat.Formatted(Y), mat.Formatted(KXY), mat.Formatted(KXX))
 	// Output:
 	// K=WhiteKernel(noise_level=1.23), stationary:true
 	// X=
@@ -89,7 +93,9 @@ func ExampleRBF() {
 	K := &RBF{LengthScale: []float64{1.23}}
 	fmt.Printf("K=%s, stationary:%v\n", K, K.IsStationary())
 
-	fmt.Printf("X=\n%.8f\nY=\n%.8f\nK(X,Y)=\n%.8f\nK(X,X)=\n%.8f\n", mat.Formatted(X), mat.Formatted(Y), mat.Formatted(K.Eval(X, Y)), mat.Formatted(K.Diag(X)))
+	KXY,_:=K.Eval(X,Y,false)
+	KXX:= K.Diag(X)
+	fmt.Printf("X=\n%.8f\nY=\n%.8f\nK(X,Y)=\n%.8f\nK(X,X)=\n%.8f\n", mat.Formatted(X), mat.Formatted(Y), mat.Formatted(KXY), mat.Formatted(KXX))
 	// Output:
 	// K=RBF([1.23]), stationary:true
 	// X=
@@ -120,7 +126,9 @@ func ExampleDotProduct() {
 	K := &DotProduct{Sigma0: 1.23}
 	fmt.Printf("K=%s, stationary:%v\n", K, K.IsStationary())
 
-	fmt.Printf("X=\n%.8f\nY=\n%.8f\nK(X,Y)=\n%.8f\nK(X,X)=\n%.8f\n", mat.Formatted(X), mat.Formatted(Y), mat.Formatted(K.Eval(X, Y)), mat.Formatted(K.Diag(X)))
+	KXY,_:=K.Eval(X,Y,false)
+	KXX:= K.Diag(X)
+	fmt.Printf("X=\n%.8f\nY=\n%.8f\nK(X,Y)=\n%.8f\nK(X,X)=\n%.8f\n", mat.Formatted(X), mat.Formatted(Y), mat.Formatted(KXY), mat.Formatted(KXX))
 	// Output:
 	// K=DotProduct(sigma_0=1.23), stationary:false
 	// X=
@@ -151,7 +159,9 @@ func ExampleSum() {
 	K := &Sum{KernelOperator{k1: &ConstantKernel{ConstantValue: 1.23}, k2: &WhiteKernel{NoiseLevel: 1.23}}}
 	fmt.Printf("K=%s, stationary:%v\n", K, K.IsStationary())
 
-	fmt.Printf("X=\n%.8f\nY=\n%.8f\nK(X,Y)=\n%.8f\nK(X,X)=\n%.8f\n", mat.Formatted(X), mat.Formatted(Y), mat.Formatted(K.Eval(X, Y)), mat.Formatted(K.Diag(X)))
+	KXY,_:=K.Eval(X,Y,false)
+	KXX:= K.Diag(X)
+	fmt.Printf("X=\n%.8f\nY=\n%.8f\nK(X,Y)=\n%.8f\nK(X,X)=\n%.8f\n", mat.Formatted(X), mat.Formatted(Y), mat.Formatted(KXY), mat.Formatted(KXX))
 	// Output:
 	// K=1.11**2 + WhiteKernel(noise_level=1.23), stationary:true
 	// X=
@@ -185,7 +195,9 @@ func ExampleProduct() {
 	}
 	fmt.Printf("K=%s, stationary:%v\n", K, K.IsStationary())
 
-	fmt.Printf("X=\n%.8f\nY=\n%.8f\nK(X,Y)=\n%.8f\nK(X,X)=\n%.8f\n", mat.Formatted(X), mat.Formatted(Y), mat.Formatted(K.Eval(X, Y)), mat.Formatted(K.Diag(X)))
+	KXY,_:=K.Eval(X,Y,false)
+	KXX:= K.Diag(X)
+	fmt.Printf("X=\n%.8f\nY=\n%.8f\nK(X,Y)=\n%.8f\nK(X,X)=\n%.8f\n", mat.Formatted(X), mat.Formatted(Y), mat.Formatted(KXY), mat.Formatted(KXX))
 	// Output:
 	// K=1.11**2 * DotProduct(sigma_0=1.23), stationary:false
 	// X=
@@ -273,7 +285,7 @@ func TestExponentiation(t *testing.T) {
 	state := randomkit.NewRandomkitSource(1)
 	// X=np.reshape(np.random.sample(6),(3,2))
 	X, Y := sample(state, 3, 2), sample(state, 3, 2)
-	actual := kernel.Eval(X, Y)
+	actual,_ := kernel.Eval(X, Y,false)
 	assertEq(
 		t,
 		mat.NewDense(3, 3, []float64{
