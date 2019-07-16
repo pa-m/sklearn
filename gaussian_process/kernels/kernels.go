@@ -3,6 +3,7 @@ package kernels
 import (
 	"fmt"
 	"github.com/pa-m/sklearn/base"
+	"log"
 	"math"
 
 	"gonum.org/v1/gonum/floats"
@@ -72,7 +73,7 @@ type Kernel interface {
 	Theta() mat.Matrix
 	Bounds() mat.Matrix
 	CloneWithTheta(theta mat.Matrix) Kernel
-	Eval(X, Y mat.Matrix, evalGradient bool) (*mat.Dense,*t.Dense)
+	Eval(X, Y mat.Matrix, evalGradient bool) (*mat.Dense, *t.Dense)
 	Diag(X mat.Matrix) (K *mat.DiagDense)
 	IsStationary() bool
 	String() string
@@ -131,7 +132,7 @@ func (k KernelOperator) CloneWithTheta(theta mat.Matrix) Kernel {
 }
 
 // Eval ...
-func (k KernelOperator) Eval(X, Y mat.Matrix, evalGradient bool) (*mat.Dense,*t.Dense) {
+func (k KernelOperator) Eval(X, Y mat.Matrix, evalGradient bool) (*mat.Dense, *t.Dense) {
 	panic("Eval must be implemented by wrapper")
 }
 
@@ -161,15 +162,30 @@ func (k *Sum) CloneWithTheta(theta mat.Matrix) Kernel {
 }
 
 // Eval return the kernel k(X, Y) and optionally its gradient
-func (k *Sum) Eval(X, Y mat.Matrix, evalGradient bool) (*mat.Dense,*t.Dense) {
+func (k *Sum) Eval(X, Y mat.Matrix, evalGradient bool) (*mat.Dense, *t.Dense) {
 
-	K1,K1g := k.k1.Eval(X, Y, evalGradient)
-	K2,K2g := k.k2.Eval(X, Y, evalGradient)
+	K1, K1g := k.k1.Eval(X, Y, evalGradient)
+	K2, K2g := k.k2.Eval(X, Y, evalGradient)
 	K1.Add(K1, K2)
+	var Kg *t.Dense
 	if evalGradient {
-		K1g.Add(K2g, t.UseUnsafe(), t.WithReuse(K1g))
+		s1, s2 := K1g.Shape(), K2g.Shape()
+		s := t.Shape{s1[0], s1[1], s1[2] + s2[2]}
+		Kg = t.NewDense(K1g.Dtype(), s)
+		K1gdata, K2gdata, Kgdata := K1g.Data().([]float64), K2g.Data().([]float64), Kg.Data().([]float64)
+		log.Println(K1g.Shape(), K2g.Shape(), Kg.Shape())
+		for i := range Kgdata {
+			i2 := i % s[2]
+			i1 := ((i - i2) / s[2]) % s[1]
+			i0 := ((i - i2) / s[2]) / s[1]
+			if i2 < s1[2] {
+				Kgdata[i] = K1gdata[i0*s1[1]*s1[2]+i1*s1[2]+i2]
+			} else {
+				Kgdata[i] = K2gdata[i0*s2[1]*s2[2]+i1*s2[2]+(i2-s1[2])]
+			}
+		}
 	}
-	return K1,K1g
+	return K1, Kg
 }
 
 // Diag returns the diagonal of the kernel k(X, X)
@@ -200,16 +216,31 @@ func (k *Product) CloneWithTheta(theta mat.Matrix) Kernel {
 }
 
 // Eval return the kernel k(X, Y) and optionally its gradient
-func (k *Product) Eval(X, Y mat.Matrix, evalGradient bool) (*mat.Dense,*t.Dense) {
+func (k *Product) Eval(X, Y mat.Matrix, evalGradient bool) (*mat.Dense, *t.Dense) {
 
-	K1,K1g := k.k1.Eval(X, Y, evalGradient)
-	K2,K2g := k.k2.Eval(X, Y, evalGradient)
+	K1, K1g := k.k1.Eval(X, Y, evalGradient)
+	K2, K2g := k.k2.Eval(X, Y, evalGradient)
 	K1.MulElem(K1, K2)
+	var Kg *t.Dense
 	if evalGradient {
-		K1g.Mul(K2g, t.UseUnsafe(), t.WithReuse(K1g))
+		s1, s2 := K1g.Shape(), K2g.Shape()
+		s := t.Shape{s1[0], s1[1], s1[2] + s2[2]}
+		Kg = t.NewDense(K1g.Dtype(), s)
+		K1data, K2data := K1.RawMatrix().Data, K2.RawMatrix().Data
+		K1gdata, K2gdata, Kgdata := K1g.Data().([]float64), K2g.Data().([]float64), Kg.Data().([]float64)
+		log.Println(K1g.Shape(), K2g.Shape(), Kg.Shape())
+		for i := range Kgdata {
+			i2 := i % s[2]
+			i1 := ((i - i2) / s[2]) % s[1]
+			i0 := ((i - i2) / s[2]) / s[1]
+			if i2 < s1[2] {
+				Kgdata[i] = K1gdata[i0*s1[1]*s1[2]+i1*s1[2]+i2] * K2data[i0*s2[1]+i1]
+			} else {
+				Kgdata[i] = K2gdata[i0*s2[1]*s2[2]+i1*s2[2]+(i2-s1[2])] * K1data[i0*s1[1]+i1]
+			}
+		}
 	}
-
-	return K1,K1g
+	return K1, Kg
 }
 
 // Diag returns the diagonal of the kernel k(X, X)
@@ -246,19 +277,19 @@ func (k Exponentiation) hyperparameters() hyperparameters {
 }
 
 // Eval return the kernel k(X, Y) and optionally its gradient
-func (k *Exponentiation) Eval(X, Y mat.Matrix, evalGradient bool) (*mat.Dense,*t.Dense) {
-	K,Kg := k.Kernel.Eval(X, Y, evalGradient)
+func (k *Exponentiation) Eval(X, Y mat.Matrix, evalGradient bool) (*mat.Dense, *t.Dense) {
+	K, Kg := k.Kernel.Eval(X, Y, evalGradient)
 	K.Apply(func(_, _ int, v float64) float64 {
 		return math.Pow(v, k.Exponent)
 	}, K)
 	if evalGradient {
-		Kdata:=K.RawMatrix().Data
-		Kgdata:=Kg.Data().([]float64)
-		for i:=range Kgdata {
-			Kgdata[i]*=k.Exponent*math.Pow(Kdata[i],k.Exponent-1)
+		Kdata := K.RawMatrix().Data
+		Kgdata := Kg.Data().([]float64)
+		for i := range Kgdata {
+			Kgdata[i] *= k.Exponent * math.Pow(Kdata[i], k.Exponent-1)
 		}
 	}
-	return K,Kg
+	return K, Kg
 }
 
 // Diag returns the diagonal of the kernel k(X, X)
@@ -311,7 +342,7 @@ func (k *ConstantKernel) CloneWithTheta(theta mat.Matrix) Kernel {
 // Eval returns
 // K : array, shape (n_samples_X, n_samples_Y)
 // Kernel k(X, Y)
-func (k *ConstantKernel) Eval(X, Y mat.Matrix, evalGradient bool) (*mat.Dense,*t.Dense) {
+func (k *ConstantKernel) Eval(X, Y mat.Matrix, evalGradient bool) (*mat.Dense, *t.Dense) {
 	nx, _ := X.Dims()
 	if Y == mat.Matrix(nil) {
 		Y = X
@@ -323,19 +354,19 @@ func (k *ConstantKernel) Eval(X, Y mat.Matrix, evalGradient bool) (*mat.Dense,*t
 		kdata[i] = k.ConstantValue
 	}
 	var Kg *t.Dense
-	if evalGradient && Y==X {
-		if k.hyperparameters()[0].IsFixed(){
-			Kg=t.NewDense(t.Float64,t.Shape{nx,nx,0})
-		}else{
-			Kg=t.NewDense(t.Float64,t.Shape{nx,nx,1},t.WithBacking(make([]float64,nx*nx)))
-			it:=Kg.Iterator()
-			Kgdata:=Kg.Data().([]float64)
-			for i,e:=it.Start();e==nil && !it.Done();i,e=it.Next() {
-				Kgdata[i]=k.ConstantValue
+	if evalGradient && Y == X {
+		if k.hyperparameters()[0].IsFixed() {
+			Kg = t.NewDense(t.Float64, t.Shape{nx, nx, 0})
+		} else {
+			Kg = t.NewDense(t.Float64, t.Shape{nx, nx, 1}, t.WithBacking(make([]float64, nx*nx)))
+			it := Kg.Iterator()
+			Kgdata := Kg.Data().([]float64)
+			for i, e := it.Start(); e == nil; i, e = it.Next() {
+				Kgdata[i] = k.ConstantValue
 			}
 		}
 	}
-	return K,Kg
+	return K, Kg
 }
 
 // Diag returns the diagonal of the kernel k(X, X).
@@ -391,7 +422,7 @@ func (k *WhiteKernel) CloneWithTheta(theta mat.Matrix) Kernel {
 }
 
 // Eval return the kernel k(X, Y)
-func (k *WhiteKernel) Eval(X, Y mat.Matrix, evalGradient bool) (*mat.Dense,*t.Dense) {
+func (k *WhiteKernel) Eval(X, Y mat.Matrix, evalGradient bool) (*mat.Dense, *t.Dense) {
 	nx, nfeat := X.Dims()
 	if Y == mat.Matrix(nil) {
 		Y = X
@@ -410,21 +441,21 @@ func (k *WhiteKernel) Eval(X, Y mat.Matrix, evalGradient bool) (*mat.Dense,*t.De
 		}
 	}
 	var Kg *t.Dense
-	if evalGradient && Y==X {
-		if k.hyperparameters()[0].IsFixed(){
-			Kg=t.NewDense(t.Float64,t.Shape{nx,nx,0})
-		}else{
-			Kg=t.NewDense(t.Float64,t.Shape{nx,nx,1},t.WithBacking(make([]float64,nx*nx)))
-			it:=Kg.Iterator()
-			Kgdata:=Kg.Data().([]float64)
-			for i,e:=it.Start();e==nil && !it.Done();i,e=it.Next() {
-				if i%(nx+1)==0 {
+	if evalGradient && Y == X {
+		if k.hyperparameters()[0].IsFixed() {
+			Kg = t.NewDense(t.Float64, t.Shape{nx, nx, 0})
+		} else {
+			Kg = t.NewDense(t.Float64, t.Shape{nx, nx, 1}, t.WithBacking(make([]float64, nx*nx)))
+			it := Kg.Iterator()
+			Kgdata := Kg.Data().([]float64)
+			for i, e := it.Start(); e == nil; i, e = it.Next() {
+				if i%(nx+1) == 0 {
 					Kgdata[i] = k.NoiseLevel
 				}
 			}
 		}
 	}
-	return K,Kg
+	return K, Kg
 }
 
 // Diag returns the diagonal of the kernel k(X, X)
@@ -462,7 +493,7 @@ type RBF struct {
 func (k *RBF) hyperparameters() hyperparameters {
 	params := make(hyperparameters, len(k.LengthScale))
 	for i := range k.LengthScale {
-		params = append(params, hyperparameter{Name: fmt.Sprintf("length_scale_%d", i), PValue: &k.LengthScale[i], PBounds: &k.LengthScaleBounds[i]})
+		params[i] = hyperparameter{Name: fmt.Sprintf("length_scale_%d", i), PValue: &k.LengthScale[i], PBounds: &k.LengthScaleBounds[i]}
 
 	}
 	return params
@@ -490,7 +521,7 @@ func (k *RBF) CloneWithTheta(theta mat.Matrix) Kernel {
 }
 
 // Eval return the kernel k(X, Y)
-func (k *RBF) Eval(X, Y mat.Matrix, evalGradient bool) (K *mat.Dense,Kg *t.Dense) {
+func (k *RBF) Eval(X, Y mat.Matrix, evalGradient bool) (K *mat.Dense, Kg *t.Dense) {
 	nx, nfeat := X.Dims()
 	if Y == mat.Matrix(nil) {
 		Y = X
@@ -524,16 +555,29 @@ func (k *RBF) Eval(X, Y mat.Matrix, evalGradient bool) (K *mat.Dense,Kg *t.Dense
 			K.Set(ix, iy, math.Exp(-.5*(d2)))
 		}
 	}
-	if evalGradient && Y==X {
-		if k.hyperparameters()[0].IsFixed(){
-			Kg=t.NewDense(t.Float64,t.Shape{nx,nx,0})
-		}else{
-			Kg=t.NewDense(t.Float64,t.Shape{nx,nx,1},t.WithBacking(make([]float64,nx*nx)))
-			it:=Kg.Iterator()
-			Kgdata:=Kg.Data().([]float64)
-			for i,e:=it.Start();e==nil && !it.Done();i,e=it.Next() {
-				Kgdata[i]=0// TODO Kgdata[i]=K.At(r,c)+ mat.Norm(X.Row(r)-X.Row(c),2)/lengscale
-
+	if evalGradient && Y == X {
+		if k.hyperparameters()[0].IsFixed() {
+			Kg = t.NewDense(t.Float64, t.Shape{nx, nx, 0}, t.WithBacking(nil))
+		} else {
+			Kg = t.NewDense(t.Float64, t.Shape{nx, nx, 1}, t.WithBacking(make([]float64, nx*nx)))
+			it := Kg.Iterator()
+			Kgdata := Kg.Data().([]float64)
+			Kdata := K.RawMatrix().Data
+			xr, xc, xd := mat.NewVecDense(nfeat, nil), mat.NewVecDense(nfeat, nil), mat.NewVecDense(nfeat, nil)
+			for i, e := it.Start(); e == nil; i, e = it.Next() {
+				r, c := i/nx, i%nx
+				mat.Row(xr.RawVector().Data, r, X)
+				mat.Row(xc.RawVector().Data, c, X)
+				xd.SubVec(xr, xc)
+				switch len(k.LengthScale) {
+				case 1:
+					xd.ScaleVec(1/k.LengthScale[0], xd)
+				case nfeat:
+					xd.DivElemVec(xd, mat.NewVecDense(nfeat, k.LengthScale))
+				default:
+					panic("dim error")
+				}
+				Kgdata[i] = Kdata[i] * mat.Dot(xd, xd)
 			}
 		}
 	}
@@ -590,7 +634,7 @@ func (k *DotProduct) CloneWithTheta(theta mat.Matrix) Kernel {
 }
 
 // Eval return the kernel k(X, Y)
-func (k *DotProduct) Eval(X, Y mat.Matrix, evalGradient bool) (K *mat.Dense,Kg*t.Dense) {
+func (k *DotProduct) Eval(X, Y mat.Matrix, evalGradient bool) (K *mat.Dense, Kg *t.Dense) {
 	nx, nfeat := X.Dims()
 	if Y == mat.Matrix(nil) {
 		Y = X
@@ -607,15 +651,15 @@ func (k *DotProduct) Eval(X, Y mat.Matrix, evalGradient bool) (K *mat.Dense,Kg*t
 			K.Set(ix, iy, s2+mat.Dot(mat.NewVecDense(nfeat, Xrow), mat.NewVecDense(nfeat, Yrow)))
 		}
 	}
-	if evalGradient && Y==X {
-		if k.hyperparameters()[0].IsFixed(){
-			Kg=t.NewDense(t.Float64,t.Shape{nx,nx,0})
-		}else{
-			Kg=t.NewDense(t.Float64,t.Shape{nx,nx,1},t.WithBacking(make([]float64,nx*nx)))
-			it:=Kg.Iterator()
-			Kgdata:=Kg.Data().([]float64)
-			for i,e:=it.Start();e==nil && !it.Done();i,e=it.Next() {
-				Kgdata[i]=2*k.Sigma0*k.Sigma0
+	if evalGradient && Y == X {
+		if k.hyperparameters()[0].IsFixed() {
+			Kg = t.NewDense(t.Float64, t.Shape{nx, nx, 0})
+		} else {
+			Kg = t.NewDense(t.Float64, t.Shape{nx, nx, 1}, t.WithBacking(make([]float64, nx*nx)))
+			it := Kg.Iterator()
+			Kgdata := Kg.Data().([]float64)
+			for i, e := it.Start(); e == nil; i, e = it.Next() {
+				Kgdata[i] = 2 * k.Sigma0 * k.Sigma0
 			}
 		}
 	}

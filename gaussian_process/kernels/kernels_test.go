@@ -2,12 +2,15 @@ package kernels
 
 import (
 	"fmt"
+	"gonum.org/v1/gonum/floats"
 	"math"
+	"reflect"
 	"testing"
 
 	"gonum.org/v1/gonum/mat"
 
 	"github.com/pa-m/randomkit"
+	"gorgonia.org/tensor"
 )
 
 var _ = []Kernel{&ConstantKernel{}, &WhiteKernel{}, &RBF{}, &DotProduct{}, &Sum{}, &Product{}, &Exponentiation{}}
@@ -30,8 +33,8 @@ func ExampleConstantKernel() {
 	X, Y := sample(state, 3, 2), sample(state, 3, 2)
 	K := &ConstantKernel{ConstantValue: 1.23}
 	fmt.Printf("K=%s, stationary:%v\n", K, K.IsStationary())
-	KXY,_:=K.Eval(X,Y,false)
-	KXX:= K.Diag(X)
+	KXY, _ := K.Eval(X, Y, false)
+	KXX := K.Diag(X)
 	fmt.Printf("X=\n%.8f\nY=\n%.8f\nK(X,Y)=\n%.8f\nK(X,X)=\n%.8f\n", mat.Formatted(X), mat.Formatted(Y), mat.Formatted(KXY), mat.Formatted(KXX))
 	// Output:
 	// K=1.11**2, stationary:true
@@ -61,8 +64,8 @@ func ExampleWhiteKernel() {
 	K := &WhiteKernel{NoiseLevel: 1.23}
 	fmt.Printf("K=%s, stationary:%v\n", K, K.IsStationary())
 
-	KXY,_:=K.Eval(X,Y,false)
-	KXX:= K.Diag(X)
+	KXY, _ := K.Eval(X, Y, false)
+	KXX := K.Diag(X)
 	fmt.Printf("X=\n%.8f\nY=\n%.8f\nK(X,Y)=\n%.8f\nK(X,X)=\n%.8f\n", mat.Formatted(X), mat.Formatted(Y), mat.Formatted(KXY), mat.Formatted(KXX))
 	// Output:
 	// K=WhiteKernel(noise_level=1.23), stationary:true
@@ -93,8 +96,8 @@ func ExampleRBF() {
 	K := &RBF{LengthScale: []float64{1.23}}
 	fmt.Printf("K=%s, stationary:%v\n", K, K.IsStationary())
 
-	KXY,_:=K.Eval(X,Y,false)
-	KXX:= K.Diag(X)
+	KXY, _ := K.Eval(X, Y, false)
+	KXX := K.Diag(X)
 	fmt.Printf("X=\n%.8f\nY=\n%.8f\nK(X,Y)=\n%.8f\nK(X,X)=\n%.8f\n", mat.Formatted(X), mat.Formatted(Y), mat.Formatted(KXY), mat.Formatted(KXX))
 	// Output:
 	// K=RBF([1.23]), stationary:true
@@ -126,8 +129,8 @@ func ExampleDotProduct() {
 	K := &DotProduct{Sigma0: 1.23}
 	fmt.Printf("K=%s, stationary:%v\n", K, K.IsStationary())
 
-	KXY,_:=K.Eval(X,Y,false)
-	KXX:= K.Diag(X)
+	KXY, _ := K.Eval(X, Y, false)
+	KXX := K.Diag(X)
 	fmt.Printf("X=\n%.8f\nY=\n%.8f\nK(X,Y)=\n%.8f\nK(X,X)=\n%.8f\n", mat.Formatted(X), mat.Formatted(Y), mat.Formatted(KXY), mat.Formatted(KXX))
 	// Output:
 	// K=DotProduct(sigma_0=1.23), stationary:false
@@ -159,8 +162,8 @@ func ExampleSum() {
 	K := &Sum{KernelOperator{k1: &ConstantKernel{ConstantValue: 1.23}, k2: &WhiteKernel{NoiseLevel: 1.23}}}
 	fmt.Printf("K=%s, stationary:%v\n", K, K.IsStationary())
 
-	KXY,_:=K.Eval(X,Y,false)
-	KXX:= K.Diag(X)
+	KXY, _ := K.Eval(X, Y, false)
+	KXX := K.Diag(X)
 	fmt.Printf("X=\n%.8f\nY=\n%.8f\nK(X,Y)=\n%.8f\nK(X,X)=\n%.8f\n", mat.Formatted(X), mat.Formatted(Y), mat.Formatted(KXY), mat.Formatted(KXX))
 	// Output:
 	// K=1.11**2 + WhiteKernel(noise_level=1.23), stationary:true
@@ -195,8 +198,8 @@ func ExampleProduct() {
 	}
 	fmt.Printf("K=%s, stationary:%v\n", K, K.IsStationary())
 
-	KXY,_:=K.Eval(X,Y,false)
-	KXX:= K.Diag(X)
+	KXY, _ := K.Eval(X, Y, false)
+	KXX := K.Diag(X)
 	fmt.Printf("X=\n%.8f\nY=\n%.8f\nK(X,Y)=\n%.8f\nK(X,X)=\n%.8f\n", mat.Formatted(X), mat.Formatted(Y), mat.Formatted(KXY), mat.Formatted(KXX))
 	// Output:
 	// K=1.11**2 * DotProduct(sigma_0=1.23), stationary:false
@@ -285,7 +288,7 @@ func TestExponentiation(t *testing.T) {
 	state := randomkit.NewRandomkitSource(1)
 	// X=np.reshape(np.random.sample(6),(3,2))
 	X, Y := sample(state, 3, 2), sample(state, 3, 2)
-	actual,_ := kernel.Eval(X, Y,false)
+	actual, _ := kernel.Eval(X, Y, false)
 	assertEq(
 		t,
 		mat.NewDense(3, 3, []float64{
@@ -318,4 +321,131 @@ func TestKernel_CloneWithTheta(t *testing.T) {
 		newTheta,
 		clone.Theta(),
 		"wrong theta")
+}
+
+func TestConstantKernel_Eval(t *testing.T) {
+	kernel := &ConstantKernel{ConstantValue: 1.0, ConstantValueBounds: [2]float64{1e-3, 1e3}}
+	state := randomkit.NewRandomkitSource(1)
+	// X=np.reshape(np.random.sample(6),(3,2))
+	X := sample(state, 3, 2)
+	kv, kg := kernel.Eval(X, nil, true)
+	if !reflect.DeepEqual(mat.NewDense(3, 3, []float64{1, 1, 1, 1, 1, 1, 1, 1, 1}), kv) {
+		t.Errorf("wrong kv")
+	}
+	if !reflect.DeepEqual(tensor.Shape([]int{3, 3, 1}), kg.Shape()) {
+		t.Errorf("wrong kg shape, got %v", kg.Shape())
+	}
+	if !reflect.DeepEqual([]float64{1, 1, 1, 1, 1, 1, 1, 1, 1}, kg.Data().([]float64)) {
+		t.Errorf("wrong kg data, got %v", kg.Data().([]float64))
+	}
+}
+func TestWhiteKernel_Eval(t *testing.T) {
+	kernel := &WhiteKernel{NoiseLevel: 1.0, NoiseLevelBounds: [2]float64{1e-5, 1e5}}
+	state := randomkit.NewRandomkitSource(1)
+	// X=np.reshape(np.random.sample(6),(3,2))
+	X := sample(state, 3, 2)
+	kv, kg := kernel.Eval(X, nil, true)
+	if !reflect.DeepEqual(mat.NewDense(3, 3, []float64{1, 0, 0, 0, 1, 0, 0, 0, 1}), kv) {
+		t.Errorf("wrong kv")
+	}
+	if !reflect.DeepEqual(tensor.Shape([]int{3, 3, 1}), kg.Shape()) {
+		t.Errorf("wrong kg shape, got %v", kg.Shape())
+	}
+	if !reflect.DeepEqual([]float64{1, 0, 0, 0, 1, 0, 0, 0, 1}, kg.Data().([]float64)) {
+		t.Errorf("wrong kg data, got %v", kg.Data().([]float64))
+	}
+}
+func TestRBF_Eval(t *testing.T) {
+	kernel := &RBF{
+		LengthScale:       []float64{10},
+		LengthScaleBounds: [][2]float64{{1e-2, 1e2}},
+	}
+	state := randomkit.NewRandomkitSource(1)
+	// X=np.reshape(np.random.sample(6),(3,2))
+	X := sample(state, 3, 2)
+	kv, kg := kernel.Eval(X, nil, true)
+	tol := float64(1e-6)
+	if !floats.EqualApprox([]float64{1., 0.99825887, 0.99766568, 0.99825887, 1., 0.99967205, 0.99766568, 0.99967205, 1.}, kv.RawMatrix().Data, tol) {
+		t.Errorf("wrong kv, got %g", kv.RawMatrix().Data)
+	}
+	if !reflect.DeepEqual(tensor.Shape([]int{3, 3, 1}), kg.Shape()) {
+		t.Errorf("wrong kg shape, got %v", kg.Shape())
+	}
+	if !floats.EqualApprox([]float64{0., 0.00347922, 0.00466319, 0.00347922, 0., 0.0006558, 0.00466319, 0.0006558, 0.}, kg.Data().([]float64), tol) {
+		t.Errorf("wrong kg data, got %v", kg.Data().([]float64))
+	}
+}
+
+func TestProduct_Eval(t *testing.T) {
+	kernel := &Product{KernelOperator{
+		k1: &ConstantKernel{ConstantValue: 1., ConstantValueBounds: [2]float64{1e-3, 1e3}},
+		k2: &RBF{LengthScale: []float64{10}, LengthScaleBounds: [][2]float64{{1e-2, 1e2}}},
+	}}
+	state := randomkit.NewRandomkitSource(1)
+	// X=np.reshape(np.random.sample(6),(3,2))
+	X := sample(state, 3, 2)
+	kv, kg := kernel.Eval(X, nil, true)
+	tol := float64(1e-4)
+	if !floats.EqualApprox([]float64{1., 0.99825887, 0.99766568, 0.99825887, 1., 0.99967205, 0.99766568, 0.99967205, 1.}, kv.RawMatrix().Data, tol) {
+		t.Errorf("wrong kv, got %g", kv.RawMatrix().Data)
+	}
+	if !reflect.DeepEqual(tensor.Shape([]int{3, 3, 2}), kg.Shape()) {
+		t.Errorf("wrong kg shape, got %v", kg.Shape())
+	}
+	if !floats.EqualApprox([]float64{
+		1.00000000e+00, 0.00000000e+00, 9.98258871e-01, 3.47922384e-03,
+		9.97665678e-01, 4.66318976e-03, 9.98258871e-01, 3.47922384e-03,
+		1.00000000e+00, 0.00000000e+00, 9.99672048e-01, 6.55796909e-04,
+		9.97665678e-01, 4.66318976e-03, 9.99672048e-01, 6.55796909e-04,
+		1.00000000e+00, 0.00000000e+00,
+	}, kg.Data().([]float64), tol) {
+		t.Errorf("wrong kg data, got %.8g", kg.Data().([]float64))
+	}
+}
+
+func TestSum_Eval(t *testing.T) {
+	kernel := &Sum{KernelOperator{
+		k1: &ConstantKernel{ConstantValue: 1., ConstantValueBounds: [2]float64{1e-3, 1e3}},
+		k2: &RBF{LengthScale: []float64{10}, LengthScaleBounds: [][2]float64{{1e-2, 1e2}}},
+	}}
+	state := randomkit.NewRandomkitSource(1)
+	// X=np.reshape(np.random.sample(6),(3,2))
+	X := sample(state, 3, 2)
+	kv, kg := kernel.Eval(X, nil, true)
+	tol := float64(1e-4)
+	if !floats.EqualApprox([]float64{2., 1.99825887, 1.99766568, 1.99825887, 2., 1.99967205, 1.99766568, 1.99967205, 2.}, kv.RawMatrix().Data, tol) {
+		t.Errorf("wrong kv, got %g", kv.RawMatrix().Data)
+	}
+	if !reflect.DeepEqual(tensor.Shape([]int{3, 3, 2}), kg.Shape()) {
+		t.Errorf("wrong kg shape, got %v", kg.Shape())
+	}
+	if !floats.EqualApprox([]float64{
+		1.00000000e+00, 0.00000000e+00, 1.00000000e+00, 3.47922384e-03,
+		1.00000000e+00, 4.66318976e-03, 1.00000000e+00, 3.47922384e-03,
+		1.00000000e+00, 0.00000000e+00, 1.00000000e+00, 6.55796909e-04,
+		1.00000000e+00, 4.66318976e-03, 1.00000000e+00, 6.55796909e-04,
+		1.00000000e+00, 0.00000000e+00,
+	}, kg.Data().([]float64), tol) {
+		t.Errorf("wrong kg data, got %.8g", kg.Data().([]float64))
+	}
+}
+
+func TestDotProduct_Eval(t *testing.T) {
+	kernel := &DotProduct{Sigma0: 1., Sigma0Bounds: [2]float64{1e-2, 1e2}}
+	state := randomkit.NewRandomkitSource(1)
+	// X=np.reshape(np.random.sample(6),(3,2))
+	X := sample(state, 3, 2)
+	kv, kg := kernel.Eval(X, nil, true)
+	tol := float64(1e-4)
+	if !floats.EqualApprox([]float64{1.69277473, 1.21782525, 1.12771419, 1.21782525, 1.091405, 1.02793375, 1.12771419, 1.02793375, 1.03006371}, kv.RawMatrix().Data, tol) {
+		t.Errorf("wrong kv, got %g", kv.RawMatrix().Data)
+	}
+	if !reflect.DeepEqual(tensor.Shape([]int{3, 3, 1}), kg.Shape()) {
+		t.Errorf("wrong kg shape, got %v", kg.Shape())
+	}
+	if !floats.EqualApprox([]float64{
+		2., 2., 2., 2., 2., 2., 2., 2., 2.,
+	}, kg.Data().([]float64), tol) {
+		t.Errorf("wrong kg data, got %.8g", kg.Data().([]float64))
+	}
 }
