@@ -48,3 +48,21 @@ func matCopy(dst mat.Mutable, src mat.Matrix) {
 	}
 }
 
+func mulElemSym(dstsym,asym,bsym *mat.SymDense) {
+	dst,a,b:=dstsym.RawSymmetric(),asym.RawSymmetric(),bsym.RawSymmetric()
+	for i,pd,pa,pb:=0,0,0,0;i<a.N;i,pd,pa,pb=i+1,pd+dst.Stride,pa+a.Stride,pb+b.Stride {
+		for j:=i;j<a.N;j++ {
+			dst.Data[pd+j]=a.Data[pa+j]*b.Data[pb+j]
+		}
+	}
+}
+
+func applySym(dstsym,asym *mat.SymDense,f func(i,j int,v float64)float64){
+	dst,a:=dstsym.RawSymmetric(),asym.RawSymmetric()
+	for i,pd,pa:=0,0,0;i<dst.N;i,pd,pa=i+1,pd+dst.Stride,pa+a.Stride {
+		for j:=i;j<dst.N;j++ {
+			dst.Data[pd+j]=f(i,j,a.Data[pa+j])
+		}
+	}
+}
+

@@ -3,7 +3,6 @@ package kernels
 import (
 	"fmt"
 	"github.com/pa-m/sklearn/base"
-	"log"
 	"math"
 
 	"gonum.org/v1/gonum/floats"
@@ -74,6 +73,7 @@ type Kernel interface {
 	Bounds() mat.Matrix
 	CloneWithTheta(theta mat.Matrix) Kernel
 	Eval(X, Y mat.Matrix, evalGradient bool) (*mat.Dense, *t.Dense)
+
 	Diag(X mat.Matrix) (K *mat.DiagDense)
 	IsStationary() bool
 	String() string
@@ -102,12 +102,12 @@ func (k NormalizedKernelMixin) Diag(X mat.Matrix) (K *mat.DiagDense) {
 
 // KernelOperator is a kernel based on two others
 type KernelOperator struct {
-	k1, k2 Kernel
+	K1,K2 Kernel
 }
 
 // hyperparameters ...
 func (k KernelOperator) hyperparameters() hyperparameters {
-	return append(k.k1.hyperparameters(), k.k2.hyperparameters()...)
+	return append(k.K1.hyperparameters(), k.K2.hyperparameters()...)
 }
 
 // Theta ...
@@ -122,12 +122,15 @@ func (k KernelOperator) Bounds() mat.Matrix {
 
 // CloneWithTheta ...
 func (k KernelOperator) CloneWithTheta(theta mat.Matrix) Kernel {
+	if theta==mat.Matrix(nil){
+		return KernelOperator{K1:k.K1.CloneWithTheta(nil),K2:k.K2.CloneWithTheta(nil)}
+	}
 	var td = base.ToDense(theta)
-	n1, _ := k.k1.Theta().Dims()
-	n2, _ := k.k2.Theta().Dims()
+	n1, _ := k.K1.Theta().Dims()
+	n2, _ := k.K2.Theta().Dims()
 	return KernelOperator{
-		k1: k.k1.CloneWithTheta(td.Slice(0, n1, 0, 1)),
-		k2: k.k2.CloneWithTheta(td.Slice(n1, n1+n2, 0, 1)),
+		K1: k.K1.CloneWithTheta(td.Slice(0, n1, 0, 1)),
+		K2: k.K2.CloneWithTheta(td.Slice(n1, n1+n2, 0, 1)),
 	}
 }
 
@@ -148,24 +151,24 @@ func (k KernelOperator) String() string {
 
 // IsStationary returns whether the kernel is stationary
 func (k KernelOperator) IsStationary() bool {
-	return k.k1.IsStationary() && k.k2.IsStationary()
+	return k.K1.IsStationary() && k.K2.IsStationary()
 }
 
-// Sum kernel k1 + k2 of two kernels k1 and k2
+// Sum kernel K1 + K2 of two kernels K1 and K2
 type Sum struct {
 	KernelOperator
 }
 
 // CloneWithTheta ...
-func (k *Sum) CloneWithTheta(theta mat.Matrix) Kernel {
+func (k Sum) CloneWithTheta(theta mat.Matrix) Kernel {
 	return &Sum{KernelOperator: k.KernelOperator.CloneWithTheta(theta).(KernelOperator)}
 }
 
 // Eval return the kernel k(X, Y) and optionally its gradient
 func (k *Sum) Eval(X, Y mat.Matrix, evalGradient bool) (*mat.Dense, *t.Dense) {
 
-	K1, K1g := k.k1.Eval(X, Y, evalGradient)
-	K2, K2g := k.k2.Eval(X, Y, evalGradient)
+	K1, K1g := k.K1.Eval(X, Y, evalGradient)
+	K2, K2g := k.K2.Eval(X, Y, evalGradient)
 	K1.Add(K1, K2)
 	var Kg *t.Dense
 	if evalGradient {
@@ -173,7 +176,6 @@ func (k *Sum) Eval(X, Y mat.Matrix, evalGradient bool) (*mat.Dense, *t.Dense) {
 		s := t.Shape{s1[0], s1[1], s1[2] + s2[2]}
 		Kg = t.NewDense(K1g.Dtype(), s)
 		K1gdata, K2gdata, Kgdata := K1g.Data().([]float64), K2g.Data().([]float64), Kg.Data().([]float64)
-		log.Println(K1g.Shape(), K2g.Shape(), Kg.Shape())
 		for i := range Kgdata {
 			i2 := i % s[2]
 			i1 := ((i - i2) / s[2]) % s[1]
@@ -190,8 +192,8 @@ func (k *Sum) Eval(X, Y mat.Matrix, evalGradient bool) (*mat.Dense, *t.Dense) {
 
 // Diag returns the diagonal of the kernel k(X, X)
 func (k *Sum) Diag(X mat.Matrix) *mat.DiagDense {
-	K1 := k.k1.Diag(X)
-	K2 := k.k2.Diag(X)
+	K1 := k.K1.Diag(X)
+	K2 := k.K2.Diag(X)
 	nx, _ := K1.Dims()
 	for i := 0; i < nx; i++ {
 		K1.SetDiag(i, K1.At(i, i)+K2.At(i, i))
@@ -201,16 +203,16 @@ func (k *Sum) Diag(X mat.Matrix) *mat.DiagDense {
 
 // String ...
 func (k *Sum) String() string {
-	return k.k1.String() + " + " + k.k2.String()
+	return k.K1.String() + " + " + k.K2.String()
 }
 
-// Product kernel k1 * k2 of two kernels k1 and k2
+// Product kernel K1 * K2 of two kernels K1 and K2
 type Product struct {
 	KernelOperator
 }
 
 // CloneWithTheta ...
-func (k *Product) CloneWithTheta(theta mat.Matrix) Kernel {
+func (k Product) CloneWithTheta(theta mat.Matrix) Kernel {
 
 	return &Product{KernelOperator: k.KernelOperator.CloneWithTheta(theta).(KernelOperator)}
 }
@@ -218,8 +220,8 @@ func (k *Product) CloneWithTheta(theta mat.Matrix) Kernel {
 // Eval return the kernel k(X, Y) and optionally its gradient
 func (k *Product) Eval(X, Y mat.Matrix, evalGradient bool) (*mat.Dense, *t.Dense) {
 
-	K1, K1g := k.k1.Eval(X, Y, evalGradient)
-	K2, K2g := k.k2.Eval(X, Y, evalGradient)
+	K1, K1g := k.K1.Eval(X, Y, evalGradient)
+	K2, K2g := k.K2.Eval(X, Y, evalGradient)
 	K1.MulElem(K1, K2)
 	var Kg *t.Dense
 	if evalGradient {
@@ -228,7 +230,7 @@ func (k *Product) Eval(X, Y mat.Matrix, evalGradient bool) (*mat.Dense, *t.Dense
 		Kg = t.NewDense(K1g.Dtype(), s)
 		K1data, K2data := K1.RawMatrix().Data, K2.RawMatrix().Data
 		K1gdata, K2gdata, Kgdata := K1g.Data().([]float64), K2g.Data().([]float64), Kg.Data().([]float64)
-		log.Println(K1g.Shape(), K2g.Shape(), Kg.Shape())
+
 		for i := range Kgdata {
 			i2 := i % s[2]
 			i1 := ((i - i2) / s[2]) % s[1]
@@ -245,8 +247,8 @@ func (k *Product) Eval(X, Y mat.Matrix, evalGradient bool) (*mat.Dense, *t.Dense
 
 // Diag returns the diagonal of the kernel k(X, X)
 func (k *Product) Diag(X mat.Matrix) *mat.DiagDense {
-	K1 := k.k1.Diag(X)
-	K2 := k.k2.Diag(X)
+	K1 := k.K1.Diag(X)
+	K2 := k.K2.Diag(X)
 	nx, _ := K1.Dims()
 	for i := 0; i < nx; i++ {
 		K1.SetDiag(i, K1.At(i, i)*K2.At(i, i))
@@ -256,7 +258,7 @@ func (k *Product) Diag(X mat.Matrix) *mat.DiagDense {
 
 // String ...
 func (k *Product) String() string {
-	return k.k1.String() + " * " + k.k2.String()
+	return k.K1.String() + " * " + k.K2.String()
 }
 
 // Exponentiation exponentiate kernel by given exponent
@@ -328,13 +330,13 @@ func (k *ConstantKernel) Theta() mat.Matrix {
 }
 
 // Bounds ...
-func (k *ConstantKernel) Bounds() mat.Matrix {
+func (k ConstantKernel) Bounds() mat.Matrix {
 	return k.hyperparameters().Bounds()
 }
 
 // CloneWithTheta ...
-func (k *ConstantKernel) CloneWithTheta(theta mat.Matrix) Kernel {
-	clone := *k
+func (k ConstantKernel) CloneWithTheta(theta mat.Matrix) Kernel {
+	clone := k
 	matCopy(clone.Theta().(mat.Mutable), theta)
 	return &clone
 }
@@ -343,6 +345,9 @@ func (k *ConstantKernel) CloneWithTheta(theta mat.Matrix) Kernel {
 // K : array, shape (n_samples_X, n_samples_Y)
 // Kernel k(X, Y)
 func (k *ConstantKernel) Eval(X, Y mat.Matrix, evalGradient bool) (*mat.Dense, *t.Dense) {
+	if X==mat.Matrix(nil){
+		panic("ConstantKernel.Eval: X is nil")
+	}
 	nx, _ := X.Dims()
 	if Y == mat.Matrix(nil) {
 		Y = X
@@ -410,13 +415,13 @@ func (k *WhiteKernel) Theta() mat.Matrix {
 }
 
 // Bounds ...
-func (k *WhiteKernel) Bounds() mat.Matrix {
+func (k WhiteKernel) Bounds() mat.Matrix {
 	return k.hyperparameters().Bounds()
 }
 
 // CloneWithTheta ...
-func (k *WhiteKernel) CloneWithTheta(theta mat.Matrix) Kernel {
-	clone := *k
+func (k WhiteKernel) CloneWithTheta(theta mat.Matrix) Kernel {
+	clone :=k
 	matCopy(k.Theta().(mat.Mutable), theta)
 	return &clone
 }
@@ -505,13 +510,13 @@ func (k *RBF) Theta() mat.Matrix {
 }
 
 // Bounds ...
-func (k *RBF) Bounds() mat.Matrix {
+func (k RBF) Bounds() mat.Matrix {
 	return k.hyperparameters().Bounds()
 }
 
 // CloneWithTheta ...
-func (k *RBF) CloneWithTheta(theta mat.Matrix) Kernel {
-	clone := *k
+func (k RBF) CloneWithTheta(theta mat.Matrix) Kernel {
+	clone :=k
 	clone.LengthScale = make([]float64, len(k.LengthScale))
 	copy(clone.LengthScale, k.LengthScale)
 	clone.LengthScaleBounds = make([][2]float64, len(k.LengthScaleBounds))
@@ -622,13 +627,13 @@ func (k *DotProduct) Theta() mat.Matrix {
 }
 
 // Bounds ...
-func (k *DotProduct) Bounds() mat.Matrix {
+func (k DotProduct) Bounds() mat.Matrix {
 	return k.hyperparameters().Bounds()
 }
 
 // CloneWithTheta ...
-func (k *DotProduct) CloneWithTheta(theta mat.Matrix) Kernel {
-	clone := *k
+func (k DotProduct) CloneWithTheta(theta mat.Matrix) Kernel {
+	clone :=k
 	matCopy(clone.Theta().(mat.Mutable), theta)
 	return &clone
 }

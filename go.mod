@@ -11,7 +11,7 @@ require (
 	github.com/xtgo/set v1.0.0 // indirect
 	golang.org/x/exp v0.0.0-20190627132806-fd42eb6b336f
 	golang.org/x/image v0.0.0-20190703141733-d6a02ce849c9 // indirect
-	golang.org/x/tools v0.0.0-20190708203411-c8855242db9c // indirect
+	golang.org/x/tools v0.0.0-20190708203411-c8855242db9c
 	gonum.org/v1/gonum v0.0.0-20190704103327-70ddf0df3d53
 	gonum.org/v1/plot v0.0.0-20190615073203-9aa86143727f
 	gorgonia.org/tensor v0.8.1

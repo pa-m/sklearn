@@ -159,7 +159,7 @@ func ExampleSum() {
 	// X=np.reshape(np.random.sample(6),(3,2))
 	X, Y := sample(state, 3, 2), sample(state, 3, 2)
 	// K=DotProduct(sigma_0=1.23)
-	K := &Sum{KernelOperator{k1: &ConstantKernel{ConstantValue: 1.23}, k2: &WhiteKernel{NoiseLevel: 1.23}}}
+	K := &Sum{KernelOperator{K1: &ConstantKernel{ConstantValue: 1.23}, K2: &WhiteKernel{NoiseLevel: 1.23}}}
 	fmt.Printf("K=%s, stationary:%v\n", K, K.IsStationary())
 
 	KXY, _ := K.Eval(X, Y, false)
@@ -193,8 +193,8 @@ func ExampleProduct() {
 	X, Y := sample(state, 3, 2), sample(state, 3, 2)
 	// K=DotProduct(sigma_0=1.23)
 	K := &Product{KernelOperator{
-		k1: &ConstantKernel{ConstantValue: 1.23},
-		k2: &DotProduct{Sigma0: 1.23}},
+		K1: &ConstantKernel{ConstantValue: 1.23},
+		K2: &DotProduct{Sigma0: 1.23}},
 	}
 	fmt.Printf("K=%s, stationary:%v\n", K, K.IsStationary())
 
@@ -224,8 +224,8 @@ func ExampleProduct() {
 
 func ExampleKernel_Theta() {
 	kernel := &Product{KernelOperator{
-		k1: &ConstantKernel{ConstantValue: 1., ConstantValueBounds: [2]float64{1e-3, 1e3}},
-		k2: &RBF{LengthScale: []float64{10}, LengthScaleBounds: [][2]float64{{1e-2, 1e2}}},
+		K1: &ConstantKernel{ConstantValue: 1., ConstantValueBounds: [2]float64{1e-3, 1e3}},
+		K2: &RBF{LengthScale: []float64{10}, LengthScaleBounds: [][2]float64{{1e-2, 1e2}}},
 	}}
 	fmt.Printf("%.8f\n", mat.Formatted(kernel.Theta()))
 	// Output:
@@ -234,8 +234,8 @@ func ExampleKernel_Theta() {
 }
 func ExampleKernel_Bounds() {
 	kernel := &Product{KernelOperator{
-		k1: &ConstantKernel{ConstantValue: 1., ConstantValueBounds: [2]float64{1e-3, 1e3}},
-		k2: &RBF{LengthScale: []float64{10}, LengthScaleBounds: [][2]float64{{1e-2, 1e2}}},
+		K1: &ConstantKernel{ConstantValue: 1., ConstantValueBounds: [2]float64{1e-3, 1e3}},
+		K2: &RBF{LengthScale: []float64{10}, LengthScaleBounds: [][2]float64{{1e-2, 1e2}}},
 	}}
 	fmt.Printf("%.8f\n", mat.Formatted(kernel.Bounds()))
 	// Output:
@@ -268,8 +268,8 @@ func TestWhiteKernel(t *testing.T) {
 func TestExponentiation(t *testing.T) {
 	var kernel Kernel
 	kernel = &Product{KernelOperator{
-		k1: &ConstantKernel{ConstantValue: 1., ConstantValueBounds: [2]float64{1e-3, 1e3}},
-		k2: &RBF{LengthScale: []float64{10}, LengthScaleBounds: [][2]float64{{1e-2, 1e2}}},
+		K1: &ConstantKernel{ConstantValue: 1., ConstantValueBounds: [2]float64{1e-3, 1e3}},
+		K2: &RBF{LengthScale: []float64{10}, LengthScaleBounds: [][2]float64{{1e-2, 1e2}}},
 	}}
 	kernel = &Exponentiation{kernel, 2.}
 
@@ -306,12 +306,12 @@ func TestExponentiation(t *testing.T) {
 }
 
 func TestKernel_CloneWithTheta(t *testing.T) {
-	k1 := &ConstantKernel{ConstantValue: 1., ConstantValueBounds: [2]float64{1e-3, 1e3}}
-	k2 := &RBF{LengthScale: []float64{10}, LengthScaleBounds: [][2]float64{{1e-2, 1e2}}}
+	K1 := &ConstantKernel{ConstantValue: 1., ConstantValueBounds: [2]float64{1e-3, 1e3}}
+	K2 := &RBF{LengthScale: []float64{10}, LengthScaleBounds: [][2]float64{{1e-2, 1e2}}}
 	var kernel Kernel
 	kernel = &Product{KernelOperator{
-		k1: k1,
-		k2: k2,
+		K1: K1,
+		K2: K2,
 	}}
 	newTheta := mat.NewDense(2, 1, []float64{1.1, 1.2})
 
@@ -378,8 +378,8 @@ func TestRBF_Eval(t *testing.T) {
 
 func TestProduct_Eval(t *testing.T) {
 	kernel := &Product{KernelOperator{
-		k1: &ConstantKernel{ConstantValue: 1., ConstantValueBounds: [2]float64{1e-3, 1e3}},
-		k2: &RBF{LengthScale: []float64{10}, LengthScaleBounds: [][2]float64{{1e-2, 1e2}}},
+		K1: &ConstantKernel{ConstantValue: 1., ConstantValueBounds: [2]float64{1e-3, 1e3}},
+		K2: &RBF{LengthScale: []float64{10}, LengthScaleBounds: [][2]float64{{1e-2, 1e2}}},
 	}}
 	state := randomkit.NewRandomkitSource(1)
 	// X=np.reshape(np.random.sample(6),(3,2))
@@ -405,8 +405,8 @@ func TestProduct_Eval(t *testing.T) {
 
 func TestSum_Eval(t *testing.T) {
 	kernel := &Sum{KernelOperator{
-		k1: &ConstantKernel{ConstantValue: 1., ConstantValueBounds: [2]float64{1e-3, 1e3}},
-		k2: &RBF{LengthScale: []float64{10}, LengthScaleBounds: [][2]float64{{1e-2, 1e2}}},
+		K1: &ConstantKernel{ConstantValue: 1., ConstantValueBounds: [2]float64{1e-3, 1e3}},
+		K2: &RBF{LengthScale: []float64{10}, LengthScaleBounds: [][2]float64{{1e-2, 1e2}}},
 	}}
 	state := randomkit.NewRandomkitSource(1)
 	// X=np.reshape(np.random.sample(6),(3,2))
