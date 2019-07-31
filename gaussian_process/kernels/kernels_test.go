@@ -2,6 +2,7 @@ package kernels
 
 import (
 	"fmt"
+	"github.com/pkg/errors"
 	"gonum.org/v1/gonum/floats"
 	"math"
 	"reflect"
@@ -364,15 +365,18 @@ func TestRBF_Eval(t *testing.T) {
 	// X=np.reshape(np.random.sample(6),(3,2))
 	X := sample(state, 3, 2)
 	kv, kg := kernel.Eval(X, nil, true)
-	tol := float64(1e-6)
+	tol := float64(1e-8)
 	if !floats.EqualApprox([]float64{1., 0.99825887, 0.99766568, 0.99825887, 1., 0.99967205, 0.99766568, 0.99967205, 1.}, kv.RawMatrix().Data, tol) {
 		t.Errorf("wrong kv, got %g", kv.RawMatrix().Data)
 	}
 	if !reflect.DeepEqual(tensor.Shape([]int{3, 3, 1}), kg.Shape()) {
 		t.Errorf("wrong kg shape, got %v", kg.Shape())
 	}
-	if !floats.EqualApprox([]float64{0., 0.00347922, 0.00466319, 0.00347922, 0., 0.0006558, 0.00466319, 0.0006558, 0.}, kg.Data().([]float64), tol) {
-		t.Errorf("wrong kg data, got %v", kg.Data().([]float64))
+	expectedGrad := tensor.NewDense(tensor.Float64, tensor.Shape{3, 3, 1}, tensor.WithBacking(
+		[]float64{0., 0.00347922, 0.00466319, 0.00347922, 0., 0.0006558, 0.00466319, 0.0006558, 0.}))
+	err := Diff3D(expectedGrad, kg, tol)
+	if err != nil {
+		t.Error(errors.Wrap(err, "wrong kg"))
 	}
 }
 
@@ -385,21 +389,25 @@ func TestProduct_Eval(t *testing.T) {
 	// X=np.reshape(np.random.sample(6),(3,2))
 	X := sample(state, 3, 2)
 	kv, kg := kernel.Eval(X, nil, true)
-	tol := float64(1e-4)
+	tol := float64(1e-6)
 	if !floats.EqualApprox([]float64{1., 0.99825887, 0.99766568, 0.99825887, 1., 0.99967205, 0.99766568, 0.99967205, 1.}, kv.RawMatrix().Data, tol) {
 		t.Errorf("wrong kv, got %g", kv.RawMatrix().Data)
 	}
 	if !reflect.DeepEqual(tensor.Shape([]int{3, 3, 2}), kg.Shape()) {
 		t.Errorf("wrong kg shape, got %v", kg.Shape())
 	}
-	if !floats.EqualApprox([]float64{
-		1.00000000e+00, 0.00000000e+00, 9.98258871e-01, 3.47922384e-03,
-		9.97665678e-01, 4.66318976e-03, 9.98258871e-01, 3.47922384e-03,
-		1.00000000e+00, 0.00000000e+00, 9.99672048e-01, 6.55796909e-04,
-		9.97665678e-01, 4.66318976e-03, 9.99672048e-01, 6.55796909e-04,
-		1.00000000e+00, 0.00000000e+00,
-	}, kg.Data().([]float64), tol) {
-		t.Errorf("wrong kg data, got %.8g", kg.Data().([]float64))
+	expectedGrad := tensor.NewDense(tensor.Float64, tensor.Shape{3, 3, 2}, tensor.WithBacking(
+		[]float64{
+			1., 0., 0.998258871437467,
+			0.003479223835434, 0.997665678469654, 0.004663189758779,
+			0.998258871437467, 0.003479223835434, 1.,
+			0., 0.999672047763328, 0.000655796908916,
+			0.997665678469654, 0.004663189758779, 0.999672047763328,
+			0.000655796908916, 1., 0.,
+		}))
+	err := Diff3D(expectedGrad, kg, tol)
+	if err != nil {
+		t.Error(errors.Wrap(err, "wrong kg"))
 	}
 }
 

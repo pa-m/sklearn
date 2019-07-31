@@ -9,13 +9,13 @@ import (
 	"testing"
 )
 
-var _ base.Predicter = &GaussianProcessRegressor{}
+var _ base.Predicter = &Regressor{}
 
-func TestGaussianProcessRegressor_LogMarginalLikelihood(t *testing.T) {
+func TestRegressor_LogMarginalLikelihood(t *testing.T) {
 	//from plot_gpr_noisy.ipynb
 	//# Instantiate a Gaussian Process model
 	//kernel = C(1.0, (1e-3, 1e3)) * RBF(10, (1e-2, 1e2))
-	//gp = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=9)
+	//gp = Regressor(kernel=kernel, n_restarts_optimizer=9)
 	kernel := &kernels.Product{KernelOperator: kernels.KernelOperator{
 		K1: &kernels.ConstantKernel{ConstantValue: 1, ConstantValueBounds: [2]float64{1e-3, 1e3}},
 		K2: &kernels.RBF{LengthScale: []float64{10}, LengthScaleBounds: [][2]float64{{1e-2, 1e2}}},
@@ -23,7 +23,7 @@ func TestGaussianProcessRegressor_LogMarginalLikelihood(t *testing.T) {
 
 	//# now the noisy case
 	//X = np.linspace(0.1, 9.9, 20)
-	gp := NewGaussianProcessRegressor(kernel)
+	gp := NewRegressor(kernel)
 	X := mat.NewDense(20, 1, nil)
 	{
 		x := X.RawMatrix().Data
@@ -64,10 +64,13 @@ func TestGaussianProcessRegressor_LogMarginalLikelihood(t *testing.T) {
 		t.Errorf("expected theta %g, got %g", expectedTheta, actualTheta)
 	}
 
-	gp.Alpha = []float64{0.84092936, 1.48919187, 0.25011439, 0.64373756, 0.41829318,
-		0.35086501, 0.47095308, 0.71497294, 0.8041919, 1.07914021,
-		0.84491856, 1.40474526, 0.49625297, 1.89920767, 0.27813767,
-		1.36999419, 0.8414481, 1.12082415, 0.41009543, 0.48734569}
+	gp.Alpha = []float64{0.840929357108728, 1.48919186929486, 0.250114387898944,
+		0.643737557106026, 0.418293182306637, 0.350865010852674,
+		0.470953077720126, 0.714972943117568, 0.804191902838055,
+		1.079140206845401, 0.844918555309109, 1.404745264120745,
+		0.496252972151796, 1.899207668484751, 0.278137673459101,
+		1.369994192383228, 0.841448100445794, 1.120824152854495,
+		0.410095431123376, 0.487345689062525}
 	lml, grad := gp.LogMarginalLikelihood(gp.Theta(), true)
 	expectedLml := -200.9855428488616
 	if math.Abs(expectedLml-lml) > tol {

@@ -102,7 +102,7 @@ func (k NormalizedKernelMixin) Diag(X mat.Matrix) (K *mat.DiagDense) {
 
 // KernelOperator is a kernel based on two others
 type KernelOperator struct {
-	K1,K2 Kernel
+	K1, K2 Kernel
 }
 
 // hyperparameters ...
@@ -122,8 +122,8 @@ func (k KernelOperator) Bounds() mat.Matrix {
 
 // CloneWithTheta ...
 func (k KernelOperator) CloneWithTheta(theta mat.Matrix) Kernel {
-	if theta==mat.Matrix(nil){
-		return KernelOperator{K1:k.K1.CloneWithTheta(nil),K2:k.K2.CloneWithTheta(nil)}
+	if theta == mat.Matrix(nil) {
+		return KernelOperator{K1: k.K1.CloneWithTheta(nil), K2: k.K2.CloneWithTheta(nil)}
 	}
 	var td = base.ToDense(theta)
 	n1, _ := k.K1.Theta().Dims()
@@ -195,8 +195,10 @@ func (k *Sum) Diag(X mat.Matrix) *mat.DiagDense {
 	K1 := k.K1.Diag(X)
 	K2 := k.K2.Diag(X)
 	nx, _ := K1.Dims()
-	for i := 0; i < nx; i++ {
-		K1.SetDiag(i, K1.At(i, i)+K2.At(i, i))
+	K1r, K2r := K1.RawBand(), K2.RawBand()
+	for i, k1i, k2i := 0, 0, 0; i < nx; i, k1i, k2i = i+1, k1i+K1r.Stride, k2i+K2r.Stride {
+		//K1.SetDiag(i, K1.At(i, i)+K2.At(i, i))
+		K1r.Data[k1i] += K2r.Data[k2i]
 	}
 	return K1
 }
@@ -222,27 +224,33 @@ func (k *Product) Eval(X, Y mat.Matrix, evalGradient bool) (*mat.Dense, *t.Dense
 
 	K1, K1g := k.K1.Eval(X, Y, evalGradient)
 	K2, K2g := k.K2.Eval(X, Y, evalGradient)
-	K1.MulElem(K1, K2)
+	K := &mat.Dense{}
+	K.MulElem(K1, K2)
 	var Kg *t.Dense
 	if evalGradient {
 		s1, s2 := K1g.Shape(), K2g.Shape()
 		s := t.Shape{s1[0], s1[1], s1[2] + s2[2]}
 		Kg = t.NewDense(K1g.Dtype(), s)
-		K1data, K2data := K1.RawMatrix().Data, K2.RawMatrix().Data
-		K1gdata, K2gdata, Kgdata := K1g.Data().([]float64), K2g.Data().([]float64), Kg.Data().([]float64)
 
-		for i := range Kgdata {
-			i2 := i % s[2]
-			i1 := ((i - i2) / s[2]) % s[1]
-			i0 := ((i - i2) / s[2]) / s[1]
-			if i2 < s1[2] {
-				Kgdata[i] = K1gdata[i0*s1[1]*s1[2]+i1*s1[2]+i2] * K2data[i0*s2[1]+i1]
-			} else {
-				Kgdata[i] = K2gdata[i0*s2[1]*s2[2]+i1*s2[2]+(i2-s1[2])] * K1data[i0*s1[1]+i1]
+		K1r, K2r := K1.RawMatrix(), K2.RawMatrix()
+		K1gdata, K2gdata, Kgdata := K1g.Data().([]float64), K2g.Data().([]float64), Kg.Data().([]float64)
+		K1gStrides, K2gStrides, KgStrides := K1g.Strides(), K2g.Strides(), Kg.Strides()
+
+		for i0 := 0; i0 < s[0]; i0++ {
+			for i1 := 0; i1 < s[1]; i1++ {
+				for i2 := 0; i2 < s[2]; i2++ {
+					if i2 < s1[2] {
+						Kgdata[i0*KgStrides[0]+i1*KgStrides[1]+i2*KgStrides[2]] =
+							K1gdata[i0*K1gStrides[0]+i1*K1gStrides[1]+i2*K1gStrides[2]] * K2r.Data[i0*K2r.Stride+i1]
+					} else {
+						Kgdata[i0*KgStrides[0]+i1*KgStrides[1]+i2*KgStrides[2]] =
+							K2gdata[i0*K2gStrides[0]+i1*K2gStrides[1]+(i2-s1[2])*K2gStrides[2]] * K1r.Data[i0*K1r.Stride+i1]
+					}
+				}
 			}
 		}
 	}
-	return K1, Kg
+	return K, Kg
 }
 
 // Diag returns the diagonal of the kernel k(X, X)
@@ -250,8 +258,11 @@ func (k *Product) Diag(X mat.Matrix) *mat.DiagDense {
 	K1 := k.K1.Diag(X)
 	K2 := k.K2.Diag(X)
 	nx, _ := K1.Dims()
-	for i := 0; i < nx; i++ {
-		K1.SetDiag(i, K1.At(i, i)*K2.At(i, i))
+
+	K1r, K2r := K1.RawBand(), K2.RawBand()
+	for i, k1i, k2i := 0, 0, 0; i < nx; i, k1i, k2i = i+1, k1i+K1r.Stride, k2i+K2r.Stride {
+		//K1.SetDiag(i, K1.At(i, i)*K2.At(i, i))
+		K1r.Data[k1i] *= K2r.Data[k2i]
 	}
 	return K1
 }
@@ -298,8 +309,10 @@ func (k *Exponentiation) Eval(X, Y mat.Matrix, evalGradient bool) (*mat.Dense, *
 func (k *Exponentiation) Diag(X mat.Matrix) *mat.DiagDense {
 	K := k.Kernel.Diag(X)
 	nx, _ := K.Dims()
-	for i := 0; i < nx; i++ {
-		K.SetDiag(i, math.Pow(K.At(i, i), k.Exponent))
+	Kr := K.RawBand()
+	for i, kri := 0, 0; i < nx; i, kri = i+1, kri+Kr.Stride {
+		//K.SetDiag(i, math.Pow(K.At(i, i), k.Exponent))
+		Kr.Data[kri] = math.Pow(Kr.Data[kri], k.Exponent)
 	}
 	return K
 }
@@ -345,7 +358,7 @@ func (k ConstantKernel) CloneWithTheta(theta mat.Matrix) Kernel {
 // K : array, shape (n_samples_X, n_samples_Y)
 // Kernel k(X, Y)
 func (k *ConstantKernel) Eval(X, Y mat.Matrix, evalGradient bool) (*mat.Dense, *t.Dense) {
-	if X==mat.Matrix(nil){
+	if X == mat.Matrix(nil) {
 		panic("ConstantKernel.Eval: X is nil")
 	}
 	nx, _ := X.Dims()
@@ -379,9 +392,9 @@ func (k *ConstantKernel) Diag(X mat.Matrix) (K *mat.DiagDense) {
 	nx, _ := X.Dims()
 
 	K = mat.NewDiagDense(nx, nil)
-	data := K.RawSymBand().Data
-	for i := range data {
-		data[i] = k.ConstantValue
+	Kr := K.RawBand()
+	for i, kri := 0, 0; i < nx; i, kri = i+1, kri+Kr.Stride {
+		Kr.Data[kri] = k.ConstantValue
 	}
 	return
 }
@@ -421,7 +434,7 @@ func (k WhiteKernel) Bounds() mat.Matrix {
 
 // CloneWithTheta ...
 func (k WhiteKernel) CloneWithTheta(theta mat.Matrix) Kernel {
-	clone :=k
+	clone := k
 	matCopy(k.Theta().(mat.Mutable), theta)
 	return &clone
 }
@@ -436,12 +449,14 @@ func (k *WhiteKernel) Eval(X, Y mat.Matrix, evalGradient bool) (*mat.Dense, *t.D
 	K := mat.NewDense(nx, ny, nil)
 	Xrow := make([]float64, nfeat)
 	Yrow := make([]float64, nfeat)
-	for ix := 0; ix < nx; ix++ {
+	Kr := K.RawMatrix()
+	for ix, krix := 0, 0; ix < nx; ix, krix = ix+1, krix+Kr.Stride {
 		mat.Row(Xrow, ix, X)
 		for iy := 0; iy < ny; iy++ {
 			mat.Row(Yrow, iy, Y)
 			if floats.EqualApprox(Xrow, Yrow, 1e-8) {
-				K.Set(ix, iy, k.NoiseLevel)
+				//K.Set(ix, iy, k.NoiseLevel)
+				Kr.Data[krix+iy] = k.NoiseLevel
 			}
 		}
 	}
@@ -467,8 +482,10 @@ func (k *WhiteKernel) Eval(X, Y mat.Matrix, evalGradient bool) (*mat.Dense, *t.D
 func (k *WhiteKernel) Diag(X mat.Matrix) *mat.DiagDense {
 	nx, _ := X.Dims()
 	K := mat.NewDiagDense(nx, nil)
-	for ix := 0; ix < nx; ix++ {
-		K.SetDiag(ix, k.NoiseLevel)
+	Kr := K.RawBand()
+	for ix, kri := 0, 0; ix < nx; ix, kri = ix+1, kri+Kr.Stride {
+		//K.SetDiag(ix, k.NoiseLevel)
+		Kr.Data[kri] = k.NoiseLevel
 	}
 	return K
 }
@@ -516,7 +533,7 @@ func (k RBF) Bounds() mat.Matrix {
 
 // CloneWithTheta ...
 func (k RBF) CloneWithTheta(theta mat.Matrix) Kernel {
-	clone :=k
+	clone := k
 	clone.LengthScale = make([]float64, len(k.LengthScale))
 	copy(clone.LengthScale, k.LengthScale)
 	clone.LengthScaleBounds = make([][2]float64, len(k.LengthScaleBounds))
@@ -548,7 +565,8 @@ func (k *RBF) Eval(X, Y mat.Matrix, evalGradient bool) (K *mat.Dense, Kg *t.Dens
 	Yrow := make([]float64, nfeat)
 
 	// K=np.exp(-0.5 * cdist(X/K.length_scale,Y/K.length_scale,'sqeuclidean'))
-	for ix := 0; ix < nx; ix++ {
+	Kr := K.RawMatrix()
+	for ix, krix := 0, 0; ix < nx; ix, krix = ix+1, krix+Kr.Stride {
 		mat.Row(Xrow, ix, X)
 		for iy := 0; iy < ny; iy++ {
 			mat.Row(Yrow, iy, Y)
@@ -557,7 +575,9 @@ func (k *RBF) Eval(X, Y mat.Matrix, evalGradient bool) (K *mat.Dense, Kg *t.Dens
 				d := scale(Xrow, feat) - scale(Yrow, feat)
 				d2 += d * d
 			}
-			K.Set(ix, iy, math.Exp(-.5*(d2)))
+			//K.Set(ix, iy, math.Exp(-.5*d2))
+			Kr.Data[krix+iy] = math.Exp(-.5 * d2)
+
 		}
 	}
 	if evalGradient && Y == X {
@@ -633,7 +653,7 @@ func (k DotProduct) Bounds() mat.Matrix {
 
 // CloneWithTheta ...
 func (k DotProduct) CloneWithTheta(theta mat.Matrix) Kernel {
-	clone :=k
+	clone := k
 	matCopy(clone.Theta().(mat.Mutable), theta)
 	return &clone
 }
@@ -649,11 +669,13 @@ func (k *DotProduct) Eval(X, Y mat.Matrix, evalGradient bool) (K *mat.Dense, Kg 
 	s2 := k.Sigma0 * k.Sigma0
 	Xrow := make([]float64, nfeat)
 	Yrow := make([]float64, nfeat)
-	for ix := 0; ix < nx; ix++ {
+	Kr := K.RawMatrix()
+	for ix, krix := 0, 0; ix < nx; ix, krix = ix+1, krix+Kr.Stride {
 		mat.Row(Xrow, ix, X)
 		for iy := 0; iy < ny; iy++ {
 			mat.Row(Yrow, iy, Y)
-			K.Set(ix, iy, s2+mat.Dot(mat.NewVecDense(nfeat, Xrow), mat.NewVecDense(nfeat, Yrow)))
+			//K.Set(ix, iy, s2+mat.Dot(mat.NewVecDense(nfeat, Xrow), mat.NewVecDense(nfeat, Yrow)))
+			Kr.Data[krix+iy] = s2 + mat.Dot(mat.NewVecDense(nfeat, Xrow), mat.NewVecDense(nfeat, Yrow))
 		}
 	}
 	if evalGradient && Y == X {
@@ -677,10 +699,12 @@ func (k *DotProduct) Diag(X mat.Matrix) (K *mat.DiagDense) {
 	K = mat.NewDiagDense(n, nil)
 	s2 := k.Sigma0 * k.Sigma0
 	Xrow := make([]float64, nfeat)
-	for i := 0; i < n; i++ {
+	Kr := K.RawBand()
+	for i, kri := 0, 0; i < n; i, kri = i+1, kri+Kr.Stride {
 		mat.Row(Xrow, i, X)
 		Vrow := mat.NewVecDense(nfeat, Xrow)
-		K.SetDiag(i, s2+mat.Dot(Vrow, Vrow))
+		//K.SetDiag(i, s2+mat.Dot(Vrow, Vrow))
+		Kr.Data[kri] = s2 + mat.Dot(Vrow, Vrow)
 	}
 	return
 }

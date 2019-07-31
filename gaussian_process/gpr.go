@@ -12,8 +12,8 @@ import (
 	"math"
 )
 
-// GaussianProcessRegressor ...
-type GaussianProcessRegressor struct {
+// Regressor ...
+type Regressor struct {
 	kernels.Kernel
 	Alpha []float64
 	// Optimizer is always optimize.LBFGS
@@ -28,17 +28,21 @@ type GaussianProcessRegressor struct {
 	LogMarginalLikelihoodValue float64
 }
 
-// NewGaussianProcessRegressor ...
-func NewGaussianProcessRegressor(kernel kernels.Kernel) *GaussianProcessRegressor {
-	gp := &GaussianProcessRegressor{
+// NewRegressor ...
+func NewRegressor(kernel kernels.Kernel) *Regressor {
+	gp := &Regressor{
 		Kernel: kernel,
 		Alpha:  []float64{1e-10},
 	}
 	gp.KernelOpt = gp.Kernel
 	return gp
 }
-func (m *GaussianProcessRegressor) IsClassifier() bool { return false }
-func (m *GaussianProcessRegressor) PredicterClone() base.Predicter {
+
+// IsClassifier returns false
+func (m *Regressor) IsClassifier() bool { return false }
+
+// PredicterClone clones Predicter (for KFold...)
+func (m *Regressor) PredicterClone() base.Predicter {
 	clone := *m
 	if cloner, ok := m.RandomState.(base.SourceCloner); ok {
 		clone.RandomState = cloner.Clone()
@@ -57,10 +61,14 @@ func (m *GaussianProcessRegressor) PredicterClone() base.Predicter {
 	}
 	return &clone
 }
-func (m *GaussianProcessRegressor) GetNOutputs() int {
+
+// GetNOutputs returns Y columns count
+func (m *Regressor) GetNOutputs() int {
 	return m.Ytrain.RawMatrix().Cols
 }
-func (m *GaussianProcessRegressor) Fit(X, Y mat.Matrix) base.Fiter {
+
+// Fit Gaussian process regression model
+func (m *Regressor) Fit(X, Y mat.Matrix) base.Fiter {
 	_, ry := Y.Dims()
 	m.Xtrain = mat.DenseCopyOf(X)
 	m.Ytrain = mat.DenseCopyOf(Y)
@@ -69,7 +77,9 @@ func (m *GaussianProcessRegressor) Fit(X, Y mat.Matrix) base.Fiter {
 	}
 	return m
 }
-func (m *GaussianProcessRegressor) Predict(X mat.Matrix, Y mat.Mutable) *mat.Dense {
+
+// Predict using the Gaussian process regression model
+func (m *Regressor) Predict(X mat.Matrix, Y mat.Mutable) *mat.Dense {
 	NSamples, _ := X.Dims()
 	var Yd *mat.Dense
 	if _, ok := Y.(*mat.Dense); ok {
@@ -79,14 +89,16 @@ func (m *GaussianProcessRegressor) Predict(X mat.Matrix, Y mat.Mutable) *mat.Den
 	}
 	return base.FromDense(Y, Yd)
 }
-func (m *GaussianProcessRegressor) Score(X, Y mat.Matrix) float64 {
+
+// Score returns R2 score
+func (m *Regressor) Score(X, Y mat.Matrix) float64 {
 	m.Fit(X, Y)
 	pred := m.Predict(X, nil)
 	return metrics.R2Score(Y, pred, nil, "").At(0, 0)
 }
 
 // LogMarginalLikelihood returns log-marginal likelihood of theta for training data
-func (m *GaussianProcessRegressor) LogMarginalLikelihood(Theta mat.Matrix, evalGradient bool) (
+func (m *Regressor) LogMarginalLikelihood(Theta mat.Matrix, evalGradient bool) (
 	lml float64, grad []float64,
 ) {
 	if Theta == mat.Matrix(nil) {
@@ -195,15 +207,15 @@ func (m *GaussianProcessRegressor) LogMarginalLikelihood(Theta mat.Matrix, evalG
 		tmpShape, tmpStrides := tmp.Shape(), tmp.Strides()
 		KgShape, KgStrides := Kg.Shape(), Kg.Strides()
 		llgdims := mat.NewDense(KgShape[2], tmpShape[2], nil)
+		Kgd := Kg.Data().([]float64)
 		{
-			Kgd := Kg.Data().([]float64)
 			llgd := llgdims.RawMatrix()
 			for k := 0; k < llgd.Rows; k++ {
 				for l := 0; l < llgd.Cols; l++ {
 					sum := 0.
-					for i, tmpposil, Kgposik := 0, l, k; i < tmpShape[0]; i, tmpposil, Kgposik = i+1, tmpposil+tmpStrides[0], Kgposik+KgStrides[0] {
-						for j, tmpposijl, Kgposijk := 0, tmpposil, Kgposik; j < tmpShape[1]; j, tmpposijl, Kgposijk = j+1, tmpposijl+tmpStrides[1], Kgposijk+KgStrides[1] {
-							sum += tmpdata[tmpposijl] * Kgd[Kgposijk]
+					for i, tmpil, Kgik := 0, l, k; i < tmpShape[0]; i, tmpil, Kgik = i+1, tmpil+tmpStrides[0], Kgik+KgStrides[0] {
+						for j, tmpijl, Kgijk := 0, tmpil, Kgik; j < tmpShape[1]; j, tmpijl, Kgijk = j+1, tmpijl+tmpStrides[1], Kgijk+KgStrides[1] {
+							sum += tmpdata[tmpijl] * Kgd[Kgijk]
 						}
 					}
 					llgdims.Set(k, l, .5*sum)
@@ -215,7 +227,6 @@ func (m *GaussianProcessRegressor) LogMarginalLikelihood(Theta mat.Matrix, evalG
 			grad[i] = mat.Sum(llgdims.RowView(i))
 
 		}
-
 	}
 	return
 }
