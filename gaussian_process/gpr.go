@@ -23,6 +23,7 @@ type Regressor struct {
 	base.RandomState
 	Xtrain                     *mat.Dense
 	Ytrain                     *mat.Dense
+	YtrainMean                 *mat.Dense
 	KernelOpt                  kernels.Kernel
 	L                          *mat.Cholesky
 	LogMarginalLikelihoodValue float64
@@ -64,6 +65,9 @@ func (m *Regressor) PredicterClone() base.Predicter {
 
 // GetNOutputs returns Y columns count
 func (m *Regressor) GetNOutputs() int {
+	if m.Ytrain == nil {
+		return 1
+	}
 	return m.Ytrain.RawMatrix().Cols
 }
 
@@ -78,16 +82,50 @@ func (m *Regressor) Fit(X, Y mat.Matrix) base.Fiter {
 	return m
 }
 
+// PredictEx predicts using the Gaussian process regression model, returning Ymean and std or cov
+func (m *Regressor) PredictEx(X mat.Matrix, Y mat.Mutable, returnStd, returnCov bool) (*mat.Dense, *mat.DiagDense, *mat.Dense) {
+	NSamples, _ := X.Dims()
+	var Ymean, Ycov *mat.Dense
+	var Ystd *mat.DiagDense
+	if _, ok := Y.(*mat.Dense); ok {
+		Ymean = Y.(*mat.Dense)
+	} else {
+		Ymean = mat.NewDense(NSamples, m.GetNOutputs(), nil)
+	}
+	if m.Xtrain == nil {
+		// # Unfitted;predict based on GP prior
+		// y_mean = np.zeros(X.shape[0])
+		if returnCov {
+			Ycov, _ = m.Kernel.Eval(X, nil, false)
+		} else if returnStd {
+			Ystd = m.Kernel.Diag(X)
+			for i := 0; i < NSamples; i++ {
+				Ystd.SetDiag(i, math.Sqrt(Ystd.At(i, i)))
+			}
+		}
+
+	} else {
+		// # Predict based on GP posterior
+		//K_trans = self.kernel_(X, self.X_train_)
+		//y_mean = K_trans.dot(self.alpha_)  # Line 4 (y_mean = f_star)
+		//y_mean = self._y_train_mean + y_mean  # undo normal.
+
+		Ktrans, _ := m.Kernel.Eval(X, m.Xtrain, false)
+		Ymean.Mul(Ktrans, mat.NewDense(NSamples, 1, m.Alpha))
+		Ymean.Add(Ymean, m.YtrainMean)
+		if returnStd {
+			// TODO
+		} else if returnCov {
+			// TODO
+		}
+	}
+	return base.FromDense(Y, Ymean), Ystd, Ycov
+}
+
 // Predict using the Gaussian process regression model
 func (m *Regressor) Predict(X mat.Matrix, Y mat.Mutable) *mat.Dense {
-	NSamples, _ := X.Dims()
-	var Yd *mat.Dense
-	if _, ok := Y.(*mat.Dense); ok {
-		Yd = Y.(*mat.Dense)
-	} else {
-		Yd = mat.NewDense(NSamples, m.GetNOutputs(), nil)
-	}
-	return base.FromDense(Y, Yd)
+	Ymean, _, _ := m.PredictEx(X, Y, false, false)
+	return base.FromDense(Y, Ymean)
 }
 
 // Score returns R2 score

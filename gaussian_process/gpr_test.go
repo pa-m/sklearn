@@ -22,9 +22,9 @@ func TestRegressor_LogMarginalLikelihood(t *testing.T) {
 	}}
 
 	//# now the noisy case
-	//X = np.linspace(0.1, 9.9, 20)
 	gp := NewRegressor(kernel)
 	X := mat.NewDense(20, 1, nil)
+	//X = np.linspace(0.1, 9.9, 20)
 	{
 		x := X.RawMatrix().Data
 		for i := range x {
@@ -79,5 +79,26 @@ func TestRegressor_LogMarginalLikelihood(t *testing.T) {
 	expectedGrad := []float64{-0.07469052, -1.52187805}
 	if !floats.EqualApprox(expectedGrad, grad, tol) {
 		t.Errorf("expected grad %g, got %g", expectedGrad, grad)
+	}
+}
+
+func TestRegressor_Predict(t *testing.T) {
+	//gp = Regressor(kernel=kernel, n_restarts_optimizer=9)
+	kernel := &kernels.Product{KernelOperator: kernels.KernelOperator{
+		K1: &kernels.ConstantKernel{ConstantValue: 1, ConstantValueBounds: [2]float64{1e-3, 1e3}},
+		K2: &kernels.RBF{LengthScale: []float64{10}, LengthScaleBounds: [][2]float64{{1e-2, 1e2}}},
+	}}
+	gp := NewRegressor(kernel)
+	X := mat.NewDense(20, 1, nil)
+	//X = np.linspace(0.1, 9.9, 20)
+	{
+		x := X.RawMatrix().Data
+		for i := range x {
+			x[i] = .1 + ((9.9 - .1) * float64(i) / (float64(len(x) - 1)))
+		}
+	}
+	Ymean := gp.Predict(X, nil)
+	if mat.Norm(Ymean, math.Inf(1)) > 0 {
+		t.Error("unfitted predict, expected 0")
 	}
 }
