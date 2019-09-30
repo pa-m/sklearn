@@ -61,7 +61,7 @@ func (m *KNeighborsRegressor) GetNOutputs() int { return m.Y.RawMatrix().Cols }
 func (m *KNeighborsRegressor) Predict(X mat.Matrix, Ymutable mat.Mutable) *mat.Dense {
 	Y := base.ToDense(Ymutable)
 	nSamples, _ := X.Dims()
-	if Y.IsZero() {
+	if Y.IsEmpty() {
 		*Y = *mat.NewDense(nSamples, m.GetNOutputs(), nil)
 	}
 

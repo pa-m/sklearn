@@ -53,7 +53,7 @@ func (mlp *MLPRegressor) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
 func (mlp *MLPRegressor) Predict(X mat.Matrix, Ymutable mat.Mutable) *mat.Dense {
 	Y := base.ToDense(Ymutable)
 	nSamples, _ := X.Dims()
-	if Y.IsZero() {
+	if Y.IsEmpty() {
 		*Y = *mat.NewDense(nSamples, mlp.GetNOutputs(), nil)
 	}
 
@@ -109,7 +109,7 @@ func (mlp *MLPClassifier) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
 func (mlp *MLPClassifier) Predict(X mat.Matrix, Ymutable mat.Mutable) *mat.Dense {
 	Y := base.ToDense(Ymutable)
 	nSamples, _ := X.Dims()
-	if Y.IsZero() {
+	if Y.IsEmpty() {
 		*Y = *mat.NewDense(nSamples, mlp.GetNOutputs(), nil)
 	}
 

@@ -218,7 +218,7 @@ func svrPredict(model *Model, X, Y *mat.Dense, output int) {
 func (m *SVR) Predict(Xmatrix mat.Matrix, Ymutable mat.Mutable) *mat.Dense {
 	X, Y := base.ToDense(Xmatrix), base.ToDense(Ymutable)
 	nSamples, _ := X.Dims()
-	if Y.IsZero() {
+	if Y.IsEmpty() {
 		*Y = *mat.NewDense(nSamples, m.GetNOutputs(), nil)
 	}
 	base.Parallelize(-1, m.GetNOutputs(), func(th, start, end int) {

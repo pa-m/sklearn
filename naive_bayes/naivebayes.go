@@ -51,7 +51,7 @@ func (m *BaseNB) Predict(X mat.Matrix, Y mat.Mutable) *mat.Dense {
 func (m *BaseNB) PredictLogProbas(Xmatrix mat.Matrix, Ymutable mat.Mutable) *mat.Dense {
 	X, Y := base.ToDense(Xmatrix), base.ToDense(Ymutable)
 	Xraw := X.RawMatrix()
-	if Y.IsZero() {
+	if Y.IsEmpty() {
 		fanOut := len(m.Classes)
 		Y = mat.NewDense(Xraw.Rows, fanOut, nil)
 	}
@@ -74,7 +74,7 @@ func (m *BaseNB) PredictLogProbas(Xmatrix mat.Matrix, Ymutable mat.Mutable) *mat
 // PredictProbas return log-probability estimates.
 func (m *BaseNB) PredictProbas(Xmatrix mat.Matrix, Ymutable mat.Mutable) *mat.Dense {
 	X, Y := base.ToDense(Xmatrix), base.ToDense(Ymutable)
-	if Y.IsZero() {
+	if Y.IsEmpty() {
 		fanOut := len(m.Classes)
 		Y = mat.NewDense(X.RawMatrix().Rows, fanOut, nil)
 	}

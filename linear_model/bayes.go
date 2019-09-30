@@ -75,7 +75,10 @@ func (regr *BayesianRidge) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
 	if !svd.Factorize(X, mat.SVDThin) {
 		panic("svd failed")
 	}
-	U, S, VhT := svd.UTo(nil), svd.Values(nil), svd.VTo(nil)
+	U, VhT := &mat.Dense{}, &mat.Dense{}
+	svd.UTo(U)
+	S := svd.Values(nil)
+	svd.VTo(VhT)
 	unused(U)
 
 	eigenVals := make([]float, len(S))
@@ -223,7 +226,7 @@ func (regr *BayesianRidge) Predict(X mat.Matrix, Ymutable mat.Mutable) *mat.Dens
 	// fmt.Println("Predict", d(X), d(regr.Coef))
 	Y := base.ToDense(Ymutable)
 	nSamples, _ := X.Dims()
-	if Y.IsZero() {
+	if Y.IsEmpty() {
 		*Y = *mat.NewDense(nSamples, regr.GetNOutputs(), nil)
 	}
 	Y.Mul(X, regr.Coef)

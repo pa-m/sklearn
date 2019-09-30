@@ -130,7 +130,7 @@ func (m *DBSCAN) GetNOutputs() int { return 1 }
 func (m *DBSCAN) Predict(X mat.Matrix, Ymutable mat.Mutable) *mat.Dense {
 	Y := base.ToDense(Ymutable)
 	nSamples, _ := X.Dims()
-	if Y.IsZero() {
+	if Y.IsEmpty() {
 		*Y = *mat.NewDense(nSamples, m.GetNOutputs(), nil)
 	}
 	// return m.Labels in Y

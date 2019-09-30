@@ -453,7 +453,7 @@ func (m *LogisticRegression) fitLbfgs(X, y blas64.General, activations []blas64.
 // The returned estimates for all classes are ordered by the label of classes.
 func (m *LogisticRegression) PredictProbas(Xmatrix mat.Matrix, Ymutable mat.Mutable) *mat.Dense {
 	X, Y := base.ToDense(Xmatrix).RawMatrix(), base.ToDense(Ymutable)
-	if Y.IsZero() {
+	if Y.IsEmpty() {
 		fanOut := 0
 		if m.lb != nil {
 			for _, classes := range m.lb.Classes {

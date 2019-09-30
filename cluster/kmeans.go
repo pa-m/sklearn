@@ -148,7 +148,7 @@ func (m *KMeans) predict(Xscaled mat.Matrix, y, CentroidCount []int, changed *bo
 func (m *KMeans) Predict(X mat.Matrix, Ymutable mat.Mutable) *mat.Dense {
 	Y := base.ToDense(Ymutable)
 	nSamples, _ := X.Dims()
-	if Y.IsZero() {
+	if Y.IsEmpty() {
 		*Y = *mat.NewDense(nSamples, m.GetNOutputs(), nil)
 	}
 	y := make([]int, nSamples)

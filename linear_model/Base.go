@@ -126,7 +126,7 @@ func (regr *RegularizedRegression) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
 func (regr *LinearRegression) Predict(X mat.Matrix, Ymutable mat.Mutable) *mat.Dense {
 	Y := base.ToDense(Ymutable)
 	nSamples, _ := X.Dims()
-	if Y.IsZero() {
+	if Y.IsEmpty() {
 		*Y = *mat.NewDense(nSamples, regr.GetNOutputs(), nil)
 	}
 	regr.DecisionFunction(X, Y)
@@ -279,7 +279,7 @@ func (regr *SGDRegressor) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
 func (regr *SGDRegressor) Predict(X mat.Matrix, Ymutable mat.Mutable) *mat.Dense {
 	Y := base.ToDense(Ymutable)
 	nSamples, _ := X.Dims()
-	if Y.IsZero() {
+	if Y.IsEmpty() {
 		*Y = *mat.NewDense(nSamples, regr.GetNOutputs(), nil)
 	}
 	regr.DecisionFunction(X, Y)

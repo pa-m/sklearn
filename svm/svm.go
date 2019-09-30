@@ -312,7 +312,7 @@ func (m *SVC) Predict(Xmatrix mat.Matrix, Ymutable mat.Mutable) *mat.Dense {
 	X, Y := base.ToDense(Xmatrix), base.ToDense(Ymutable)
 	nSamples, _ := X.Dims()
 
-	if Y.IsZero() {
+	if Y.IsEmpty() {
 		*Y = *mat.NewDense(nSamples, m.GetNOutputs(), nil)
 	}
 	binary := true

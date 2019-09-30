@@ -73,7 +73,7 @@ func (m *NearestCentroid) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
 func (m *NearestCentroid) Predict(X mat.Matrix, Ymutable mat.Mutable) *mat.Dense {
 	Y := base.ToDense(Ymutable)
 	nSamples, _ := X.Dims()
-	if Y.IsZero() {
+	if Y.IsEmpty() {
 		*Y = *mat.NewDense(nSamples, m.GetNOutputs(), nil)
 	}
 
