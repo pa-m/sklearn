@@ -132,3 +132,17 @@ func ExampleLoadInternationalAirlinesPassengers() {
 	// Output:
 	// 144 1
 }
+
+func ExampleLoadWine() {
+	X, Y := LoadWine().GetXY()
+	xr, xc := X.Dims()
+	yr, yc := Y.Dims()
+	fmt.Printf("X %d,%d Y %d,%d\n", xr, xc, yr, yc)
+	fmt.Println(matstr(X.Slice(0, 3, 0, xc), Y.Slice(0, 3, 0, yc)))
+	// Output:
+	//X 178,13 Y 178,1
+	//14.23	1.71	2.43	15.6	127	2.8	3.06	0.28	2.29	5.64	1.04	3.92	1065	0
+	//13.2	1.78	2.14	11.2	100	2.65	2.76	0.26	1.28	4.38	1.05	3.4	1050	0
+	//13.16	2.36	2.67	18.6	101	2.8	3.24	0.3	2.81	5.68	1.03	3.17	1185	0
+
+}

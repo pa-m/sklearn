@@ -2,6 +2,8 @@ package modelselection
 
 import (
 	"github.com/pa-m/sklearn/base"
+	"math"
+	"sort"
 
 	"golang.org/x/exp/rand"
 
@@ -108,4 +110,42 @@ func (splitter *KFold) Split(X, Y *mat.Dense) (ch chan Split) {
 // GetNSplits for KFold
 func (splitter *KFold) GetNSplits(X, Y *mat.Dense) int {
 	return splitter.NSplits
+}
+
+// TrainTestSplit splits X and Y into test set and train set
+// testsize must be between 0 and 1
+// it does'nt yet produce same sets than scikit-learn du to a different shuffle method
+func TrainTestSplit(X, Y mat.Matrix, testsize float64, randomstate uint64) (Xtrain, Xtest, ytrain, ytest *mat.Dense) {
+	NSamples, NFeatures := X.Dims()
+	_, NOutputs := Y.Dims()
+	var testlen int
+	if testsize > 1 {
+		testlen = int(math.Round(math.Min(float64(NSamples), testsize)))
+	} else {
+		testlen = int(math.Round(float64(NSamples) * testsize))
+	}
+	Xtest = mat.NewDense(testlen, NFeatures, nil)
+	ytest = mat.NewDense(testlen, NOutputs, nil)
+	Xtrain = mat.NewDense(NSamples-testlen, NFeatures, nil)
+	ytrain = mat.NewDense(NSamples-testlen, NOutputs, nil)
+	src := base.NewLockedSource(randomstate)
+	shuffler := rand.New(src)
+	ind := make([]int, NSamples)
+	for i := range ind {
+		ind[i] = i
+	}
+	//shuffle ind
+	slice := sort.IntSlice(ind)
+	shuffler.Shuffle(slice.Len(), slice.Swap)
+	for i := 0; i < NSamples; i++ {
+		j := ind[i]
+		if i < testlen {
+			mat.Row(Xtest.RawRowView(i), j, X)
+			mat.Row(ytest.RawRowView(i), j, Y)
+		} else {
+			mat.Row(Xtrain.RawRowView(i-testlen), j, X)
+			mat.Row(ytrain.RawRowView(i-testlen), j, Y)
+		}
+	}
+	return
 }

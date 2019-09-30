@@ -67,7 +67,12 @@ func LoadBoston() (ds *MLDataset) {
 	return loadJSON(localPath("/src/github.com/pa-m/sklearn/datasets/data/boston.json"))
 }
 
-// GetXY returns X,Y matrices for iris dataset
+// LoadWine load the boston housing dataset
+func LoadWine() (ds *MLDataset) {
+	return loadJSON(localPath("/src/github.com/pa-m/sklearn/datasets/data/wine.json"))
+}
+
+// GetXY returns X,Y matrices for dataset
 func (ds *MLDataset) GetXY() (X, Y *mat.Dense) {
 	nSamples, nFeatures, nOutputs := len(ds.Data), len(ds.FeatureNames), 1
 	X = mat.NewDense(nSamples, nFeatures, nil)

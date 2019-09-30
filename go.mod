@@ -5,6 +5,7 @@ require (
 	github.com/chewxy/math32 v1.0.4
 	github.com/fogleman/gg v1.3.0 // indirect
 	github.com/jung-kurt/gofpdf v1.10.1 // indirect
+	github.com/mgechev/revive v0.0.0-20190917153825-40564c5052ae // indirect
 	github.com/pa-m/optimize v0.0.0-20190612075243-15ee852a6d9a
 	github.com/pa-m/randomkit v0.0.0-20190612075210-f24d270692b4
 	github.com/pkg/errors v0.8.1
@@ -22,3 +23,5 @@ require (
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
 	gorgonia.org/tensor v0.9.1
 )
+
+go 1.13
