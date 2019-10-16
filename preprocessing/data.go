@@ -1390,7 +1390,7 @@ func yeoJohnsonOptimize(x []float64) float64 {
 			(lmbda-1)*sumlog1p
 		return -loglike
 	}
-	maxFev := func(n int) bool { return n >= 500 }
+	maxFev := func(n int64) bool { return n >= 500 }
 	brent := optimize.NewBrentMinimizer(negLogLikelihood, 1.48e-8, math.MaxInt32, maxFev)
 
 	brent.Brack = []float64{-2, 2}
@@ -1487,7 +1487,7 @@ func boxCoxOptimize(x []float64) float64 {
 			(lmbda-1)*sumlog
 		return -loglike
 	}
-	maxFev := func(n int) bool { return n >= 500 }
+	maxFev := func(n int64) bool { return n >= 500 }
 	brent := optimize.NewBrentMinimizer(negLogLikelihood, 1.48e-8, math.MaxInt32, maxFev)
 
 	brent.Brack = []float64{-2, 2}
