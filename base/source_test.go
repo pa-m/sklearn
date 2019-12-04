@@ -17,7 +17,7 @@ var (
 
 func TestSource(t *testing.T) {
 	s := NewSource(7)
-	s2 := s.Clone()
+	s2 := s.SourceClone()
 	var a [5]float64
 	for i := range a {
 		a[i] = s.Float64()

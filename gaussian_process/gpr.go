@@ -46,7 +46,7 @@ func (m *Regressor) IsClassifier() bool { return false }
 func (m *Regressor) PredicterClone() base.Predicter {
 	clone := *m
 	if cloner, ok := m.RandomState.(base.SourceCloner); ok {
-		clone.RandomState = cloner.Clone()
+		clone.RandomState = cloner.SourceClone()
 	}
 	if m.Xtrain != nil {
 		clone.Xtrain = mat.DenseCopyOf(m.Xtrain)

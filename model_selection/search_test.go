@@ -88,8 +88,9 @@ func chkRandomState(rs rand.Source) {
 		panic(fmt.Errorf("wrong random state\nexpected:%s\n%s\ngot     :%s\n%s", expected, "", got, ""))
 	}
 }
+
 func ExampleGridSearchCV() {
-	RandomState := base.NewSource(7)
+	RandomState := base.NewLockedSource(7)
 	ds := datasets.LoadBoston()
 	X, Y := preprocessing.NewStandardScaler().FitTransform(ds.X, ds.Y)
 
@@ -99,14 +100,15 @@ func ExampleGridSearchCV() {
 	mlp.BatchSize = 20
 	mlp.LearningRateInit = .005
 	mlp.MaxIter = 100
+
 	scorer := func(Y, Ypred mat.Matrix) float64 {
 		return metrics.MeanSquaredError(Y, Ypred, nil, "").At(0, 0)
 	}
 	gscv := &GridSearchCV{
 		Estimator: mlp,
 		ParamGrid: map[string][]interface{}{
-			"Alpha":       {2e-4, 5e-4, 1e-3},
-			"WeightDecay": {.0002, .0001, 0},
+			"Alpha":       {1e-4, 2e-4, 5e-4, 1e-3},
+			"WeightDecay": {1e-4, 1e-5, 1e-6,1e-7,1e-8, 0},
 		},
 		Scorer:             scorer,
 		LowerScoreIsBetter: true,
@@ -120,7 +122,7 @@ func ExampleGridSearchCV() {
 
 	// Output:
 	// Alpha 0.0002
-	// WeightDecay 0
+	// WeightDecay 1e-06
 
 }
 

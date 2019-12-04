@@ -44,7 +44,9 @@ func (m *PCA) Fit(Xmatrix, Ymatrix mat.Matrix) base.Fiter {
 		}
 		m.NComponents = nComponents
 	} else {
-		m.NComponents = c
+		if m.NComponents == 0 {
+			m.NComponents = c
+		}
 	}
 
 	return m

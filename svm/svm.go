@@ -241,7 +241,7 @@ func (m *SVC) PredicterClone() base.Predicter {
 	}
 	clone := *m
 	if sourceCloner, ok := clone.RandomState.(base.SourceCloner); ok && sourceCloner != base.SourceCloner(nil) {
-		clone.RandomState = sourceCloner.Clone()
+		clone.RandomState = sourceCloner.SourceClone()
 	}
 	return &clone
 }

@@ -70,7 +70,7 @@ func (gscv *GridSearchCV) PredicterClone() base.Predicter {
 	}
 	clone := *gscv
 	if sourceCloner, ok := clone.RandomState.(base.SourceCloner); ok && sourceCloner != base.SourceCloner(nil) {
-		clone.RandomState = sourceCloner.Clone()
+		clone.RandomState = sourceCloner.SourceClone()
 	}
 	return &clone
 }

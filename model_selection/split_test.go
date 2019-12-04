@@ -2,8 +2,8 @@ package modelselection
 
 import (
 	"fmt"
-	"github.com/pa-m/randomkit"
-	"testing"
+
+	"github.com/pa-m/sklearn/datasets"
 
 	"github.com/pa-m/sklearn/base"
 	"golang.org/x/exp/rand"
@@ -50,15 +50,70 @@ func perm(r base.Intner, n int) []int {
 	return m
 
 }
-func TestTrainTestSplit(t *testing.T) {
-	rs := randomkit.NewRandomkitSource(42)
-	NSamples := 178
-	ind := make([]int, NSamples)
-	for i := range ind {
-		ind[i] = i
-	}
-	permer := rand.New(rs)
-	ind = permer.Perm(178)
-	fmt.Println(ind)
+
+func _ExampleTrainTestSplit() {
+
+	features, target := datasets.LoadWine().GetXY()
+	RandomState := uint64(42)
+	_, _, Ytrain, Ytest := TrainTestSplit(features, target, .30, RandomState)
+	Ntrain, _ := Ytrain.Dims()
+	ytrain := make([]float64, Ntrain)
+	mat.Col(ytrain, 0, Ytrain)
+	fmt.Println(ytrain[:8])
+	Ntest, _ := Ytest.Dims()
+	ytest := make([]float64, Ntest)
+	mat.Col(ytest, 0, Ytest)
+	fmt.Println(ytest[:8])
+
 	// Output:
+	//[2 1 1 0 1 0 2 1]
+	//[0 0 2 0 1 0 1 2]
+}
+
+func ExampleTrainTestSplit() {
+	/*
+	   >>> import numpy as np
+	   >>> from sklearn.model_selection import train_test_split
+	   >>> X, y = np.arange(10).reshape((5, 2)), range(5)
+	   >>> X_train, X_test, y_train, y_test = train_test_split(
+	   ...     X, y, test_size=0.33, random_state=42)
+	   ...
+	   >>> X_train
+	   array([[4, 5],
+	          [0, 1],
+	          [6, 7]])
+	   >>> y_train
+	   [2, 0, 3]
+	   >>> X_test
+	   array([[2, 3],
+	          [8, 9]])
+	   >>> y_test
+	   [1, 4]
+
+	*/
+	X := mat.NewDense(5, 2, []float64{0, 1, 2, 3, 4, 5, 6, 7, 8, 9})
+	Y := mat.NewDense(5, 1, []float64{0, 1, 2, 3, 4})
+	RandomState := uint64(42)
+	Xtrain, Xtest, Ytrain, Ytest := TrainTestSplit(X, Y, .33, RandomState)
+	fmt.Printf("X_train:\n%g\n", mat.Formatted(Xtrain))
+	fmt.Printf("Y_train:\n%g\n", mat.Formatted(Ytrain))
+	fmt.Printf("X_test:\n%g\n", mat.Formatted(Xtest))
+	fmt.Printf("Y_test:\n%g\n", mat.Formatted(Ytest))
+
+	// Output:
+	//X_train:
+	//⎡4  5⎤
+	//⎢0  1⎥
+	//⎣6  7⎦
+	//Y_train:
+	//⎡2⎤
+	//⎢0⎥
+	//⎣3⎦
+	//X_test:
+	//⎡2  3⎤
+	//⎣8  9⎦
+	//Y_test:
+	//⎡1⎤
+	//⎣4⎦
+
 }

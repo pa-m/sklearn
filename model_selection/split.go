@@ -1,12 +1,10 @@
 package modelselection
 
 import (
-	"github.com/pa-m/sklearn/base"
 	"math"
-	"sort"
 
+	"github.com/pa-m/sklearn/base"
 	"golang.org/x/exp/rand"
-
 	"gonum.org/v1/gonum/mat"
 )
 
@@ -41,7 +39,7 @@ func (splitter *KFold) SplitterClone() Splitter {
 	}
 	clone := *splitter
 	if sourceCloner, ok := clone.RandomState.(base.SourceCloner); ok && sourceCloner != base.SourceCloner(nil) {
-		clone.RandomState = sourceCloner.Clone()
+		clone.RandomState = sourceCloner.SourceClone()
 	}
 	return &clone
 }
@@ -114,29 +112,33 @@ func (splitter *KFold) GetNSplits(X, Y *mat.Dense) int {
 
 // TrainTestSplit splits X and Y into test set and train set
 // testsize must be between 0 and 1
-// it does'nt yet produce same sets than scikit-learn du to a different shuffle method
+// it produce same sets than scikit-learn
 func TrainTestSplit(X, Y mat.Matrix, testsize float64, randomstate uint64) (Xtrain, Xtest, ytrain, ytest *mat.Dense) {
 	NSamples, NFeatures := X.Dims()
 	_, NOutputs := Y.Dims()
 	var testlen int
 	if testsize > 1 {
-		testlen = int(math.Round(math.Min(float64(NSamples), testsize)))
+		testlen = int(math.Ceil(math.Min(float64(NSamples), testsize)))
 	} else {
-		testlen = int(math.Round(float64(NSamples) * testsize))
+		testlen = int(math.Ceil(float64(NSamples) * testsize))
 	}
 	Xtest = mat.NewDense(testlen, NFeatures, nil)
 	ytest = mat.NewDense(testlen, NOutputs, nil)
 	Xtrain = mat.NewDense(NSamples-testlen, NFeatures, nil)
 	ytrain = mat.NewDense(NSamples-testlen, NOutputs, nil)
 	src := base.NewLockedSource(randomstate)
-	shuffler := rand.New(src)
-	ind := make([]int, NSamples)
-	for i := range ind {
-		ind[i] = i
-	}
-	//shuffle ind
-	slice := sort.IntSlice(ind)
-	shuffler.Shuffle(slice.Len(), slice.Swap)
+
+	var ind []int
+	src.WithLock(func(src base.Source) {
+		permer, ok := src.(base.Permer)
+		if !ok {
+			panic("Source does not implement Perm")
+		}
+		{
+			ind = permer.Perm(NSamples)
+		}
+
+	})
 	for i := 0; i < NSamples; i++ {
 		j := ind[i]
 		if i < testlen {

@@ -3,21 +3,17 @@ package base
 import (
 	"sync"
 
-	"golang.org/x/exp/rand"
-
 	"github.com/pa-m/randomkit"
+	"golang.org/x/exp/rand"
 )
 
 // A Source represents a source of uniformly-distributed
 // pseudo-random int64 values in the range [0, 1<<64).
-type Source interface {
-	Uint64() uint64
-	Seed(seed uint64)
-}
+type Source = rand.Source
 
 // SourceCloner is an "golang.org/x/exp/rand".Source with a Clone method
 type SourceCloner interface {
-	Clone() rand.Source
+	SourceClone() Source
 }
 
 // RandomState represents a bit more than random_state pythonic attribute. it's not only a seed but a source with a state as it's name states
@@ -34,7 +30,14 @@ func NewSource(seed uint64) *randomkit.RKState {
 // It is just a standard Source with its operations protected by a sync.Mutex.
 type LockedSource struct {
 	lk  sync.Mutex
-	src Source
+	src *randomkit.RKState
+}
+
+// WithLock executes f while s is locked
+func (s *LockedSource) WithLock(f func(Source)) {
+	s.lk.Lock()
+	f(s.src)
+	s.lk.Unlock()
 }
 
 // Uint64 ...
@@ -52,9 +55,9 @@ func (s *LockedSource) Seed(seed uint64) {
 	s.lk.Unlock()
 }
 
-// Clone ...
-func (s *LockedSource) Clone() rand.Source {
-	return &LockedSource{src: s.src.(SourceCloner).Clone()}
+// SourceClone ...
+func (s *LockedSource) SourceClone() Source {
+	return &LockedSource{src: s.src.SourceClone().(*randomkit.RKState)}
 }
 
 // NewLockedSource returns a rand.Source safe for concurrent access
@@ -77,4 +80,14 @@ type NormFloat64er interface {
 // Intner is implemented by a random source having a method Intn() float64
 type Intner interface {
 	Intn(int) int
+}
+
+// Permer is implemented by a random source having a method Perm(int) []int
+type Permer interface {
+	Perm(int) []int
+}
+
+// Shuffler  is implemented by a random source having a method Shuffle(int,func(int,int))
+type Shuffler interface {
+	Shuffler(int, func(int, int))
 }

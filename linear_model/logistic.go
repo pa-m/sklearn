@@ -170,7 +170,7 @@ func NewLogisticRegression() *LogisticRegression {
 func (m *LogisticRegression) PredicterClone() base.Predicter {
 	clone := *m
 	if sc, ok := m.RandomState.(base.SourceCloner); ok {
-		clone.RandomState = sc.Clone()
+		clone.RandomState = sc.SourceClone()
 	}
 	return &clone
 }

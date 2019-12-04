@@ -21,7 +21,7 @@ func ExampleGaussianNB() {
 
 	unscaledClf := pipeline.MakePipeline(pca, gnb)
 	unscaledClf.Fit(Xtrain, Ytrain)
-	fmt.Printf("Prediction accuracy for the normal test dataset with PCA %.3f\n", unscaledClf.Score(Xtest, Ytest))
+	fmt.Printf("Prediction accuracy for the normal test dataset with PCA %.2f %%\n", 100*unscaledClf.Score(Xtest, Ytest))
 
 	std = preprocessing.NewStandardScaler()
 	pca = preprocessing.NewPCA()
@@ -30,9 +30,9 @@ func ExampleGaussianNB() {
 	clf := pipeline.MakePipeline(std, pca, gnb)
 	clf.Fit(Xtrain, Ytrain)
 	score := clf.Score(Xtest, Ytest)
-	fmt.Printf("Prediction accuracy for the standardized test dataset with PCA %.3f\n", score)
+	fmt.Printf("Prediction accuracy for the standardized test dataset with PCA %.2f %%\n", 100*score)
 	// Output:
-	//Prediction accuracy for the normal test dataset with PCA 0.925
-	//Prediction accuracy for the standardized test dataset with PCA 0.981
+	// Prediction accuracy for the normal test dataset with PCA 70.37 %
+	// Prediction accuracy for the standardized test dataset with PCA 98.15 %
 
 }

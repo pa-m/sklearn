@@ -37,7 +37,7 @@ func (mlp *MLPRegressor) PredicterClone() base.Predicter {
 	}
 	clone := *mlp
 	if sourceCloner, ok := clone.RandomState.(base.SourceCloner); ok && sourceCloner != base.SourceCloner(nil) {
-		clone.RandomState = sourceCloner.Clone()
+		clone.RandomState = sourceCloner.SourceClone()
 	}
 	return &clone
 }
