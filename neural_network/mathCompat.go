@@ -57,7 +57,7 @@ type blas64Vector = blas64.Vector
 type blasXXVector = blas32.Vector
 
 func dot32(n, xinc, yinc int, x, y []float32) float32 {
-	return blas32.Dot(n, blas32.Vector{Inc: xinc, Data: x}, blas32.Vector{Inc: yinc, Data: y})
+	return blas32.Dot(blas32.Vector{N: n, Inc: xinc, Data: x}, blas32.Vector{Inc: yinc, Data: y})
 }
 func dot64(n, xinc, yinc int, x, y []float64) float64 {
 	return blas64.Dot(blas64.Vector{N: n, Inc: xinc, Data: x}, blas64.Vector{N: n, Inc: yinc, Data: y})
@@ -69,7 +69,7 @@ var gemm64 = blas64.Gemm
 // axpy32 adds x scaled by alpha to y:
 //  y[i] += alpha*x[i] for all i.
 func axpy32(n int, alpha float32, X, Y []float32) {
-	blas32.Axpy(n, alpha, blas32.Vector{Inc: 1, Data: X}, blas32.Vector{Inc: 1, Data: Y})
+	blas32.Axpy(alpha, blas32.Vector{N: n, Inc: 1, Data: X}, blas32.Vector{N: n, Inc: 1, Data: Y})
 }
 
 // axpy64 adds x scaled by alpha to y:

@@ -11,7 +11,8 @@ require (
 	github.com/pa-m/randomkit v0.0.0-20191001073902-db4fd80633df
 	github.com/pkg/errors v0.8.1
 	golang.org/x/exp v0.0.0-20191129062945-2f5052295587
-	gonum.org/v1/gonum v0.0.0-20190929233944-b20cf7805fc4
+	golang.org/x/tools v0.0.0-20191204193430-660eba4da30b // indirect
+	gonum.org/v1/gonum v0.6.1
 	gonum.org/v1/plot v0.0.0-20190615073203-9aa86143727f
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
 	gorgonia.org/tensor v0.9.1

@@ -108,7 +108,7 @@ func ExampleGridSearchCV() {
 		Estimator: mlp,
 		ParamGrid: map[string][]interface{}{
 			"Alpha":       {1e-4, 2e-4, 5e-4, 1e-3},
-			"WeightDecay": {1e-4, 1e-5, 1e-6,1e-7,1e-8, 0},
+			"WeightDecay": {1e-4, 1e-5, 1e-6, 5e-7, 2e-7, 1e-7, 5e-8, 2e-8, 1e-8, 0},
 		},
 		Scorer:             scorer,
 		LowerScoreIsBetter: true,
@@ -121,8 +121,8 @@ func ExampleGridSearchCV() {
 	// fmt.Println(gscv.CVResults["score"])
 
 	// Output:
-	// Alpha 0.0002
-	// WeightDecay 1e-06
+	//Alpha 0.0001
+	//WeightDecay 5e-08
 
 }
 

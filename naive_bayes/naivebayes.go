@@ -131,7 +131,7 @@ func (m *GaussianNB) PredicterClone() base.Predicter {
 
 //Fit fit Gaussian Naive Bayes according to X, y
 func (m *GaussianNB) Fit(X, Y mat.Matrix) base.Fiter {
-	var Yv mat.Vector = colAsVector(Y, 0)
+	var Yv = colAsVector(Y, 0)
 	m.PartialFit(X, Y, npUnique(Yv), true, m.SampleWeight)
 	return m
 }
