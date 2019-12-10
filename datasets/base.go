@@ -15,8 +15,8 @@ import (
 )
 
 var (
-	// Dir stores the resolved import path of github.com/pa-m/sklearn
-	Dir string
+	// dir stores the resolved local path of github.com/pa-m/sklearn
+	dir string
 )
 
 func init() {
@@ -24,7 +24,7 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
-	Dir = pkg.Dir
+	dir = pkg.Dir
 }
 
 // MLDataset structure returned by LoadIris,LoadBreastCancer,LoadDiabetes,LoadBoston
@@ -100,7 +100,7 @@ func (ds *MLDataset) GetXY() (X, Y *mat.Dense) {
 }
 
 func localPath(s string) string {
-	p := strings.Split(Dir, string(filepath.ListSeparator))[0]
+	p := strings.Split(dir, string(filepath.ListSeparator))[0]
 	return filepath.Join(p, s)
 }
 
