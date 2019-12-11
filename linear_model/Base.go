@@ -623,7 +623,7 @@ func PreprocessData(X, Y *mat.Dense, FitIntercept, Normalize bool, SampleWeight 
 				Xout.Copy(X)
 			}
 			scale := 1.
-			if Normalize {
+			if FitIntercept && Normalize {
 				scale = mat.Norm(Xout.ColView(feature), 2)
 				if scale != 0. {
 					for jXout := 0; jXout < Xoutmat.Rows*Xoutmat.Stride; jXout = jXout + Xoutmat.Stride {
