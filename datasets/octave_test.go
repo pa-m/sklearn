@@ -2,7 +2,6 @@ package datasets
 
 import (
 	"math"
-	"os"
 	"testing"
 
 	"gonum.org/v1/gonum/floats"
@@ -11,7 +10,8 @@ import (
 
 func TestLoadOctaveBin(t *testing.T) {
 	// v https://lists.gnu.org/archive/html/help-octave/2004-11/msg00068.html
-	filename := os.Getenv("GOPATH") + "/src/github.com/pa-m/sklearn/datasets/data/ex4data1.dat.gz"
+	// dir variable has the local path of the package and gets initialized in the base.go file
+	filename := dir + "/datasets/data/ex4data1.dat.gz"
 	mats := LoadOctaveBin(filename)
 	if _, ok := mats["y"]; !ok {
 		t.Errorf("no y")
