@@ -87,11 +87,11 @@ func (m *KNeighborsClassifier) _predict(X, Y *mat.Dense, wantProba bool) *KNeigh
 	}
 	NX, _ := X.Dims()
 
-	NCPU := runtime.NumCPU()
+	NPROCS := runtime.GOMAXPROCS(0)
 	isWeightDistance := m.Weight == "distance"
 	distances, indices := m.KNeighbors(X, m.K)
 
-	base.Parallelize(NCPU, NX, func(th, start, end int) {
+	base.Parallelize(NPROCS, NX, func(th, start, end int) {
 		epsilon := 1e-15
 		weights := make([]float64, m.K)
 		sumweights := 0.

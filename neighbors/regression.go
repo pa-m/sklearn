@@ -3,7 +3,6 @@ package neighbors
 import (
 	"fmt"
 	"runtime"
-	"sort"
 
 	"github.com/pa-m/sklearn/base"
 	"github.com/pa-m/sklearn/metrics"
@@ -17,8 +16,9 @@ import (
 // associated of the nearest neighbors in the training set.
 type KNeighborsRegressor struct {
 	NearestNeighbors
-	K        int
-	Weight   string
+	K int
+	// Weights may be "uniform", "distance" or func(dstWeights, srcDists []float64)
+	Weights  interface{}
 	Scale    bool
 	Distance Distance
 	// Runtime members
@@ -26,8 +26,9 @@ type KNeighborsRegressor struct {
 }
 
 // NewKNeighborsRegressor returns an initialized *KNeighborsRegressor
-func NewKNeighborsRegressor(K int, Weights string) base.Predicter {
-	return &KNeighborsRegressor{NearestNeighbors: *NewNearestNeighbors(), K: K, Weight: Weights}
+// Weights may be "uniform", "distance" or func(dist []float64) []float64
+func NewKNeighborsRegressor(K int, Weights interface{}) base.Predicter {
+	return &KNeighborsRegressor{NearestNeighbors: *NewNearestNeighbors(), K: K, Weights: Weights}
 }
 
 // PredicterClone return a (possibly unfitted) copy of predicter
@@ -65,37 +66,43 @@ func (m *KNeighborsRegressor) Predict(X mat.Matrix, Ymutable mat.Mutable) *mat.D
 		*Y = *mat.NewDense(nSamples, m.GetNOutputs(), nil)
 	}
 
-	NFitSamples, _ := m.Xscaled.Dims()
 	NX, _ := X.Dims()
 	_, outputs := m.Y.Dims()
 
-	NCPU := runtime.NumCPU()
-	isWeightDistance := m.Weight == "distance"
+	NPROCS := runtime.GOMAXPROCS(0)
+	var isWeightDistance bool
+	type wfntype = func(dstWeights, srcDists []float64)
+	var wfn wfntype
+	if weightsstr, ok := m.Weights.(string); ok && weightsstr == "distance" {
+		isWeightDistance = true
+	} else if tmpfn, ok := m.Weights.(wfntype); ok {
+		wfn = tmpfn
+	}
+
 	distances, indices := m.KNeighbors(X, m.K)
 
-	base.Parallelize(NCPU, NX, func(th, start, end int) {
-		d2 := make([]float64, NFitSamples)
-		idx := make([]int, NFitSamples)
+	base.Parallelize(NPROCS, NX, func(th, start, end int) {
 		weights := make([]float64, m.K)
+		dists := make([]float64, m.K)
 		ys := make([]float64, m.K)
 		epsilon := 1e-15
 		for ik := range weights {
 			weights[ik] = 1.
 		}
 		for sample := start; sample < end; sample++ {
-			// sort idx to get first K nearest
-			sort.Slice(idx, func(i, j int) bool { return d2[idx[i]] < d2[idx[j]] })
 			// set Y(sample,output) to weighted average of K nearest
+			mat.Row(dists, sample, distances)
 			for o := 0; o < outputs; o++ {
 				for ik := range ys {
 					ys[ik] = m.Y.At(int(indices.At(sample, ik)), o)
-					if isWeightDistance {
-						weights[ik] = 1. / (epsilon + distances.At(sample, ik))
+					if wfn != nil {
+						wfn(weights, dists)
+					} else if isWeightDistance {
+						weights[ik] = 1. / (epsilon + dists[ik])
 					}
 				}
 				Y.Set(sample, o, stat.Mean(ys, weights))
 			}
-
 		}
 	})
 	return base.FromDense(Ymutable, Y)

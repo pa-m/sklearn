@@ -9,7 +9,7 @@ require (
 	github.com/kr/pretty v0.1.0 // indirect
 	github.com/pa-m/optimize v0.0.0-20190612075243-15ee852a6d9a
 	github.com/pa-m/randomkit v0.0.0-20191001073902-db4fd80633df
-	github.com/pkg/errors v0.8.1
+	github.com/pkg/errors v0.9.0
 	golang.org/x/exp v0.0.0-20191129062945-2f5052295587
 	golang.org/x/tools v0.0.0-20191204193430-660eba4da30b // indirect
 	gonum.org/v1/gonum v0.6.1
