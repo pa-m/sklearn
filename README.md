@@ -8,7 +8,7 @@ Partial port of scikit-learn to [go](http://golang.org)
 [![Go Report Card](https://goreportcard.com/badge/github.com/pa-m/sklearn)](https://goreportcard.com/report/github.com/pa-m/sklearn)
 [![GoDoc](https://godoc.org/github.com/pa-m/sklearn?status.svg)](https://godoc.org/github.com/pa-m/sklearn)
 [![twitter](https://img.shields.io/twitter/follow/pmassch2.svg?style=social)](https://twitter.com/intent/follow?screen_name=pmassch2)
-[![codewars](https://www.codewars.com/users/pa-m/badges/micro)]
+![codewars](https://www.codewars.com/users/pa-m/badges/micro)
 
 ## Examples
 
