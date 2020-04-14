@@ -8,7 +8,8 @@ import (
 	"gonum.org/v1/gonum/floats"
 
 	"gonum.org/v1/gonum/mat"
-	t "gorgonia.org/tensor"
+	//t "gorgonia.org/tensor"
+	t "github.com/pa-m/sklearn/gaussian_process/tensor"
 )
 
 // hyperparameter specification

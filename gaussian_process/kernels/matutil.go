@@ -3,7 +3,8 @@ package kernels
 import (
 	"fmt"
 	"gonum.org/v1/gonum/mat"
-	"gorgonia.org/tensor"
+	//"gorgonia.org/tensor"
+	"github.com/pa-m/sklearn/gaussian_process/tensor"
 	"math"
 )
 

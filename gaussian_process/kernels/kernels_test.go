@@ -11,7 +11,8 @@ import (
 	"gonum.org/v1/gonum/mat"
 
 	"github.com/pa-m/randomkit"
-	"gorgonia.org/tensor"
+	//"gorgonia.org/tensor"
+	"github.com/pa-m/sklearn/gaussian_process/tensor"
 )
 
 var _ = []Kernel{&ConstantKernel{}, &WhiteKernel{}, &RBF{}, &DotProduct{}, &Sum{}, &Product{}, &Exponentiation{}}
