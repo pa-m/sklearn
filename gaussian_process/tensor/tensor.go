@@ -1,3 +1,4 @@
+// Package tensor ...
 // very simplified tensor with interface compatible with gorgonia.org/tensor
 package tensor
 
@@ -12,6 +13,7 @@ type Dtype = reflect.Kind
 // Float64 is element type
 var Float64 = reflect.Float64
 
+// Shape ...
 type Shape []int
 
 // Dense is a dense tensor
@@ -37,11 +39,11 @@ type Iterator interface {
 // Option can be passed to NewDense ex: WithBacking
 type Option func(t *Dense)
 
-// EndReachedError is returned by iterator when at ane
-var EndReachedError = errors.New("at end")
+// ErrEndReached is returned by iterator when at ane
+var ErrEndReached = errors.New("at end")
 
-// IndexError is returned by At when out of bounds
-var IndexError = errors.New("index out of bounds")
+// ErrIndexOutOfBounds is returned by At when out of bounds
+var ErrIndexOutOfBounds = errors.New("index out of bounds")
 
 // DenseIterator is returned by Dense.Iterator
 type DenseIterator struct {
@@ -53,7 +55,7 @@ type DenseIterator struct {
 func (it *DenseIterator) Start() (i int, e error) {
 	i = it.index
 	if i >= len(it.t.data.([]float64)) {
-		e = EndReachedError
+		e = ErrEndReached
 	}
 	it.index++
 	return i, e
@@ -63,7 +65,7 @@ func (it *DenseIterator) Start() (i int, e error) {
 func (it *DenseIterator) Next() (i int, e error) {
 	i = it.index
 	if i >= len(it.t.data.([]float64)) {
-		e = EndReachedError
+		e = ErrEndReached
 	}
 	it.index++
 	return i, e
@@ -80,7 +82,7 @@ func (t *Dense) At(args ...int) (v interface{}, e error) {
 	var pos int
 	for dim, index := range args {
 		if index < 0 || index >= t.shape[dim] {
-			return nil, IndexError
+			return nil, ErrIndexOutOfBounds
 		}
 		pos += index * t.strides[dim]
 	}
@@ -97,6 +99,8 @@ func (t *Dense) Data() interface{} { return t.data }
 
 // Iterator returns a flat iterator
 func (t *Dense) Iterator() Iterator { return &DenseIterator{t: t} }
+
+// NewDense ...
 func NewDense(ty Dtype, s Shape, args ...Option) *Dense {
 	st := make(Shape, len(s))
 	sz := 1
